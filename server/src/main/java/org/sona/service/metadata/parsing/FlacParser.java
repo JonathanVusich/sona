@@ -1,8 +1,10 @@
 package org.sona.service.metadata.parsing;
 
 import org.apache.commons.compress.utils.BitInputStream;
+import org.sona.format.Format;
+import org.sona.format.MD5Checksum;
+import org.sona.format.TrackMetadata;
 import org.sona.format.flac.*;
-import org.sona.format.flac.FileMetadata;
 import org.sona.model.exception.InvalidFormatException;
 
 import java.io.DataInputStream;
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.time.Year;
 import java.util.*;
 
 public final class FlacParser implements Parser {
@@ -17,7 +20,49 @@ public final class FlacParser implements Parser {
     private static final byte[] FLAC_HEADER = "fLaC".getBytes(StandardCharsets.US_ASCII);
 
     @Override
-    public FileMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+    public Format format() {
+        return Format.FLAC;
+    }
+
+    @Override
+    public TrackMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+        final var rawMetadata = parseAllMetadata(inputStream);
+        final var commentBlocks = rawMetadata.metadataBlocks().get(BlockType.VORBIS_COMMENT);
+        final var comments = commentBlocks.stream()
+                .filter(VorbisComment.class::isInstance)
+                .map(VorbisComment.class::cast)
+                .toList();
+
+        final var artists = new ArrayList<String>();
+        final var mbArtists = new ArrayList<UUID>();
+        final var mbReleaseArtists = new ArrayList<UUID>();
+        final var metadataBuilder = TrackMetadata.builder();
+
+        for (final var comment : comments) {
+            for (final var field : comment.fields()) {
+                switch (field.name().toLowerCase()) {
+                    case "artist" -> artists.add(field.content());
+                    case "title" -> metadataBuilder.track(field.content());
+                    case "album" -> metadataBuilder.release(field.content());
+                    case "tracknumber" -> metadataBuilder.trackNumber(Integer.parseInt(field.content()));
+                    case "originalyear" -> metadataBuilder.releaseYear(Year.parse(field.content()));
+                    case "musicbrainz_trackid" -> metadataBuilder.mbTrack(UUID.fromString(field.content()));
+                    case "musicbrainz_releasetrackid" -> metadataBuilder.mbReleaseTrack(UUID.fromString(field.content()));
+                    case "musicbrainz_albumid" -> metadataBuilder.mbRelease(UUID.fromString(field.content()));
+                    case "musicbrainz_artistid" -> mbArtists.add(UUID.fromString(field.content()));
+                    case "musicbrainz_albumartistid" -> mbReleaseArtists.add(UUID.fromString(field.content()));
+                    case "musicbrainz_releasegroupid" -> metadataBuilder.mbReleaseGroup(UUID.fromString(field.content()));
+                }
+            }
+        }
+
+        return metadataBuilder.artists(artists)
+                .mbArtists(mbArtists)
+                .mbReleaseArtists(mbReleaseArtists)
+                .build();
+    }
+
+    FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
         final var dataStream = new DataInputStream(inputStream);
         // Validate FLAC header
         validateFlacHeader(dataStream);
@@ -31,11 +76,11 @@ public final class FlacParser implements Parser {
             }
         }
 
-        return new FileMetadata(metadataBlocks);
+        return new FlacMetadata(metadataBlocks);
     }
 
     private StreamInfo readStreamInfo(final DataInputStream inputStream,
-                                      final BlockHeader header) throws IOException, InvalidFormatException {
+                                      final BlockHeader header) throws IOException {
         final var bitInputStream = new BitInputStream(inputStream, ByteOrder.BIG_ENDIAN);
 
         final int minBlockSize = (int) bitInputStream.readBits(16);

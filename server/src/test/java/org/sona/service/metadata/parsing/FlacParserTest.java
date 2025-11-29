@@ -12,11 +12,12 @@ class FlacParserTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"sample-3.flac", "lucas_floyd_canyon.flac"})
-    void parseFlacHeader(String file) throws IOException, InvalidFormatException {
-        final var resource = FlacParserTest.class.getResourceAsStream(file);
+    void parseAllMetadataFlacHeader(String file) throws IOException, InvalidFormatException {
         final var flacParser = new FlacParser();
-        final var result = flacParser.parse(resource);
+        final var result = flacParser.parseAllMetadata(FlacParserTest.class.getResourceAsStream(file));
+        final var trackMetadata = flacParser.parse(FlacParserTest.class.getResourceAsStream(file));
 
         assertThat(result).isNotNull();
+        assertThat(trackMetadata).isNotNull();
     }
 }
