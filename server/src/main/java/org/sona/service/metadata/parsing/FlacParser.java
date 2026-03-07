@@ -3,9 +3,10 @@ package org.sona.service.metadata.parsing;
 import org.apache.commons.compress.utils.BitInputStream;
 import org.sona.format.Format;
 import org.sona.format.MD5Checksum;
-import org.sona.format.TrackMetadata;
 import org.sona.format.flac.*;
-import org.sona.model.exception.InvalidFormatException;
+import org.sona.metadata.RawMetadata;
+import org.sona.metadata.Tag;
+import org.sona.exception.InvalidFormatException;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -25,41 +26,32 @@ public final class FlacParser implements Parser {
     }
 
     @Override
-    public TrackMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
-        final var rawMetadata = parseAllMetadata(inputStream);
-        final var commentBlocks = rawMetadata.metadataBlocks().get(BlockType.VORBIS_COMMENT);
+    public RawMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+        final var flacMetadata = parseAllMetadata(inputStream);
+        final var commentBlocks = flacMetadata.metadataBlocks().get(BlockType.VORBIS_COMMENT);
         final var comments = commentBlocks.stream()
                 .filter(VorbisComment.class::isInstance)
                 .map(VorbisComment.class::cast)
                 .toList();
 
-        final var artists = new ArrayList<String>();
-        final var mbArtists = new ArrayList<UUID>();
-        final var mbReleaseArtists = new ArrayList<UUID>();
-        final var metadataBuilder = TrackMetadata.builder();
+        final var rawMetadata = new RawMetadata();
 
         for (final var comment : comments) {
             for (final var field : comment.fields()) {
                 switch (field.name().toLowerCase()) {
-                    case "artist" -> artists.add(field.content());
-                    case "title" -> metadataBuilder.track(field.content());
-                    case "album" -> metadataBuilder.release(field.content());
-                    case "tracknumber" -> metadataBuilder.trackNumber(Integer.parseInt(field.content()));
-                    case "originalyear" -> metadataBuilder.releaseYear(Year.parse(field.content()));
-                    case "musicbrainz_trackid" -> metadataBuilder.mbTrack(UUID.fromString(field.content()));
-                    case "musicbrainz_releasetrackid" -> metadataBuilder.mbReleaseTrack(UUID.fromString(field.content()));
-                    case "musicbrainz_albumid" -> metadataBuilder.mbRelease(UUID.fromString(field.content()));
-                    case "musicbrainz_artistid" -> mbArtists.add(UUID.fromString(field.content()));
-                    case "musicbrainz_albumartistid" -> mbReleaseArtists.add(UUID.fromString(field.content()));
-                    case "musicbrainz_releasegroupid" -> metadataBuilder.mbReleaseGroup(UUID.fromString(field.content()));
+                    case "artist" -> rawMetadata.add(Tag.ARTIST, field.content());
+                    case "title" -> rawMetadata.add(Tag.TRACK_TITLE, field.content());
+                    case "album" -> rawMetadata.add(Tag.RELEASE_TITLE, field.content());
+                    case "tracknumber" -> rawMetadata.add(Tag.TRACK_NUMBER, Integer.parseInt(field.content()));
+                    case "discnumber" -> rawMetadata.add(Tag.DISC_NUMBER, Integer.parseInt(field.content()));
+                    case "originalyear" -> rawMetadata.add(Tag.RELEASE_YEAR, Year.parse(field.content()).getValue());
+                    case "composer" -> rawMetadata.add(Tag.COMPOSER, field.content());
+                    default -> rawMetadata.add(field.name().toLowerCase(), field.content());
                 }
             }
         }
 
-        return metadataBuilder.artists(artists)
-                .mbArtists(mbArtists)
-                .mbReleaseArtists(mbReleaseArtists)
-                .build();
+        return rawMetadata;
     }
 
     FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {

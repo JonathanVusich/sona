@@ -1,4 +1,4 @@
-create table if not exists artist (
+create table if not exists artists (
     artist_id uuid primary key,
 
     name text,

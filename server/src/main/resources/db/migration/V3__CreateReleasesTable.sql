@@ -1,4 +1,4 @@
-create table if not exists release (
+create table if not exists releases (
     release_id uuid primary key,
 
     name text,

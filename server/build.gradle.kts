@@ -36,7 +36,7 @@ repositories {
 
 flyway {
     url = "jdbc:postgresql://localhost:5432/sona"
-    user = "sona"
+    user = "postgres"
     password = "12345"
     placeholders = mapOf(
         "schema" to "sona",
@@ -84,7 +84,7 @@ jooq {
                 jdbc {
                     driver = "org.postgresql.Driver"
                     url = "jdbc:postgresql://localhost:5432/sona"
-                    user = "sona"
+                    user = "postgres"
                     password = "12345"
                     properties {
                         property {

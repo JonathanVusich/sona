@@ -1,4 +1,4 @@
-package org.sona.db;
+package org.sona.model;
 
 public enum IngestState {
     PENDING,

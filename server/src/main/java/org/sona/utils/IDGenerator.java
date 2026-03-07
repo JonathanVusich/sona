@@ -6,9 +6,9 @@ import lombok.experimental.UtilityClass;
 import java.util.UUID;
 
 @UtilityClass
-public final class ID {
+public final class IDGenerator {
 
-    public static UUID v7() {
+    public static UUID uuidv7() {
         return Generators.timeBasedEpochGenerator().generate();
     }
 }

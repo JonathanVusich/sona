@@ -2,7 +2,7 @@ package org.sona.service.metadata.parsing;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.sona.model.exception.InvalidFormatException;
+import org.sona.exception.InvalidFormatException;
 
 import java.io.IOException;
 
