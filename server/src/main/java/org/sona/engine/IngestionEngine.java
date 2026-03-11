@@ -1,7 +1,7 @@
 package org.sona.engine;
 
 import org.sona.exception.InvalidFormatException;
-import org.sona.model.tables.pojos.TrackIngest;
+import org.sona.model.tables.pojos.TrackToIngest;
 
 import java.io.IOException;
 
@@ -11,5 +11,5 @@ import java.io.IOException;
  */
 public interface IngestionEngine {
 
-    void processTrack(TrackIngest trackToIngest) throws InvalidFormatException, IOException;
+    void processTrack(TrackToIngest trackToIngest) throws InvalidFormatException, IOException;
 }

@@ -5,10 +5,11 @@ import org.apache.commons.io.FilenameUtils;
 import org.jooq.DSLContext;
 import org.sona.library.Library;
 import org.sona.metadata.resolver.MetadataResolver;
+import org.sona.model.Tables;
+import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
 import org.sona.exception.InvalidFormatException;
-import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.TrackIngest;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.service.metadata.parsing.FlacParser;
 import org.sona.service.metadata.parsing.Parser;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,6 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static java.util.stream.Collectors.toMap;
 import static org.sona.model.tables.Track.TRACK;
-import static org.sona.model.tables.TrackIngest.TRACK_INGEST;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +38,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final DSLContext dsl;
 
     @Override
-    public void processTrack(final TrackIngest trackToIngest) throws InvalidFormatException, IOException {
+    public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException {
         final var extension = FilenameUtils.getExtension(trackToIngest.originalFileName());
         final var parser = PARSERS.get(extension);
         if (parser == null) {
@@ -52,9 +52,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
             // No MusicBrainz track info present!
             if (track == null) {
-                dsl.update(TRACK_INGEST)
-                        .set(TRACK_INGEST.STATE, IngestState.INPUT_REQUIRED)
-                        .where(TRACK_INGEST.TRACK_INGEST_ID.eq(trackToIngest.trackIngestId()))
+                dsl.update(Tables.TRACK_TO_INGEST)
+                        .set(Tables.TRACK_TO_INGEST.STATE, IngestState.INPUT_REQUIRED)
+                        .where(Tables.TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngest.trackIngestId()))
                         .execute();
 
                 // TODO: Refactor to support multiple metadata providers using plugins
@@ -80,6 +80,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             // We successfully imported the metadata.
             // The track should be copied into the library
             library.importTrack(trackToIngest, updatedTrack);
+
         }
     }
 

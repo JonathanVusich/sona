@@ -1,4 +1,12 @@
-import org.jooq.meta.kotlin.*
+//import org.jooq.meta.kotlin.configuration
+//import org.jooq.meta.kotlin.database
+//import org.jooq.meta.kotlin.forcedTypes
+//import org.jooq.meta.kotlin.generate
+//import org.jooq.meta.kotlin.generator
+//import org.jooq.meta.kotlin.jdbc
+//import org.jooq.meta.kotlin.properties
+//import org.jooq.meta.kotlin.property
+//import org.jooq.meta.kotlin.target
 
 buildscript {
     repositories {
@@ -16,13 +24,19 @@ buildscript {
 plugins {
     id("java")
     id("org.springframework.boot").version("4.0.0-RC2")
-    id("nu.studer.jooq").version("10.1.1")
+    id("org.jooq.jooq-codegen-gradle").version("3.19.27")
     id("org.flywaydb.flyway").version("11.16.0")
 }
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25;
     targetCompatibility = JavaVersion.VERSION_25;
+}
+
+sourceSets {
+    main {
+        java.srcDir("build/generated-src/jooq/main")
+    }
 }
 
 apply(plugin = "io.spring.dependency-management")
@@ -38,6 +52,7 @@ flyway {
     url = "jdbc:postgresql://localhost:5432/sona"
     user = "postgres"
     password = "12345"
+    defaultSchema = "sona"
     placeholders = mapOf(
         "schema" to "sona",
         "user" to "sona"
@@ -54,7 +69,7 @@ dependencies {
 
     runtimeOnly("org.postgresql:postgresql:42.7.7")
 
-    jooqGenerator("org.postgresql:postgresql:42.7.7")
+    jooqCodegen("org.postgresql:postgresql:42.7.7")
 
     // Lombok
     compileOnly("org.projectlombok:lombok:1.18.42")
@@ -63,87 +78,55 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
 
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // https://mvnrepository.com/artifact/org.assertj/assertj-core
-    testImplementation("org.assertj:assertj-core:3.27.6")
+    testImplementation("org.assertj:assertj-core:3.27.7")
 }
 
 jooq {
-    version.set("3.19.27")
-    edition.set(nu.studer.gradle.jooq.JooqEdition.OSS)
-
-    configurations {
-        create("main") {  // name of the jOOQ configuration
-            generateSchemaSourceOnCompilation.set(true)  // default (can be omitted)
-
-            jooqConfiguration {
-                logging = org.jooq.meta.jaxb.Logging.WARN
-                jdbc {
-                    driver = "org.postgresql.Driver"
-                    url = "jdbc:postgresql://localhost:5432/sona"
-                    user = "postgres"
-                    password = "12345"
-                    properties {
-                        property {
-                            key = "ssl"
-                            value = "false"
-                        }
-                    }
+    configuration {
+        jdbc {
+            driver = "org.postgresql.Driver"
+            url = "jdbc:postgresql://localhost:5432/sona"
+            user = "postgres"
+            password = "12345"
+            properties {
+                property {
+                    key = "ssl"
+                    value = "false"
                 }
-                generator {
-                    name = "org.jooq.codegen.DefaultGenerator"
-                    database {
-                        name = "org.jooq.meta.postgres.PostgresDatabase"
-                        inputSchema = "sona"
-                        excludes = "flyway_schema_history"
-                        forcedTypes {
-//                            forcedType {
-//                                name = "varchar"
-//                                includeExpression = ".*"
-//                                includeTypes = "JSONB?"
-//                            }
-//                            forcedType {
-//                                name = "varchar"
-//                                includeExpression = ".*"
-//                                includeTypes = "INET"
-//                            }
-                        }
-                    }
-                    generate {
-                        isDeprecated = false
-                        isPojosAsJavaRecordClasses = true
-                        isPojos = true
-                        isPojosEqualsAndHashCode = false
-                        isPojosToString = false
-                        isSerializablePojos = false
-                        isFluentSetters = true
-                        isDaos = true
-                        isSpringAnnotations = true
-                        isSpringDao = true
-                    }
-                    target {
-                        packageName = "org.sona.model"
-                        directory = "build/generated-src/jooq/main"  // default (can be omitted)
-                    }
-                    strategy.name = "org.jooq.codegen.DefaultGeneratorStrategy"
-                }
+            }
+        }
+        logging = org.jooq.meta.jaxb.Logging.TRACE
+        generator {
+            database {
+                name = "org.jooq.meta.postgres.PostgresDatabase"
+                inputSchema = "sona"
+                includes = ".*"
+                excludes = "flyway_schema_history"
+            }
+            generate {
+                deprecated = false
+                pojosAsJavaRecordClasses = true
+                pojos = true
+                immutablePojos = true
+                pojosEqualsAndHashCode = false
+                interfaces = true
+            }
+            target {
+                packageName = "org.sona.model"
+                directory = "build/generated-src/jooq/main"  // default (can be omitted)
             }
         }
     }
 }
 
-tasks.named<nu.studer.gradle.jooq.JooqGenerate>("generateJooq") {
-    // ensure database schema has been prepared by Flyway before generating the jOOQ sources
+tasks.named("jooqCodegen") {
     dependsOn("flywayMigrate")
-    allInputsDeclared.set(true)
-    outputs.upToDateWhen{ false }
-
-    (launcher::set)(javaToolchains.launcherFor {
-        languageVersion.set(JavaLanguageVersion.of(25))
-    })
 }
 
 tasks.test {

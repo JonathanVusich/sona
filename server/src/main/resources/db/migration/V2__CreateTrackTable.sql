@@ -1,4 +1,4 @@
-create table if not exists tracks (
+create table if not exists track (
     track_id uuid primary key,
 
     name text not null,

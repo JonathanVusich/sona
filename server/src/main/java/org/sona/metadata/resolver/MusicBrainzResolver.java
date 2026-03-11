@@ -13,7 +13,6 @@ import java.util.Optional;
 public final class MusicBrainzResolver implements MetadataResolver {
 
     private final DSLContext dsl;
-    private final
 
     @Override
     public Optional<Track> resolveTrack(final RawMetadata metadata) {
