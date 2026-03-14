@@ -5,6 +5,7 @@ import org.sona.db.TrackToIngestDao;
 import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.records.TrackToIngestRecord;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ public final class DefaultLibrary implements Library {
 
         Files.copy(inputStream, ingestTarget);
 
-        final var trackIngest = new TrackToIngest(
+        final var trackIngest = new TrackToIngestRecord(
                 ingestTrackId,
                 ingestGroup,
                 filename,

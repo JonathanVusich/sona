@@ -66,8 +66,10 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
+    implementation("com.google.jimfs:jimfs:1.3.0")
 
     runtimeOnly("org.postgresql:postgresql:42.7.7")
+    testRuntimeOnly("org.postgresql:postgresql:42.7.7")
 
     jooqCodegen("org.postgresql:postgresql:42.7.7")
 
