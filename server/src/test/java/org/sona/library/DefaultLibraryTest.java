@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.sona.db.TrackToIngestDao;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.records.TrackToIngestRecord;
 import org.sona.samples.FlacSample;
 
@@ -33,7 +34,7 @@ class DefaultLibraryTest {
         final var groupId = uuidv7();
         final var sample = FlacSample.SAMPLE_3;
 
-        ArgumentCaptor<List<TrackToIngestRecord>> captor = ArgumentCaptor.captor();
+        ArgumentCaptor<List<TrackToIngest>> captor = ArgumentCaptor.captor();
 
         library.storeIngestTrack(groupId, sample.fileName(), sample.inputStream());
 

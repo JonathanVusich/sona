@@ -36,6 +36,7 @@ java {
 sourceSets {
     main {
         java.srcDir("build/generated-src/jooq/main")
+        java.srcDir("build/generated/sources/annotationProcessor/java")
     }
 }
 
@@ -67,6 +68,9 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
     implementation("com.google.jimfs:jimfs:1.3.0")
+
+    implementation("org.mapstruct:mapstruct:1.6.3")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
 
     runtimeOnly("org.postgresql:postgresql:42.7.7")
     testRuntimeOnly("org.postgresql:postgresql:42.7.7")
