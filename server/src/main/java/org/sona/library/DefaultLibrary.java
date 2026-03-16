@@ -1,6 +1,7 @@
 package org.sona.library;
 
 import lombok.RequiredArgsConstructor;
+import org.sona.config.LibraryConfig;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
@@ -29,14 +30,12 @@ import static org.sona.utils.IDGenerator.uuidv7;
  *       release[mbid] -
  *         track[mbid].[flac,mp3,wma]
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public final class DefaultLibrary implements Library {
 
     private final TrackToIngestDao trackIngestDao;
-
-    private final Path ingestFolder;
-    private final Path mediaFolder;
+    private final LibraryConfig config;
 
     @Override
     public void storeIngestTrack(final UUID ingestGroup,
@@ -44,8 +43,12 @@ public final class DefaultLibrary implements Library {
                                  final InputStream inputStream) throws IOException  {
         final UUID ingestTrackId = uuidv7();
 
+        final var ingestFolder = config.ingestFolder()
+                .resolve(ingestGroup.toString());
+
+        Files.createDirectories(ingestFolder);
+
         final var ingestTarget = ingestFolder
-                .resolve(ingestGroup.toString())
                 .resolve(ingestTrackId.toString());
 
         Files.copy(inputStream, ingestTarget);
@@ -88,7 +91,7 @@ public final class DefaultLibrary implements Library {
     }
 
     private Path resolveIngestTrack(TrackToIngest trackIngest) {
-        return ingestFolder.resolve(trackIngest.groupIngestId().toString()).resolve(trackIngest.trackIngestId().toString());
+        return config.ingestFolder().resolve(trackIngest.groupIngestId().toString()).resolve(trackIngest.trackIngestId().toString());
     }
 
     private static Path formatPath(UUID uuid, String name) {

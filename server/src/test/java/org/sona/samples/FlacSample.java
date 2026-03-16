@@ -3,7 +3,7 @@ package org.sona.samples;
 import java.io.InputStream;
 
 public enum FlacSample {
-    SAMPLE_3("sample_3.flac"),
+    SAMPLE_3("sample-3.flac"),
     LUCAS_FLOYD("lucas_floyd_canyon.flac");
 
     private final String fileName;

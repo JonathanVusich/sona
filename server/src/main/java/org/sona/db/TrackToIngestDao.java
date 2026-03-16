@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.TrackToIngestMapper;
 import org.sona.model.Tables;
+import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.records.TrackToIngestRecord;
@@ -30,6 +31,13 @@ public final class TrackToIngestDao {
 
         dsl.batchStore(records)
                 .execute();
+    }
+
+    public Stream<TrackToIngest> loadByGroup(UUID ingestGroupId) {
+        return dsl.selectFrom(Tables.TRACK_TO_INGEST)
+                .where(Tables.TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                .fetchStream()
+                .map(mapper::fromRecord);
     }
 
     public TrackToIngest load(UUID trackToIngestId) {

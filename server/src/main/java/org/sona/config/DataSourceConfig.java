@@ -1,10 +1,9 @@
 package org.sona.config;
 
-import org.jooq.impl.DataSourceConnectionProvider;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
+import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
 
@@ -12,6 +11,7 @@ import javax.sql.DataSource;
 public class DataSourceConfig {
 
     @Bean
+    @Primary
     public DataSource dataSource() {
         return DataSourceBuilder.create()
                 .driverClassName("org.postgresql.Driver")
@@ -19,10 +19,5 @@ public class DataSourceConfig {
                 .username("postgres")
                 .password("12345")
                 .build();
-    }
-
-    @Bean
-    public DataSourceConnectionProvider connectionProvider(DataSource dataSource) {
-        return new DataSourceConnectionProvider(new TransactionAwareDataSourceProxy(dataSource));
     }
 }

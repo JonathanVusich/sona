@@ -1,0 +1,3 @@
+library:
+  ingestFolder: "/ingest"
+  mediaFolder: "/media"
