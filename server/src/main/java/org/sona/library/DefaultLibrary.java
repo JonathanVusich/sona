@@ -1,7 +1,7 @@
 package org.sona.library;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.config.LibraryConfig;
+import org.sona.config.properties.LibraryProperties;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
@@ -16,7 +16,6 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -35,7 +34,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 public final class DefaultLibrary implements Library {
 
     private final TrackToIngestDao trackIngestDao;
-    private final LibraryConfig config;
+    private final LibraryProperties config;
 
     @Override
     public void storeIngestTrack(final UUID ingestGroup,
@@ -66,9 +65,7 @@ public final class DefaultLibrary implements Library {
     @Override
     public InputStream readIngestTrack(final TrackToIngest trackIngest) throws IOException {
         final var trackPath = resolveIngestTrack(trackIngest);
-        try (final var stream = Files.newInputStream(trackPath, StandardOpenOption.READ)) {
-            return stream;
-        }
+        return Files.newInputStream(trackPath, StandardOpenOption.READ);
     }
 
     @Override
@@ -76,25 +73,20 @@ public final class DefaultLibrary implements Library {
         final var trackPath = resolveIngestTrack(trackIngest);
         final var libraryPath = resolveLibraryTrack(metadata);
 
-        Files.copy(trackPath, libraryPath, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.ATOMIC_MOVE);
+        Files.copy(trackPath, libraryPath, StandardCopyOption.COPY_ATTRIBUTES);
+    }
+
+    @Override
+    public InputStream readTrack(final Track track) throws IOException {
+        final var libraryPath = resolveLibraryTrack(track);
+        return Files.newInputStream(libraryPath, StandardOpenOption.READ);
     }
 
     private Path resolveLibraryTrack(final Track trackMetadata) {
-        final var releasePath = new PathSegment(trackMetadata.releaseId(), trackMetadata.releaseName());
-
-        final var trackPath = new PathSegment(trackMetadata.musicbrainzReleaseId(), trackMetadata.musicbrainzReleaseName());
-
-        return Stream.of(releasePath, trackPath)
-                .map(PathSegment::path)
-                .reduce(Path::resolve)
-                .orElseThrow();
+        return new PathSegment(trackMetadata.releaseId(), trackMetadata.releaseName()).path();
     }
 
     private Path resolveIngestTrack(TrackToIngest trackIngest) {
         return config.ingestFolder().resolve(trackIngest.groupIngestId().toString()).resolve(trackIngest.trackIngestId().toString());
-    }
-
-    private static Path formatPath(UUID uuid, String name) {
-        return Path.of("%s[%s]".formatted(uuid, name));
     }
 }

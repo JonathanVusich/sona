@@ -14,4 +14,6 @@ public interface Library {
     InputStream readIngestTrack(TrackToIngest trackIngest) throws IOException;
 
     void importTrack(TrackToIngest trackIngest, Track targetTrack) throws IOException;
+
+    InputStream readTrack(Track track) throws IOException;
 }

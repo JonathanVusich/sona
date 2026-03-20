@@ -34,7 +34,6 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final Library library;
     private final MetadataResolver resolver;
 
-
     private final DSLContext dsl;
 
     @Override

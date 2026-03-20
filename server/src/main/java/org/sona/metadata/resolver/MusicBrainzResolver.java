@@ -16,6 +16,8 @@ public final class MusicBrainzResolver implements MetadataResolver {
 
     @Override
     public Optional<Track> resolveTrack(final RawMetadata metadata) {
+
         return Optional.empty();
+
     }
 }

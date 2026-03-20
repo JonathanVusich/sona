@@ -1,3 +1,5 @@
 library:
   ingestFolder: "/ingest"
   mediaFolder: "/media"
+musicbrainz:
+  url: "https://musicbrainz.org/ws/2/"
