@@ -101,9 +101,6 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
                 null
         );
     }

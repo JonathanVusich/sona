@@ -68,9 +68,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
             final var updatedTrack = dsl.insertInto(TRACK)
                     .set(record)
-                    .onConflict(TRACK.MUSICBRAINZ_TRACK_ID)
+                    .onConflict(TRACK.TRACK_ID)
                     .doUpdate()
-                    .set(TRACK.MUSICBRAINZ_TRACK_ID, TRACK.MUSICBRAINZ_TRACK_ID) // Keep the dummy update manually
+                    .set(TRACK.TRACK_ID, TRACK.TRACK_ID) // Keep the dummy update manually
                     .returning()
                     .fetchOneInto(Track.class);
 

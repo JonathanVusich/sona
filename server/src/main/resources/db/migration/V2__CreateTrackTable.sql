@@ -7,5 +7,5 @@ create table if not exists track (
     path text not null,
 
     artist_id uuid,
-    release_id uuid,
+    release_id uuid
 );
