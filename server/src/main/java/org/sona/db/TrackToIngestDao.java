@@ -4,10 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.TrackToIngestMapper;
 import org.sona.model.Tables;
-import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
-import org.sona.model.tables.records.TrackToIngestRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @SpringBootApplication
 @EnableConfigurationProperties({LibraryProperties.class})
 public class SonaServer {
+
     static void main(String[] args) {
         SpringApplication.run(SonaServer.class, args);
     }

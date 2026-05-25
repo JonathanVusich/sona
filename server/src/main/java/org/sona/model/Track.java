@@ -1,6 +1,5 @@
 package org.sona.model;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
 

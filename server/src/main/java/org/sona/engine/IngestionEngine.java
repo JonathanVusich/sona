@@ -11,5 +11,5 @@ import java.io.IOException;
  */
 public interface IngestionEngine {
 
-    void processTrack(TrackToIngest trackToIngest) throws InvalidFormatException, IOException;
+    void processTrack(TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException;
 }

@@ -3,15 +3,15 @@ package org.sona.engine;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.jooq.DSLContext;
+import org.sona.exception.InvalidFormatException;
+import org.sona.format.Parser;
+import org.sona.format.flac.Flac;
 import org.sona.library.Library;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.model.Tables;
 import org.sona.model.Track;
 import org.sona.model.enums.IngestState;
-import org.sona.exception.InvalidFormatException;
 import org.sona.model.tables.pojos.TrackToIngest;
-import org.sona.service.metadata.parsing.FlacParser;
-import org.sona.service.metadata.parsing.Parser;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import static org.sona.model.tables.Track.TRACK;
 public final class DefaultIngestionEngine implements IngestionEngine {
 
     private static final Map<String, Parser> PARSERS = Stream.of(
-            new FlacParser()
+            new Flac()
     ).flatMap(p -> p.format().getExtensions().stream().map(ext -> entry(ext, p)))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -37,7 +37,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final DSLContext dsl;
 
     @Override
-    public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException {
+    public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException {
         final var extension = FilenameUtils.getExtension(trackToIngest.originalFileName());
         final var parser = PARSERS.get(extension);
         if (parser == null) {
@@ -46,7 +46,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
         try (final var inputStream = library.readIngestTrack(trackToIngest)) {
             final var rawMetadata = parser.parse(inputStream);
-            final var track = resolver.resolveTrack(rawMetadata)
+            final var track = resolver.resolveTrack(trackToIngest, rawMetadata)
                     .orElse(null);
 
             // No MusicBrainz track info present!

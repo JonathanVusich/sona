@@ -8,7 +8,6 @@ import java.util.UUID;
 public record Recording(
         UUID id,
         String title,
-
         @JsonProperty("artist-credit-id")
         UUID artistCreditId,
         @JsonProperty("artist-credit")

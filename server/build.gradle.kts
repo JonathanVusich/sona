@@ -1,16 +1,7 @@
-//import org.jooq.meta.kotlin.configuration
-//import org.jooq.meta.kotlin.database
-//import org.jooq.meta.kotlin.forcedTypes
-//import org.jooq.meta.kotlin.generate
-//import org.jooq.meta.kotlin.generator
-//import org.jooq.meta.kotlin.jdbc
-//import org.jooq.meta.kotlin.properties
-//import org.jooq.meta.kotlin.property
-//import org.jooq.meta.kotlin.target
-
 buildscript {
     repositories {
         mavenCentral()
+        mavenLocal()
     }
     dependencies {
         // Add the Flyway PostgreSQL database module to the plugin's classpath
@@ -47,6 +38,7 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 flyway {
@@ -69,9 +61,7 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
     implementation("com.google.jimfs:jimfs:1.3.0")
-
-    implementation("org.mapstruct:mapstruct:1.6.3")
-    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+    implementation("dev.javax.bitstream:bitstream:1.0.0-RC")
 
     runtimeOnly("org.postgresql:postgresql:42.7.7")
     testRuntimeOnly("org.postgresql:postgresql:42.7.7")
@@ -81,6 +71,9 @@ dependencies {
     // Lombok
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
+
+    implementation("org.mapstruct:mapstruct:1.6.3")
+    annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
 
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")

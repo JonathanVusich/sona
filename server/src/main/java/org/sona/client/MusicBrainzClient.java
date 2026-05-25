@@ -2,6 +2,7 @@ package org.sona.client;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.EntityType;
+import org.sona.client.model.query.RecordingQuery;
 import org.sona.client.model.response.TrackResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriBuilderFactory;
@@ -23,8 +24,8 @@ public final class MusicBrainzClient {
     private final HttpClient httpClient;
     private final JsonMapper mapper;
 
-    public TrackResponse findTrack(String trackName) throws IOException, InterruptedException {
-        final var trackUri = formatTrackQuery(trackName);
+    public TrackResponse searchRecordings(RecordingQuery query) throws IOException, InterruptedException {
+        final var trackUri = formatTrackQuery(query);
 
         final var httpRequest = get()
                 .uri(trackUri)
@@ -34,11 +35,10 @@ public final class MusicBrainzClient {
         return mapper.readValue(response.body(), TrackResponse.class);
     }
 
-    private URI formatTrackQuery(final String trackName) {
-        final String queryBuilder = "\"" + trackName.toLowerCase() + "\"";
+    private URI formatTrackQuery(final RecordingQuery query) {
         return uriFactory.builder()
                 .path(EntityType.RECORDING.getPath())
-                .queryParam("query", queryBuilder)
+                .queryParam("query", query.build())
                 .queryParam("fmt", "json")
                 .build();
     }
