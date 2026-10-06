@@ -1,4 +1,4 @@
-package org.sona.format.flac;
+package org.sona.format;
 
 import lombok.Value;
 import org.apache.tomcat.util.buf.HexUtils;
