@@ -30,7 +30,7 @@ class FlacParserTest {
     @EnumSource(FlacSample.class)
     void parseAllMetadataReadsEveryBlock(FlacSample sample) throws IOException, InvalidFormatException {
         try (final var inputStream = sample.inputStream()) {
-            final var result = new Flac().parseAllMetadata(inputStream);
+            final var result = new FlacParser(inputStream).parseAllMetadata();
 
             assertThat(result.metadataBlocks()).containsKeys(BlockType.STREAM_INFO, BlockType.VORBIS_COMMENT);
         }
@@ -109,8 +109,8 @@ class FlacParserTest {
         final var written = metadata(streamInfo(), seekTable, vorbisComment(new Field("TITLE", "Round Trip")), padding);
 
         final var outputStream = new ByteArrayOutputStream();
-        new Flac().writeAllMetadata(written, outputStream);
-        final var read = new Flac().parseAllMetadata(new ByteArrayInputStream(outputStream.toByteArray()));
+        new FlacWriter(outputStream).writeAllMetadata(written);
+        final var read = new FlacParser(new ByteArrayInputStream(outputStream.toByteArray())).parseAllMetadata();
 
         assertThat(read).usingRecursiveComparison()
                 .ignoringFieldsMatchingRegexes(".*header\\.lastBlock", ".*header\\.size")
@@ -129,7 +129,7 @@ class FlacParserTest {
         return new VorbisComment(header(BlockType.VORBIS_COMMENT, 0), "sona-test", List.of(fields));
     }
 
-    // Flac.writeAllMetadata works out the real size and last-block flag; only padding takes its size from here.
+    // FlacWriter.writeAllMetadata works out the real size and last-block flag; only padding takes its size from here.
     private static BlockHeader header(final BlockType blockType, final int size) {
         return new BlockHeader(false, blockType, size);
     }
@@ -140,7 +140,7 @@ class FlacParserTest {
 
     private static InputStream flac(final Block... blocks) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
-        new Flac().writeAllMetadata(metadata(blocks), outputStream);
+        new FlacWriter(outputStream).writeAllMetadata(metadata(blocks));
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
