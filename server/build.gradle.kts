@@ -18,6 +18,7 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("dev.javax:bitstream:0.1.0-RC")
+    implementation("io.github.resilience4j:resilience4j-ratelimiter:2.4.0")
 
     // Lombok
     compileOnly("org.projectlombok:lombok:1.18.42")
