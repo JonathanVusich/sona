@@ -6,7 +6,6 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.sona.client.model.query.RecordingQuery;
 import org.sona.config.MusicBrainzConfig;
 import org.sona.config.properties.MusicBrainzProperties;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -16,8 +15,7 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.serviceUnavailable;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
@@ -65,11 +63,13 @@ class MusicBrainzClientTest {
     @Test
     void sendQueryWithReservedCharactersIntact() {
         final var query = new RecordingQuery("Rock & Roll + {Live} 100%", "Simon & Garfunkel", -1, -1);
-        musicBrainz.stubFor(get(urlPathEqualTo(RECORDING_PATH)).willReturn(notFound()));
+        musicBrainz.stubFor(get(urlPathEqualTo(RECORDING_PATH))
+                .withQueryParam("query", equalTo(query.build()))
+                .willReturn(okJson("""
+                        {"count": 0, "offset": 0, "recordings": []}
+                        """)));
 
-        assertThatThrownBy(() -> client.searchRecordings(query)).isInstanceOf(HttpClientErrorException.NotFound.class);
-        musicBrainz.verify(getRequestedFor(urlPathEqualTo(RECORDING_PATH))
-                .withQueryParam("query", equalTo(query.build())));
+        assertThat(client.searchRecordings(query).count()).isZero();
     }
 
     @Test
