@@ -23,6 +23,9 @@ public final class FlacParser implements Parser {
 
     static final byte[] FLAC_HEADER = "fLaC".getBytes(StandardCharsets.US_ASCII);
 
+    static final int MEDIA_CATALOG_NUMBER_SIZE = 128;
+    static final int ISRC_SIZE = 12;
+
     @Override
     public Format format() {
         return Format.FLAC;
@@ -118,8 +121,8 @@ public final class FlacParser implements Parser {
 
     private Application readApplication(final DataInputStream inputStream, final BlockHeader header) throws IOException {
         final var applicationId = inputStream.readInt();
-        inputStream.skipNBytes(header.size() - 4);
-        return new Application(header, applicationId);
+        final var data = inputStream.readNBytes(header.size() - 4);
+        return new Application(header, applicationId, data);
     }
 
     private SeekTable readSeekTable(final DataInputStream inputStream, final BlockHeader header) throws IOException {
@@ -162,13 +165,68 @@ public final class FlacParser implements Parser {
     }
 
     private CueSheet readCueSheet(final DataInputStream inputStream, final BlockHeader header) throws IOException {
-        inputStream.skipNBytes(header.size());
-        return new CueSheet(header);
+        final var mediaCatalogNumber = readAscii(inputStream, MEDIA_CATALOG_NUMBER_SIZE);
+        final var leadInSamples = inputStream.readLong();
+
+        final var bitInputStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
+        final var compactDisc = bitInputStream.readBits(1) == 1;
+        // Reserved: the rest of this byte plus 258 more
+        bitInputStream.readBits(7);
+        inputStream.skipNBytes(258);
+
+        final var numberOfTracks = inputStream.readUnsignedByte();
+        final var tracks = new ArrayList<CueSheetTrack>(numberOfTracks);
+        for (int i = 0; i < numberOfTracks; i++) {
+            tracks.add(readCueSheetTrack(inputStream));
+        }
+
+        return new CueSheet(header, mediaCatalogNumber, leadInSamples, compactDisc, tracks);
+    }
+
+    private CueSheetTrack readCueSheetTrack(final DataInputStream inputStream) throws IOException {
+        final var offset = inputStream.readLong();
+        final var number = inputStream.readUnsignedByte();
+        final var isrc = readAscii(inputStream, ISRC_SIZE);
+
+        final var bitInputStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
+        // The track type bit is 0 for audio and 1 for anything else.
+        final var audio = bitInputStream.readBits(1) == 0;
+        final var preEmphasis = bitInputStream.readBits(1) == 1;
+        // Reserved: the rest of this byte plus 13 more
+        bitInputStream.readBits(6);
+        inputStream.skipNBytes(13);
+
+        final var numberOfIndexPoints = inputStream.readUnsignedByte();
+        final var indexPoints = new ArrayList<CueSheetIndexPoint>(numberOfIndexPoints);
+        for (int i = 0; i < numberOfIndexPoints; i++) {
+            final var indexOffset = inputStream.readLong();
+            final var indexNumber = inputStream.readUnsignedByte();
+            // Reserved
+            inputStream.skipNBytes(3);
+
+            indexPoints.add(new CueSheetIndexPoint(indexOffset, indexNumber));
+        }
+
+        return new CueSheetTrack(offset, number, isrc, audio, preEmphasis, indexPoints);
     }
 
     private Picture readPicture(final DataInputStream inputStream, final BlockHeader header) throws IOException {
-        inputStream.skipNBytes(header.size());
-        return new Picture(header);
+        // Unlike Vorbis comment lengths, picture lengths are big endian.
+        final var pictureType = inputStream.readInt();
+        final var mediaTypeLength = inputStream.readInt();
+        final var mediaType = new String(inputStream.readNBytes(mediaTypeLength), StandardCharsets.US_ASCII);
+        final var descriptionLength = inputStream.readInt();
+        final var description = readUtf8(inputStream, descriptionLength);
+
+        final var width = inputStream.readInt();
+        final var height = inputStream.readInt();
+        final var colorDepth = inputStream.readInt();
+        final var numberOfColors = inputStream.readInt();
+
+        final var dataLength = inputStream.readInt();
+        final var data = inputStream.readNBytes(dataLength);
+
+        return new Picture(header, pictureType, mediaType, description, width, height, colorDepth, numberOfColors, data);
     }
 
     private Block readBlock(final DataInputStream inputStream) throws IOException, InvalidFormatException {
@@ -187,6 +245,16 @@ public final class FlacParser implements Parser {
 
     private String readUtf8(final DataInputStream inputStream, final int length) throws IOException {
         return new String(inputStream.readNBytes(length), StandardCharsets.UTF_8);
+    }
+
+    // Fixed-size ASCII fields are padded with NUL bytes, or are all NUL when empty.
+    private String readAscii(final DataInputStream inputStream, final int size) throws IOException {
+        final var bytes = inputStream.readNBytes(size);
+        var length = 0;
+        while (length < size && bytes[length] != 0) {
+            length++;
+        }
+        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
     }
 
 

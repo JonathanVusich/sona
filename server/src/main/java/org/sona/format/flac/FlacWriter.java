@@ -20,6 +20,13 @@ public final class FlacWriter implements Writer {
 
     private static final int STREAM_INFO_SIZE = 34;
     private static final int SEEK_POINT_SIZE = 18;
+    // Catalog number, lead-in samples, CD-DA flag with its reserved bits, and the track count.
+    private static final int CUE_SHEET_SIZE = FlacParser.MEDIA_CATALOG_NUMBER_SIZE + 8 + 259 + 1;
+    // Offset, number, ISRC, flags with their reserved bits, and the index point count.
+    private static final int CUE_SHEET_TRACK_SIZE = 8 + 1 + FlacParser.ISRC_SIZE + 14 + 1;
+    private static final int CUE_SHEET_INDEX_POINT_SIZE = 12;
+    // The picture type, the two string lengths, width, height, color depth, color count and data length.
+    private static final int PICTURE_FIELDS_SIZE = 8 * 4;
 
     @Override
     public Format format() {
@@ -62,9 +69,9 @@ public final class FlacWriter implements Writer {
             case Padding padding -> writePadding(outputStream, padding);
             case SeekTable seekTable -> writeSeekTable(outputStream, seekTable);
             case VorbisComment vorbisComment -> writeVorbisComment(outputStream, vorbisComment);
-            // Only the header of these blocks is kept when parsing, so their contents can't be written back yet.
-            case Application _, CueSheet _, Picture _ -> throw new UnsupportedOperationException(
-                    "Writing " + block.header().blockType() + " blocks is not supported yet");
+            case Application application -> writeApplication(outputStream, application);
+            case CueSheet cueSheet -> writeCueSheet(outputStream, cueSheet);
+            case Picture picture -> writePicture(outputStream, picture);
         }
     }
 
@@ -123,6 +130,95 @@ public final class FlacWriter implements Writer {
         }
     }
 
+    private void writeApplication(final DataOutputStream outputStream,
+                                  final Application application) throws IOException {
+        final var data = application.data();
+        writeBlockHeader(outputStream, application.header(), 4 + data.length);
+
+        outputStream.writeInt(application.applicationId());
+        outputStream.write(data);
+    }
+
+    private void writeCueSheet(final DataOutputStream outputStream, final CueSheet cueSheet) throws IOException {
+        final var tracks = cueSheet.tracks();
+        final var tracksSize = tracks.stream()
+                .mapToInt(track -> CUE_SHEET_TRACK_SIZE + track.indexPoints().size() * CUE_SHEET_INDEX_POINT_SIZE)
+                .sum();
+        writeBlockHeader(outputStream, cueSheet.header(), CUE_SHEET_SIZE + tracksSize);
+
+        writeAscii(outputStream, cueSheet.mediaCatalogNumber(), FlacParser.MEDIA_CATALOG_NUMBER_SIZE);
+        outputStream.writeLong(cueSheet.leadInSamples());
+
+        final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
+        bitOutputStream.writeBits(compactDiscFlag(cueSheet), 1);
+        // Reserved: the rest of this byte plus 258 more
+        bitOutputStream.writeBits(0, 7);
+        bitOutputStream.flush();
+        outputStream.write(new byte[258]);
+
+        outputStream.writeByte(tracks.size());
+        for (final var track : tracks) {
+            writeCueSheetTrack(outputStream, track);
+        }
+    }
+
+    private void writeCueSheetTrack(final DataOutputStream outputStream,
+                                    final CueSheetTrack track) throws IOException {
+        outputStream.writeLong(track.offset());
+        outputStream.writeByte(track.number());
+        writeAscii(outputStream, track.isrc(), FlacParser.ISRC_SIZE);
+
+        final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
+        bitOutputStream.writeBits(trackTypeFlag(track), 1);
+        bitOutputStream.writeBits(preEmphasisFlag(track), 1);
+        // Reserved: the rest of this byte plus 13 more
+        bitOutputStream.writeBits(0, 6);
+        bitOutputStream.flush();
+        outputStream.write(new byte[13]);
+
+        final var indexPoints = track.indexPoints();
+        outputStream.writeByte(indexPoints.size());
+        for (final var indexPoint : indexPoints) {
+            outputStream.writeLong(indexPoint.offset());
+            outputStream.writeByte(indexPoint.number());
+            // Reserved
+            outputStream.write(new byte[3]);
+        }
+    }
+
+    private void writePicture(final DataOutputStream outputStream, final Picture picture) throws IOException {
+        final var mediaType = picture.mediaType().getBytes(StandardCharsets.US_ASCII);
+        final var description = picture.description().getBytes(StandardCharsets.UTF_8);
+        final var data = picture.data();
+        final var size = PICTURE_FIELDS_SIZE + mediaType.length + description.length + data.length;
+        writeBlockHeader(outputStream, picture.header(), size);
+
+        // Unlike Vorbis comment lengths, picture lengths are big endian.
+        outputStream.writeInt(picture.pictureType());
+        outputStream.writeInt(mediaType.length);
+        outputStream.write(mediaType);
+        outputStream.writeInt(description.length);
+        outputStream.write(description);
+
+        outputStream.writeInt(picture.width());
+        outputStream.writeInt(picture.height());
+        outputStream.writeInt(picture.colorDepth());
+        outputStream.writeInt(picture.numberOfColors());
+
+        outputStream.writeInt(data.length);
+        outputStream.write(data);
+    }
+
+    // Fixed-size ASCII fields are padded with NUL bytes.
+    private void writeAscii(final DataOutputStream outputStream, final String value, final int size) throws IOException {
+        final var bytes = value.getBytes(StandardCharsets.US_ASCII);
+        if (bytes.length > size) {
+            throw new IllegalArgumentException("\"" + value + "\" is longer than " + size + " bytes");
+        }
+        outputStream.write(bytes);
+        outputStream.write(new byte[size - bytes.length]);
+    }
+
     private void writeUtf8(final DataOutputStream outputStream, final byte[] utf8) throws IOException {
         // Little endian u32 length
         outputStream.writeInt(Integer.reverseBytes(utf8.length));
@@ -142,6 +238,28 @@ public final class FlacWriter implements Writer {
 
     private static int lastBlockFlag(final BlockHeader header) {
         if (header.lastBlock()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private static int compactDiscFlag(final CueSheet cueSheet) {
+        if (cueSheet.compactDisc()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // The track type bit is 0 for audio and 1 for anything else.
+    private static int trackTypeFlag(final CueSheetTrack track) {
+        if (track.audio()) {
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int preEmphasisFlag(final CueSheetTrack track) {
+        if (track.preEmphasis()) {
             return 1;
         }
         return 0;

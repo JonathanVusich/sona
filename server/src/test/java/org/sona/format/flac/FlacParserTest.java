@@ -64,6 +64,22 @@ class FlacParserTest {
     }
 
     @Test
+    void parseEmbeddedPicture() throws IOException, InvalidFormatException {
+        try (final var inputStream = FlacSample.LUCAS_FLOYD.inputStream()) {
+            final var metadata = new FlacParser().parseAllMetadata(inputStream);
+
+            final var picture = (Picture) metadata.metadataBlocks().get(BlockType.PICTURE).getFirst();
+            // Picture type 3 is the front cover.
+            assertThat(picture.pictureType()).isEqualTo(3);
+            assertThat(picture.mediaType()).isEqualTo("image/jpeg");
+            assertThat(picture.description()).isEmpty();
+            assertThat(picture.width()).isEqualTo(360);
+            assertThat(picture.height()).isEqualTo(327);
+            assertThat(picture.data()).hasSize(62_895).startsWith(0xFF, 0xD8);
+        }
+    }
+
+    @Test
     void parseFileWithOnlyUnknownTags() throws IOException, InvalidFormatException {
         final var parsed = parse(FlacSample.SAMPLE_3);
 
@@ -108,6 +124,9 @@ class FlacParserTest {
                 streamInfo(header(BlockType.STREAM_INFO)),
                 new SeekTable(header(BlockType.SEEK_TABLE), List.of(new SeekPoint(0, 0, (short) 4096))),
                 vorbisComment(header(BlockType.VORBIS_COMMENT), new Field("TITLE", "Round Trip")),
+                new Application(header(BlockType.APPLICATION), 0x52494646, new byte[]{1, 2, 3, 4}),
+                cueSheet(header(BlockType.CUESHEET)),
+                new Picture(header(BlockType.PICTURE), 3, "image/png", "Front ✓", 2, 1, 24, 0, new byte[]{9, 8, 7}),
                 new Padding(new BlockHeader(true, BlockType.PADDING, 1024))
         };
 
@@ -118,6 +137,20 @@ class FlacParserTest {
                 .ignoringFieldsMatchingRegexes(".*header\\.size")
                 .isEqualTo(new FlacMetadata(Arrays.stream(blocks).collect(groupingBy(block -> block.header().blockType()))));
         assertThat(read.metadataBlocks().get(BlockType.PADDING).getFirst().header().size()).isEqualTo(1024);
+        // Sizes from the RFC 9639 layouts: a cuesheet is 396 bytes plus 36 per track and 12 per index point, and a
+        // picture is 32 bytes plus its media type, description and data.
+        assertThat(read.metadataBlocks().get(BlockType.CUESHEET).getFirst().header().size()).isEqualTo(396 + 3 * 36 + 3 * 12);
+        assertThat(read.metadataBlocks().get(BlockType.PICTURE).getFirst().header().size()).isEqualTo(32 + 9 + 9 + 3);
+    }
+
+    private static CueSheet cueSheet(final BlockHeader header) {
+        final var firstTrack = new CueSheetTrack(0, 1, "USSM19900000", true, false,
+                List.of(new CueSheetIndexPoint(0, 1)));
+        final var dataTrack = new CueSheetTrack(588 * 100, 2, "", false, true,
+                List.of(new CueSheetIndexPoint(0, 0), new CueSheetIndexPoint(588 * 2, 1)));
+        // CD-DA cuesheets end with a lead-out track (number 170) that has no index points.
+        final var leadOut = new CueSheetTrack(588 * 300, 170, "", true, false, List.of());
+        return new CueSheet(header, "1234567890123", 88_200, true, List.of(firstTrack, dataTrack, leadOut));
     }
 
     private static StreamInfo streamInfo(final BlockHeader header) {
