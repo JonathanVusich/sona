@@ -81,8 +81,9 @@ There is no deadline. Done when it's good.
 
 - **Tags are fully rewritten** with Sona's resolved metadata on import.
 - **Audio data must be preserved byte for byte.** Only metadata blocks change; verify with the stream MD5.
-- **The library layout is MBID-based** (`release_group[mbid]/release[mbid]/track[mbid].ext`). The library is
-  Sona's internal storage, so it doesn't need to be friendly to other players. It must still be
+- **The library layout is based on Sona's own database IDs** (`release_group[id]/release[id]/track[id].ext`),
+  not MusicBrainz IDs, so files that have no MusicBrainz match (or are entered manually) fit the same layout.
+  The library is Sona's internal storage, so it doesn't need to be friendly to other players. It must still be
   **consistent, and easy for a user to retrieve their music from** if they leave Sona.
 - **Formats:** FLAC first, then **eventually all common formats**.
 - **Parsers and writers are hand-written on purpose** (control and correctness). Don't replace them
@@ -118,7 +119,7 @@ There is no deadline. Done when it's good.
 ## Roadmap
 
 1. **Merge `add-ingestion-engine`:** fix the critical ingestion bugs **and add proper tests** first.
-2. **Finish FLAC ingest:** working end-to-end import of FLAC albums (album-level matching, MBID layout,
+2. **Finish FLAC ingest:** working end-to-end import of FLAC albums (album-level matching, ID-based layout,
    tag rewrite, dedupe, review queue).
 3. Then (order to be decided): upload API and auth, Subsonic streaming, more formats, acquisition.
 

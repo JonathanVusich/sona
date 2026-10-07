@@ -7,8 +7,8 @@ Guidance for AI agents (and humans) working in this repository.
 Sona is a self-hosted music server for the public self-hosting community (competing with Navidrome/Jellyfin
 and Lidarr/Roon). Users upload audio files. Sona fingerprints them and reads their tags, resolves them to
 canonical [MusicBrainz](https://musicbrainz.org) entities (recording / release / release group / artist),
-records the result in Postgres, and moves each file into its own MBID-based library, where it is served to
-clients (Subsonic API first).
+records the result in Postgres, and moves each file into its own library, laid out by Sona's database IDs,
+where it is served to clients (Subsonic API first).
 
 **Read [docs/VISION.md](docs/VISION.md) before making design decisions.** It records the product
 decisions (file ownership, dedupe, matching strategy, scale target of 500k+ tracks, auth, roadmap) and
@@ -44,7 +44,8 @@ IngestionEngine.processTrack ◄────────────────
    2. Parser.parse(InputStream) ──► RawMetadata = tags + duration (metadata/)
    3. MetadataResolver.resolveTrack ──► MusicBrainz search (client/) ──► ResolvedTrack (MBIDs + titles)
         └─ no match ──► state = INPUT_REQUIRED, file stays in the ingest area
-   4. Library.libraryPath ──► <rg mbid>[name]/<release mbid>[name]/<recording mbid>[title].<ext>
+   4. Library.libraryPath ──► <release group id>[name]/<release id>[name]/<track id>[title].<ext>
+        (Sona's own UUIDv7 database IDs, not MBIDs, which a track may not have)
    5. one transaction: insert `track` row, state = COMPLETED, Library.importTrack moves the file
       into <mediaFolder> (moved last, so a failed move rolls back the DB changes)
 ```
