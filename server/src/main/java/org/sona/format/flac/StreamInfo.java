@@ -1,5 +1,7 @@
 package org.sona.format.flac;
 
+import org.sona.format.MD5Checksum;
+
 public record StreamInfo(
         BlockHeader header,
         MD5Checksum checksum,

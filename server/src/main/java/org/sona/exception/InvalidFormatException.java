@@ -1,4 +1,4 @@
-package org.sona.model.exception;
+package org.sona.exception;
 
 public final class InvalidFormatException extends Exception {
 

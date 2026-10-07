@@ -17,6 +17,7 @@ dependencies {
 
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
     implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("dev.javax:bitstream:0.1.0-RC")
 
     // Lombok
     compileOnly("org.projectlombok:lombok:1.18.42")
