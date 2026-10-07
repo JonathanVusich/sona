@@ -1,7 +1,7 @@
 package org.sona.format.flac;
 
 public record BlockHeader(
-        boolean lastBlock,
+        BlockPosition position,
         BlockType blockType,
         int size
 ) {

@@ -69,8 +69,7 @@ class FlacParserTest {
             final var metadata = new FlacParser().parseAllMetadata(inputStream);
 
             final var picture = (Picture) metadata.metadataBlocks().get(BlockType.PICTURE).getFirst();
-            // Picture type 3 is the front cover.
-            assertThat(picture.pictureType()).isEqualTo(3);
+            assertThat(picture.pictureType()).isEqualTo(PictureType.FRONT_COVER);
             assertThat(picture.mediaType()).isEqualTo("image/jpeg");
             assertThat(picture.description()).isEmpty();
             assertThat(picture.width()).isEqualTo(360);
@@ -126,8 +125,8 @@ class FlacParserTest {
                 vorbisComment(header(BlockType.VORBIS_COMMENT), new Field("TITLE", "Round Trip")),
                 new Application(header(BlockType.APPLICATION), 0x52494646, new byte[]{1, 2, 3, 4}),
                 cueSheet(header(BlockType.CUESHEET)),
-                new Picture(header(BlockType.PICTURE), 3, "image/png", "Front ✓", 2, 1, 24, 0, new byte[]{9, 8, 7}),
-                new Padding(new BlockHeader(true, BlockType.PADDING, 1024))
+                new Picture(header(BlockType.PICTURE), PictureType.FRONT_COVER, "image/png", "Front ✓", 2, 1, 24, 0, new byte[]{9, 8, 7}),
+                new Padding(new BlockHeader(BlockPosition.LAST, BlockType.PADDING, 1024))
         };
 
         final var read = new FlacParser().parseAllMetadata(flac(blocks));
@@ -144,13 +143,13 @@ class FlacParserTest {
     }
 
     private static CueSheet cueSheet(final BlockHeader header) {
-        final var firstTrack = new CueSheetTrack(0, 1, "USSM19900000", true, false,
+        final var firstTrack = new CueSheetTrack(0, 1, "USSM19900000", TrackType.AUDIO, PreEmphasis.NONE,
                 List.of(new CueSheetIndexPoint(0, 1)));
-        final var dataTrack = new CueSheetTrack(588 * 100, 2, "", false, true,
+        final var dataTrack = new CueSheetTrack(588 * 100, 2, "", TrackType.NON_AUDIO, PreEmphasis.APPLIED,
                 List.of(new CueSheetIndexPoint(0, 0), new CueSheetIndexPoint(588 * 2, 1)));
         // CD-DA cuesheets end with a lead-out track (number 170) that has no index points.
-        final var leadOut = new CueSheetTrack(588 * 300, 170, "", true, false, List.of());
-        return new CueSheet(header, "1234567890123", 88_200, true, List.of(firstTrack, dataTrack, leadOut));
+        final var leadOut = new CueSheetTrack(588 * 300, 170, "", TrackType.AUDIO, PreEmphasis.NONE, List.of());
+        return new CueSheet(header, "1234567890123", 88_200, CueSheetMedium.CD_DA, List.of(firstTrack, dataTrack, leadOut));
     }
 
     private static StreamInfo streamInfo(final BlockHeader header) {
@@ -164,11 +163,11 @@ class FlacParserTest {
 
     // FlacWriter works out the size of every block but padding, so it's left at 0 here.
     private static BlockHeader header(final BlockType blockType) {
-        return new BlockHeader(false, blockType, 0);
+        return new BlockHeader(BlockPosition.NOT_LAST, blockType, 0);
     }
 
     private static BlockHeader lastHeader(final BlockType blockType) {
-        return new BlockHeader(true, blockType, 0);
+        return new BlockHeader(BlockPosition.LAST, blockType, 0);
     }
 
     private static InputStream flac(final Block... blocks) throws IOException {

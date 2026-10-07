@@ -150,7 +150,7 @@ public final class FlacWriter implements Writer {
         outputStream.writeLong(cueSheet.leadInSamples());
 
         final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
-        bitOutputStream.writeBits(compactDiscFlag(cueSheet), 1);
+        bitOutputStream.writeBits(cueSheet.medium().ordinal(), 1);
         // Reserved: the rest of this byte plus 258 more
         bitOutputStream.writeBits(0, 7);
         bitOutputStream.flush();
@@ -169,8 +169,8 @@ public final class FlacWriter implements Writer {
         writeAscii(outputStream, track.isrc(), FlacParser.ISRC_SIZE);
 
         final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
-        bitOutputStream.writeBits(trackTypeFlag(track), 1);
-        bitOutputStream.writeBits(preEmphasisFlag(track), 1);
+        bitOutputStream.writeBits(track.trackType().ordinal(), 1);
+        bitOutputStream.writeBits(track.preEmphasis().ordinal(), 1);
         // Reserved: the rest of this byte plus 13 more
         bitOutputStream.writeBits(0, 6);
         bitOutputStream.flush();
@@ -194,7 +194,7 @@ public final class FlacWriter implements Writer {
         writeBlockHeader(outputStream, picture.header(), size);
 
         // Unlike Vorbis comment lengths, picture lengths are big endian.
-        outputStream.writeInt(picture.pictureType());
+        outputStream.writeInt(picture.pictureType().ordinal());
         outputStream.writeInt(mediaType.length);
         outputStream.write(mediaType);
         outputStream.writeInt(description.length);
@@ -230,39 +230,10 @@ public final class FlacWriter implements Writer {
                                   final int size) throws IOException {
         final var bitStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
 
-        bitStream.writeBits(lastBlockFlag(header), 1);
+        bitStream.writeBits(header.position().ordinal(), 1);
         bitStream.writeBits(header.blockType().ordinal(), 7);
         bitStream.writeBits(size, 24);
         bitStream.flush();
-    }
-
-    private static int lastBlockFlag(final BlockHeader header) {
-        if (header.lastBlock()) {
-            return 1;
-        }
-        return 0;
-    }
-
-    private static int compactDiscFlag(final CueSheet cueSheet) {
-        if (cueSheet.compactDisc()) {
-            return 1;
-        }
-        return 0;
-    }
-
-    // The track type bit is 0 for audio and 1 for anything else.
-    private static int trackTypeFlag(final CueSheetTrack track) {
-        if (track.audio()) {
-            return 0;
-        }
-        return 1;
-    }
-
-    private static int preEmphasisFlag(final CueSheetTrack track) {
-        if (track.preEmphasis()) {
-            return 1;
-        }
-        return 0;
     }
 
 }

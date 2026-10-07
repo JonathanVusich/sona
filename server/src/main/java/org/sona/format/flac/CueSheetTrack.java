@@ -7,8 +7,8 @@ public record CueSheetTrack(
         long offset,
         int number,
         String isrc,
-        boolean audio,
-        boolean preEmphasis,
+        TrackType trackType,
+        PreEmphasis preEmphasis,
         List<CueSheetIndexPoint> indexPoints
 ) {
 }

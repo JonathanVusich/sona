@@ -79,7 +79,7 @@ public final class FlacParser implements Parser {
         do {
             block = readBlock(dataStream);
             metadataBlocks.computeIfAbsent(block.header().blockType(), k -> new ArrayList<>()).add(block);
-        } while (!block.header().lastBlock());
+        } while (block.header().position() == BlockPosition.NOT_LAST);
 
         return new FlacMetadata(metadataBlocks);
     }
@@ -169,7 +169,7 @@ public final class FlacParser implements Parser {
         final var leadInSamples = inputStream.readLong();
 
         final var bitInputStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
-        final var compactDisc = bitInputStream.readBits(1) == 1;
+        final var medium = CueSheetMedium.values()[(int) bitInputStream.readBits(1)];
         // Reserved: the rest of this byte plus 258 more
         bitInputStream.readBits(7);
         inputStream.skipNBytes(258);
@@ -180,7 +180,7 @@ public final class FlacParser implements Parser {
             tracks.add(readCueSheetTrack(inputStream));
         }
 
-        return new CueSheet(header, mediaCatalogNumber, leadInSamples, compactDisc, tracks);
+        return new CueSheet(header, mediaCatalogNumber, leadInSamples, medium, tracks);
     }
 
     private CueSheetTrack readCueSheetTrack(final DataInputStream inputStream) throws IOException {
@@ -189,9 +189,8 @@ public final class FlacParser implements Parser {
         final var isrc = readAscii(inputStream, ISRC_SIZE);
 
         final var bitInputStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
-        // The track type bit is 0 for audio and 1 for anything else.
-        final var audio = bitInputStream.readBits(1) == 0;
-        final var preEmphasis = bitInputStream.readBits(1) == 1;
+        final var trackType = TrackType.values()[(int) bitInputStream.readBits(1)];
+        final var preEmphasis = PreEmphasis.values()[(int) bitInputStream.readBits(1)];
         // Reserved: the rest of this byte plus 13 more
         bitInputStream.readBits(6);
         inputStream.skipNBytes(13);
@@ -207,12 +206,13 @@ public final class FlacParser implements Parser {
             indexPoints.add(new CueSheetIndexPoint(indexOffset, indexNumber));
         }
 
-        return new CueSheetTrack(offset, number, isrc, audio, preEmphasis, indexPoints);
+        return new CueSheetTrack(offset, number, isrc, trackType, preEmphasis, indexPoints);
     }
 
-    private Picture readPicture(final DataInputStream inputStream, final BlockHeader header) throws IOException {
+    private Picture readPicture(final DataInputStream inputStream,
+                                final BlockHeader header) throws IOException, InvalidFormatException {
         // Unlike Vorbis comment lengths, picture lengths are big endian.
-        final var pictureType = inputStream.readInt();
+        final var pictureType = getPictureType(inputStream.readInt());
         final var mediaTypeLength = inputStream.readInt();
         final var mediaType = new String(inputStream.readNBytes(mediaTypeLength), StandardCharsets.US_ASCII);
         final var descriptionLength = inputStream.readInt();
@@ -268,12 +268,12 @@ public final class FlacParser implements Parser {
     private BlockHeader readBlockHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException{
         final var bitStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
 
-        final boolean lastBlock = bitStream.readBits(1) == 1;
+        final var position = BlockPosition.values()[(int) bitStream.readBits(1)];
         final var blockType = getBlockType((int) bitStream.readBits(7));
 
         final var size = bitStream.readBits(24);
 
-        return new BlockHeader(lastBlock, blockType, (int) size);
+        return new BlockHeader(position, blockType, (int) size);
     }
 
     private static BlockType getBlockType(final int headerByte) throws InvalidFormatException {
@@ -287,6 +287,14 @@ public final class FlacParser implements Parser {
             case 6 -> BlockType.PICTURE;
             default -> throw new InvalidFormatException("Incorrect block type: " + headerByte);
         };
+    }
+
+    private static PictureType getPictureType(final int value) throws InvalidFormatException {
+        final var pictureTypes = PictureType.values();
+        if (value < 0 || value >= pictureTypes.length) {
+            throw new InvalidFormatException("Incorrect picture type: " + value);
+        }
+        return pictureTypes[value];
     }
 
 }

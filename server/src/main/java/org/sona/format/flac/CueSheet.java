@@ -7,7 +7,7 @@ public record CueSheet(
         BlockHeader header,
         String mediaCatalogNumber,
         long leadInSamples,
-        boolean compactDisc,
+        CueSheetMedium medium,
         List<CueSheetTrack> tracks
 ) implements Block {
 }

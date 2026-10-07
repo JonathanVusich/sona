@@ -3,7 +3,7 @@ package org.sona.format.flac;
 // https://www.rfc-editor.org/rfc/rfc9639.html#name-picture
 public record Picture(
         BlockHeader header,
-        int pictureType,
+        PictureType pictureType,
         String mediaType,
         String description,
         int width,
