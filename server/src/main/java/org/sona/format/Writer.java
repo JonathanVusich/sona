@@ -7,7 +7,7 @@ import java.io.OutputStream;
 
 public interface Writer {
 
-    OutputStream write(RawMetadata rawMetadata) throws IOException;
+    void write(RawMetadata rawMetadata, OutputStream outputStream) throws IOException;
 
     Format format();
 }

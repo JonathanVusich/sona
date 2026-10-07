@@ -2,20 +2,20 @@ package org.sona.format.flac;
 
 import dev.javax.bitstream.BitOutputStream;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.List;
 
 /**
- * Writes a FLAC stream. Only the metadata blocks are written for now; writing the audio frames that follow them comes
- * later.
+ * Writes a FLAC stream straight to the caller's output stream, one piece at a time: the "fLaC" marker, then each
+ * metadata block in order. Writing the audio frames that follow them comes later.
  */
 public final class FlacWriter {
+
+    private static final int STREAM_INFO_SIZE = 34;
+    private static final int SEEK_POINT_SIZE = 18;
 
     private final DataOutputStream outputStream;
 
@@ -23,43 +23,29 @@ public final class FlacWriter {
         this.outputStream = new DataOutputStream(outputStream);
     }
 
-    /**
-     * Writes the "fLaC" marker and the metadata blocks, STREAMINFO first. Block sizes and the last-block flag are
-     * worked out here rather than taken from each block's header, since edited blocks change size.
-     */
-    public void writeAllMetadata(final FlacMetadata flacMetadata) throws IOException {
-        writeFlacHeader();
-
-        final var blocks = Arrays.stream(BlockType.values())
-                .flatMap(blockType -> flacMetadata.metadataBlocks().getOrDefault(blockType, List.of()).stream())
-                .toList();
-        for (int index = 0; index < blocks.size(); index++) {
-            final var block = blocks.get(index);
-            final var body = blockBody(block);
-            final var lastBlock = index == blocks.size() - 1;
-            writeBlockHeader(new BlockHeader(lastBlock, block.header().blockType(), body.length));
-            outputStream.write(body);
-        }
-        outputStream.flush();
+    public void writeFlacHeader() throws IOException {
+        outputStream.write(Flac.FLAC_HEADER);
     }
 
-    private byte[] blockBody(final Block block) throws IOException {
-        final var body = new ByteArrayOutputStream();
-        final var dataStream = new DataOutputStream(body);
+    /**
+     * Writes one metadata block. Its size is worked out from its contents, since edited blocks change size; the
+     * last-block flag is taken from its header, because only the caller knows whether more blocks follow.
+     */
+    public void writeBlock(final Block block) throws IOException {
         switch (block) {
-            case StreamInfo streamInfo -> writeStreamInfo(dataStream, streamInfo);
-            case Padding padding -> dataStream.write(new byte[padding.header().size()]);
-            case SeekTable seekTable -> writeSeekTable(dataStream, seekTable);
-            case VorbisComment vorbisComment -> writeVorbisComment(dataStream, vorbisComment);
+            case StreamInfo streamInfo -> writeStreamInfo(streamInfo);
+            case Padding padding -> writePadding(padding);
+            case SeekTable seekTable -> writeSeekTable(seekTable);
+            case VorbisComment vorbisComment -> writeVorbisComment(vorbisComment);
             // Only the header of these blocks is kept when parsing, so their contents can't be written back yet.
             case Application _, CueSheet _, Picture _ -> throw new UnsupportedOperationException(
                     "Writing " + block.header().blockType() + " blocks is not supported yet");
         }
-        return body.toByteArray();
     }
 
-    private void writeStreamInfo(final DataOutputStream outputStream,
-                                 final StreamInfo streamInfo) throws IOException {
+    private void writeStreamInfo(final StreamInfo streamInfo) throws IOException {
+        writeBlockHeader(streamInfo.header(), STREAM_INFO_SIZE);
+
         final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
 
         bitOutputStream.writeBits(streamInfo.minBlockSize(), 16);
@@ -76,42 +62,52 @@ public final class FlacWriter {
         outputStream.write(streamInfo.checksum().getChecksum());
     }
 
-    private void writeSeekTable(final DataOutputStream outputStream, final SeekTable seekTable) throws IOException {
-        for (final var seekPoint : seekTable.seekPoints()) {
+    private void writePadding(final Padding padding) throws IOException {
+        final var size = padding.header().size();
+        writeBlockHeader(padding.header(), size);
+        outputStream.write(new byte[size]);
+    }
+
+    private void writeSeekTable(final SeekTable seekTable) throws IOException {
+        final var seekPoints = seekTable.seekPoints();
+        writeBlockHeader(seekTable.header(), seekPoints.size() * SEEK_POINT_SIZE);
+
+        for (final var seekPoint : seekPoints) {
             outputStream.writeLong(seekPoint.sampleNumber());
             outputStream.writeLong(seekPoint.frameOffset());
             outputStream.writeShort(seekPoint.samplesInFrame());
         }
     }
 
-    private void writeVorbisComment(final DataOutputStream outputStream,
-                                    final VorbisComment vorbisComment) throws IOException {
-        writeUtf8(outputStream, vorbisComment.vendor());
+    private void writeVorbisComment(final VorbisComment vorbisComment) throws IOException {
+        final var vendor = vorbisComment.vendor().getBytes(StandardCharsets.UTF_8);
+        final var fields = vorbisComment.fields().stream()
+                .map(field -> (field.name() + "=" + field.content()).getBytes(StandardCharsets.UTF_8))
+                .toList();
+        // The vendor and every field are prefixed with their u32 length, and the fields with their u32 count.
+        final var fieldsSize = fields.stream().mapToInt(field -> 4 + field.length).sum();
+        writeBlockHeader(vorbisComment.header(), 4 + vendor.length + 4 + fieldsSize);
 
+        writeUtf8(vendor);
         // Little endian u32
-        outputStream.writeInt(Integer.reverseBytes(vorbisComment.fields().size()));
-        for (final var field : vorbisComment.fields()) {
-            writeUtf8(outputStream, field.name() + "=" + field.content());
+        outputStream.writeInt(Integer.reverseBytes(fields.size()));
+        for (final var field : fields) {
+            writeUtf8(field);
         }
     }
 
-    private void writeUtf8(final DataOutputStream outputStream, final String value) throws IOException {
-        final var bytes = value.getBytes(StandardCharsets.UTF_8);
+    private void writeUtf8(final byte[] utf8) throws IOException {
         // Little endian u32 length
-        outputStream.writeInt(Integer.reverseBytes(bytes.length));
-        outputStream.write(bytes);
+        outputStream.writeInt(Integer.reverseBytes(utf8.length));
+        outputStream.write(utf8);
     }
 
-    void writeFlacHeader() throws IOException {
-        outputStream.write(Flac.FLAC_HEADER);
-    }
-
-    private void writeBlockHeader(final BlockHeader header) throws IOException {
+    private void writeBlockHeader(final BlockHeader header, final int size) throws IOException {
         final var bitStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
 
         bitStream.writeBits(lastBlockFlag(header), 1);
         bitStream.writeBits(header.blockType().ordinal(), 7);
-        bitStream.writeBits(header.size(), 24);
+        bitStream.writeBits(size, 24);
         bitStream.flush();
     }
 

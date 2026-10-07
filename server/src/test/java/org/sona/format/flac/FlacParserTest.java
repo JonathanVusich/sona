@@ -75,7 +75,7 @@ class FlacParserTest {
 
     @Test
     void parseFileWithoutVorbisComment() throws IOException, InvalidFormatException {
-        final var parsed = parse(flac(streamInfo()));
+        final var parsed = parse(flac(streamInfo(lastHeader(BlockType.STREAM_INFO))));
 
         assertThat(parsed.duration()).isEqualTo(Duration.ofSeconds(10));
         assertThat(parsed.metadata().unknownTags()).isEmpty();
@@ -83,7 +83,8 @@ class FlacParserTest {
 
     @Test
     void fieldNamesAreCaseInsensitive() throws IOException, InvalidFormatException {
-        final var parsed = parse(flac(streamInfo(), vorbisComment(new Field("TiTlE", "Mixed Case"))));
+        final var parsed = parse(flac(streamInfo(header(BlockType.STREAM_INFO)),
+                vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TiTlE", "Mixed Case"))));
 
         assertThat(parsed.metadata().search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Mixed Case"));
     }
@@ -97,50 +98,54 @@ class FlacParserTest {
 
     @Test
     void rejectMissingStreamInfo() {
-        assertThatThrownBy(() -> parse(flac(vorbisComment(new Field("TITLE", "No Stream Info")))))
+        assertThatThrownBy(() -> parse(flac(vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TITLE", "No Stream Info")))))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessageContaining("STREAMINFO");
     }
 
     @Test
-    void writeAllMetadataRoundTrips() throws IOException, InvalidFormatException {
-        final var seekTable = new SeekTable(header(BlockType.SEEK_TABLE, 0), List.of(new SeekPoint(0, 0, (short) 4096)));
-        final var padding = new Padding(header(BlockType.PADDING, 1024));
-        final var written = metadata(streamInfo(), seekTable, vorbisComment(new Field("TITLE", "Round Trip")), padding);
+    void writtenBlocksParseBackUnchanged() throws IOException, InvalidFormatException {
+        final var blocks = new Block[]{
+                streamInfo(header(BlockType.STREAM_INFO)),
+                new SeekTable(header(BlockType.SEEK_TABLE), List.of(new SeekPoint(0, 0, (short) 4096))),
+                vorbisComment(header(BlockType.VORBIS_COMMENT), new Field("TITLE", "Round Trip")),
+                new Padding(new BlockHeader(true, BlockType.PADDING, 1024))
+        };
 
-        final var outputStream = new ByteArrayOutputStream();
-        new FlacWriter(outputStream).writeAllMetadata(written);
-        final var read = new FlacParser(new ByteArrayInputStream(outputStream.toByteArray())).parseAllMetadata();
+        final var read = new FlacParser(flac(blocks)).parseAllMetadata();
 
+        // The writer works out each block's size, so only padding's size is known up front.
         assertThat(read).usingRecursiveComparison()
-                .ignoringFieldsMatchingRegexes(".*header\\.lastBlock", ".*header\\.size")
-                .isEqualTo(written);
-        assertThat(read.metadataBlocks().get(BlockType.PADDING).getFirst().header())
-                .isEqualTo(new BlockHeader(false, BlockType.PADDING, 1024));
+                .ignoringFieldsMatchingRegexes(".*header\\.size")
+                .isEqualTo(new FlacMetadata(Arrays.stream(blocks).collect(groupingBy(block -> block.header().blockType()))));
+        assertThat(read.metadataBlocks().get(BlockType.PADDING).getFirst().header().size()).isEqualTo(1024);
     }
 
-    private static StreamInfo streamInfo() {
+    private static StreamInfo streamInfo(final BlockHeader header) {
         // 10 seconds of 16-bit stereo at 44.1 kHz.
-        return new StreamInfo(header(BlockType.STREAM_INFO, 34), new MD5Checksum(new byte[16]),
-                4096, 4096, 0, 0, 44_100, 2, 16, 441_000);
+        return new StreamInfo(header, new MD5Checksum(new byte[16]), 4096, 4096, 0, 0, 44_100, 2, 16, 441_000);
     }
 
-    private static VorbisComment vorbisComment(final Field... fields) {
-        return new VorbisComment(header(BlockType.VORBIS_COMMENT, 0), "sona-test", List.of(fields));
+    private static VorbisComment vorbisComment(final BlockHeader header, final Field... fields) {
+        return new VorbisComment(header, "sona-test", List.of(fields));
     }
 
-    // FlacWriter.writeAllMetadata works out the real size and last-block flag; only padding takes its size from here.
-    private static BlockHeader header(final BlockType blockType, final int size) {
-        return new BlockHeader(false, blockType, size);
+    // FlacWriter works out the size of every block but padding, so it's left at 0 here.
+    private static BlockHeader header(final BlockType blockType) {
+        return new BlockHeader(false, blockType, 0);
     }
 
-    private static FlacMetadata metadata(final Block... blocks) {
-        return new FlacMetadata(Arrays.stream(blocks).collect(groupingBy(block -> block.header().blockType())));
+    private static BlockHeader lastHeader(final BlockType blockType) {
+        return new BlockHeader(true, blockType, 0);
     }
 
     private static InputStream flac(final Block... blocks) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
-        new FlacWriter(outputStream).writeAllMetadata(metadata(blocks));
+        final var flacWriter = new FlacWriter(outputStream);
+        flacWriter.writeFlacHeader();
+        for (final var block : blocks) {
+            flacWriter.writeBlock(block);
+        }
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 

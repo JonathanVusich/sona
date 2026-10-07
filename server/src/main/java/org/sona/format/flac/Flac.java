@@ -19,8 +19,6 @@ public final class Flac implements Parser, Writer {
 
     static final byte[] FLAC_HEADER = "fLaC".getBytes(StandardCharsets.US_ASCII);
 
-    private static final int OUTPUT_SIZE = 8192;
-
     @Override
     public Format format() {
         return Format.FLAC;
@@ -58,8 +56,8 @@ public final class Flac implements Parser, Writer {
     }
 
     @Override
-    public OutputStream write(final RawMetadata rawMetadata) throws IOException {
-        final var flacWriter = new FlacWriter(new ByteArrayOutputStream(OUTPUT_SIZE));
+    public void write(final RawMetadata rawMetadata, final OutputStream outputStream) throws IOException {
+        final var flacWriter = new FlacWriter(outputStream);
 
         // Write FLAC header
         flacWriter.writeFlacHeader();
@@ -72,8 +70,6 @@ public final class Flac implements Parser, Writer {
 
         final var rawTags = rawMetadata.unknownTags()
                 .toList();
-
-        return null;
     }
 
     private TagValue retrieve(RawMetadata metadata, org.sona.metadata.Tag tag) {
