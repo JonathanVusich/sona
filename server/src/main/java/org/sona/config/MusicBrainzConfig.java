@@ -1,7 +1,5 @@
 package org.sona.config;
 
-import io.github.resilience4j.ratelimiter.RateLimiter;
-import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.MusicBrainzProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,22 +22,11 @@ public class MusicBrainzConfig {
     }
 
     @Bean
-    public RestClient musicBrainzRestClient(UriBuilderFactory uriBuilderFactory,
-                                            JsonMapper mapper,
-                                            MusicBrainzProperties properties) {
-        final var rateLimiter = RateLimiter.of("musicbrainz", RateLimiterConfig.custom()
-                .limitForPeriod(1)
-                .limitRefreshPeriod(properties.requestInterval())
-                .build());
-
+    public RestClient musicBrainzRestClient(UriBuilderFactory uriBuilderFactory, JsonMapper mapper) {
         return RestClient.builder()
                 .uriBuilderFactory(uriBuilderFactory)
                 .configureMessageConverters(converters -> converters
                         .withJsonConverter(new JacksonJsonHttpMessageConverter(mapper)))
-                .requestInterceptor((request, body, execution) -> {
-                    RateLimiter.waitForPermission(rateLimiter);
-                    return execution.execute(request, body);
-                })
                 .build();
     }
 }

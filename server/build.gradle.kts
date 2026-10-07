@@ -18,7 +18,8 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("dev.javax:bitstream:0.1.0-RC")
-    implementation("io.github.resilience4j:resilience4j-ratelimiter:2.4.0")
+    implementation("io.github.resilience4j:resilience4j-spring-boot4:2.4.0")
+    implementation("org.springframework.boot:spring-boot-starter-aspectj")
 
     // Lombok
     compileOnly("org.projectlombok:lombok:1.18.42")
@@ -30,6 +31,7 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.wiremock:wiremock-standalone:3.13.2")
 
     // https://mvnrepository.com/artifact/org.assertj/assertj-core
     testImplementation("org.assertj:assertj-core:3.27.6")

@@ -1,5 +1,6 @@
 package org.sona.client;
 
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.EntityType;
 import org.sona.client.model.query.RecordingQuery;
@@ -14,10 +15,12 @@ import static org.springframework.http.HttpHeaders.USER_AGENT;
 
 @Service
 @RequiredArgsConstructor
-public final class MusicBrainzClient {
+public class MusicBrainzClient {
 
     private final RestClient restClient;
 
+    // MusicBrainz allows about one request a second per client; see resilience4j.ratelimiter.instances.musicbrainz.
+    @RateLimiter(name = "musicbrainz")
     public TrackResponse searchRecordings(RecordingQuery query) {
         return restClient.get()
                 .uri(uriBuilder -> formatTrackQuery(uriBuilder, query))
