@@ -1,5 +1,6 @@
 package org.sona.metadata;
 
+import java.time.Duration;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -9,8 +10,17 @@ import java.util.stream.Stream;
 
 public final class RawMetadata {
 
+    private final Duration duration;
     private final Map<Tag, Set<TagValue>> definedTags = new EnumMap<>(Tag.class);
     private final Map<String, Set<TagValue>> unknownTags = new HashMap<>();
+
+    public RawMetadata(final Duration duration) {
+        this.duration = duration;
+    }
+
+    public Duration duration() {
+        return duration;
+    }
 
     public void add(Tag tag, TagValue value) {
         definedTags.computeIfAbsent(tag, _ -> new LinkedHashSet<>()).add(value);

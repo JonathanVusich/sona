@@ -5,7 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.MD5Checksum;
-import org.sona.format.ParsedAudio;
+import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagSet;
 import org.sona.metadata.TagValue;
@@ -13,6 +13,7 @@ import org.sona.samples.FlacSample;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -30,7 +31,7 @@ class FlacParserTest {
     @EnumSource(FlacSample.class)
     void parseAllMetadataReadsEveryBlock(FlacSample sample) throws IOException, InvalidFormatException {
         try (final var inputStream = sample.inputStream()) {
-            final var result = new FlacParser(inputStream).parseAllMetadata();
+            final var result = new FlacParser().parseAllMetadata(inputStream);
 
             assertThat(result.metadataBlocks()).containsKeys(BlockType.STREAM_INFO, BlockType.VORBIS_COMMENT);
         }
@@ -38,11 +39,10 @@ class FlacParserTest {
 
     @Test
     void parseColdplay() throws IOException, InvalidFormatException {
-        final var parsed = parse(FlacSample.COLDPLAY);
+        final var metadata = parse(FlacSample.COLDPLAY);
 
-        assertThat(parsed.duration().toSeconds()).isEqualTo(238);
+        assertThat(metadata.duration().toSeconds()).isEqualTo(238);
 
-        final var metadata = parsed.metadata();
         assertThat(metadata.search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("A Whisper"));
         assertThat(metadata.search(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Coldplay"));
         assertThat(metadata.search(Tag.RELEASE_TITLE)).containsExactly(new TagValue.Str("A Rush of Blood to the Head"));
@@ -51,11 +51,10 @@ class FlacParserTest {
 
     @Test
     void parsePicardTaggedFile() throws IOException, InvalidFormatException {
-        final var parsed = parse(FlacSample.LUCAS_FLOYD);
+        final var metadata = parse(FlacSample.LUCAS_FLOYD);
 
-        assertThat(parsed.duration()).isEqualTo(Duration.ofSeconds(57, 160_000_000));
+        assertThat(metadata.duration()).isEqualTo(Duration.ofSeconds(57, 160_000_000));
 
-        final var metadata = parsed.metadata();
         assertThat(metadata.search(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(8));
         assertThat(metadata.search(Tag.DISC_NUMBER)).containsExactly(new TagValue.Int(2));
         assertThat(metadata.search(Tag.ALBUM_ARTIST)).containsExactly(new TagValue.Str("Philip Glass; Paul Barnes"));
@@ -68,8 +67,8 @@ class FlacParserTest {
     void parseFileWithOnlyUnknownTags() throws IOException, InvalidFormatException {
         final var parsed = parse(FlacSample.SAMPLE_3);
 
-        assertThat(parsed.metadata().search(Tag.TRACK_TITLE)).isEmpty();
-        assertThat(parsed.metadata().unknownTags())
+        assertThat(parsed.search(Tag.TRACK_TITLE)).isEmpty();
+        assertThat(parsed.unknownTags())
                 .containsExactly(new TagSet("encoder", Set.of(new TagValue.Str("Lavf58.29.100"))));
     }
 
@@ -78,7 +77,7 @@ class FlacParserTest {
         final var parsed = parse(flac(streamInfo(lastHeader(BlockType.STREAM_INFO))));
 
         assertThat(parsed.duration()).isEqualTo(Duration.ofSeconds(10));
-        assertThat(parsed.metadata().unknownTags()).isEmpty();
+        assertThat(parsed.unknownTags()).isEmpty();
     }
 
     @Test
@@ -86,7 +85,7 @@ class FlacParserTest {
         final var parsed = parse(flac(streamInfo(header(BlockType.STREAM_INFO)),
                 vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TiTlE", "Mixed Case"))));
 
-        assertThat(parsed.metadata().search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Mixed Case"));
+        assertThat(parsed.search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Mixed Case"));
     }
 
     @Test
@@ -112,7 +111,7 @@ class FlacParserTest {
                 new Padding(new BlockHeader(true, BlockType.PADDING, 1024))
         };
 
-        final var read = new FlacParser(flac(blocks)).parseAllMetadata();
+        final var read = new FlacParser().parseAllMetadata(flac(blocks));
 
         // The writer works out each block's size, so only padding's size is known up front.
         assertThat(read).usingRecursiveComparison()
@@ -141,21 +140,22 @@ class FlacParserTest {
 
     private static InputStream flac(final Block... blocks) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
-        final var flacWriter = new FlacWriter(outputStream);
-        flacWriter.writeFlacHeader();
+        final var dataStream = new DataOutputStream(outputStream);
+        final var flacWriter = new FlacWriter();
+        flacWriter.writeFlacHeader(dataStream);
         for (final var block : blocks) {
-            flacWriter.writeBlock(block);
+            flacWriter.writeBlock(dataStream, block);
         }
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
-    private static ParsedAudio parse(final FlacSample sample) throws IOException, InvalidFormatException {
+    private static RawMetadata parse(final FlacSample sample) throws IOException, InvalidFormatException {
         try (final var inputStream = sample.inputStream()) {
             return parse(inputStream);
         }
     }
 
-    private static ParsedAudio parse(final InputStream inputStream) throws IOException, InvalidFormatException {
-        return new Flac().parse(inputStream);
+    private static RawMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+        return new FlacParser().parse(inputStream);
     }
 }
