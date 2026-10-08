@@ -15,7 +15,7 @@ public record Release(
         String title,
         String status,
         @JsonProperty("artist-credit")
-        List<ReleaseCredit> artistCredit,
+        List<ArtistCredit> artistCredit,
         @JsonProperty("release-group")
         ReleaseGroup releaseGroup,
         @JsonProperty("track-count")

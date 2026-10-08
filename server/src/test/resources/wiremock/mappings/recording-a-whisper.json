@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/recording",
+    "queryParameters": {
+      "query": { "equalTo": "\"A Whisper\" AND artist:\"Coldplay\" AND tnum:9" },
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "recording/a-whisper.json"
+  }
+}
