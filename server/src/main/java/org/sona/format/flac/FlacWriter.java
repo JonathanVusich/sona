@@ -2,6 +2,7 @@ package org.sona.format.flac;
 
 import dev.javax.bitstream.BitOutputStream;
 import org.sona.format.Format;
+import org.sona.format.MD5Checksum;
 import org.sona.format.Writer;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.TagValue;
@@ -12,9 +13,9 @@ import java.io.OutputStream;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Objects;
-
-import static java.util.function.Predicate.not;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Stream;
 
 public final class FlacWriter implements Writer {
 
@@ -27,6 +28,13 @@ public final class FlacWriter implements Writer {
     private static final int CUE_SHEET_INDEX_POINT_SIZE = 12;
     // The picture type, the two string lengths, width, height, color depth, color count and data length.
     private static final int PICTURE_FIELDS_SIZE = 8 * 4;
+    private static final int MD5_SIZE = 16;
+
+    private static final String VENDOR = "Sona";
+    private static final int DEFAULT_BLOCK_SIZE = 4096;
+    private static final int DEFAULT_SAMPLE_RATE = 44_100;
+    private static final int DEFAULT_CHANNELS = 2;
+    private static final int DEFAULT_BITS_PER_SAMPLE = 16;
 
     @Override
     public Format format() {
@@ -36,22 +44,42 @@ public final class FlacWriter implements Writer {
     @Override
     public void write(final RawMetadata rawMetadata, final OutputStream outputStream) throws IOException {
         final var dataStream = new DataOutputStream(outputStream);
-
-        // Write FLAC header
         writeFlacHeader(dataStream);
-
-        final var flacTags = Arrays.stream(FlacTag.values())
-                .map(FlacTag::getTag)
-                .map(tag -> retrieve(rawMetadata, tag))
-                .filter(not(Objects::isNull))
-                .toList();
-
-        final var rawTags = rawMetadata.unknownTags()
-                .toList();
+        writeBlock(dataStream, streamInfo(rawMetadata));
+        writeBlock(dataStream, vorbisComment(rawMetadata));
     }
 
-    private TagValue retrieve(RawMetadata metadata, org.sona.metadata.Tag tag) {
-        return metadata.search(tag).stream().findFirst().orElse(null);
+    /**
+     * RawMetadata only knows the duration, so the rest of the stream info is a fixed 16-bit stereo stream at 44.1 kHz.
+     * An all-zero MD5 signature means the audio's checksum is unknown (RFC 9639 section 8.2).
+     */
+    private static StreamInfo streamInfo(final RawMetadata rawMetadata) {
+        final var header = new BlockHeader(BlockPosition.NOT_LAST, BlockType.STREAM_INFO, STREAM_INFO_SIZE);
+        final var samples = rawMetadata.duration().toNanos() * DEFAULT_SAMPLE_RATE / 1_000_000_000L;
+        return new StreamInfo(header, new MD5Checksum(new byte[MD5_SIZE]), DEFAULT_BLOCK_SIZE, DEFAULT_BLOCK_SIZE, 0, 0,
+                DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEFAULT_BITS_PER_SAMPLE, samples);
+    }
+
+    private static VorbisComment vorbisComment(final RawMetadata rawMetadata) {
+        final var header = new BlockHeader(BlockPosition.LAST, BlockType.VORBIS_COMMENT, 0);
+        final var knownFields = Arrays.stream(FlacTag.values())
+                .flatMap(flacTag -> fields(flacTag.getFieldName(), rawMetadata.search(flacTag.getTag())));
+        final var unknownFields = rawMetadata.unknownTags()
+                .flatMap(tagSet -> fields(tagSet.tag(), tagSet.values()));
+        return new VorbisComment(header, VENDOR, Stream.concat(knownFields, unknownFields).toList());
+    }
+
+    private static Stream<Field> fields(final String fieldName, final Set<TagValue> values) {
+        return values.stream()
+                .map(value -> new Field(fieldName.toUpperCase(Locale.ROOT), fieldContent(value)));
+    }
+
+    private static String fieldContent(final TagValue value) {
+        return switch (value) {
+            case TagValue.Str(String content) -> content;
+            case TagValue.Int(int content) -> Integer.toString(content);
+            case TagValue.Binary _ -> throw new IllegalArgumentException("Binary tags can't be written as Vorbis comments");
+        };
     }
 
     void writeFlacHeader(final DataOutputStream outputStream) throws IOException {
