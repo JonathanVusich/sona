@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/recording",
+    "queryParameters": {
+      "query": { "equalTo": "\"Zzyzx Qwerty Nonexistent Song\" AND artist:\"Nobody Atall\"" },
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "recording/no-match.json"
+  }
+}

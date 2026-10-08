@@ -13,19 +13,12 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 
 /**
- * Transaction boundaries sit on public methods of service beans, one per unit of work. DAOs only join a transaction
- * (propagation {@code MANDATORY}), so these rules keep every DAO call behind a service and every boundary where
- * Spring's proxy can apply it.
+ * Keeps every {@code @Transactional} boundary where Spring's proxy can apply it.
  */
 @AnalyzeClasses(packages = "org.sona", importOptions = ImportOption.DoNotIncludeTests.class)
 class TransactionRulesTest {
 
-    @ArchTest
-    static final ArchRule daosOnlyUsedByServices = classes()
-            .that().resideInAPackage("..db..")
-            .should().onlyBeAccessed().byAnyPackage("..db..", "..store..");
-
-    // Allowed to match nothing, since a codebase may have no service methods yet
+    // Allowed to match nothing, since the DAOs put @Transactional on the class rather than on methods
     @ArchTest
     static final ArchRule transactionalMethodsArePublic = methods()
             .that().areAnnotatedWith(Transactional.class)

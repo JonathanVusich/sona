@@ -81,6 +81,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.wiremock:wiremock-standalone:3.13.2")
+    testImplementation("com.google.jimfs:jimfs:1.3.0")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.0")
 
     // https://mvnrepository.com/artifact/org.assertj/assertj-core
