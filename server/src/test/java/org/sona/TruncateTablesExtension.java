@@ -7,7 +7,7 @@ import org.sona.model.Sona;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 /**
- * Empties every table in Sona's schema after each test, for tests whose writes commit.
+ * Empties every table in Sona's schema after each test.
  */
 public class TruncateTablesExtension implements AfterEachCallback {
 

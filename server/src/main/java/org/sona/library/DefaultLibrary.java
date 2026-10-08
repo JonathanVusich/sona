@@ -2,13 +2,13 @@ package org.sona.library;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.LibraryProperties;
+import org.sona.db.TrackToIngestDao;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
-import org.sona.store.IngestStore;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.UUID;
 
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -34,7 +35,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 @RequiredArgsConstructor
 public final class DefaultLibrary implements Library {
 
-    private final IngestStore ingestStore;
+    private final TrackToIngestDao trackToIngestDao;
     private final LibraryProperties config;
 
     @Override
@@ -60,7 +61,7 @@ public final class DefaultLibrary implements Library {
                 IngestState.PENDING
         );
 
-        ingestStore.store(trackIngest);
+        trackToIngestDao.store(List.of(trackIngest));
     }
 
     @Override

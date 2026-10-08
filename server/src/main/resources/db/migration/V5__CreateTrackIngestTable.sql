@@ -1,4 +1,4 @@
-create type ingest_state as enum ('PENDING', 'INPUT_REQUIRED', 'MOVE_FAILED', 'COMPLETED');
+create type ingest_state as enum ('PENDING', 'INPUT_REQUIRED', 'MOVE_FAILED', 'FAILED', 'COMPLETED');
 
 create table if not exists track_to_ingest (
     track_ingest_id uuid primary key,

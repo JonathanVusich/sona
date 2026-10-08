@@ -2,8 +2,11 @@ package org.sona.engine;
 
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
-import org.sona.CommittingIntegrationTest;
+import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
+import org.sona.db.ReleaseGroupDao;
+import org.sona.db.TrackDao;
+import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
@@ -30,12 +33,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
-import static org.sona.model.Tables.TRACK;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
-@CommittingIntegrationTest
+@IntegrationTest
 class DefaultIngestionEngineTest {
 
     @Autowired
@@ -43,9 +44,16 @@ class DefaultIngestionEngineTest {
     @Autowired
     private Library library;
     @Autowired
-    private DSLContext dsl;
-    @Autowired
     private LibraryProperties libraryProperties;
+    @Autowired
+    private TrackToIngestDao trackToIngestDao;
+    @Autowired
+    private TrackDao trackDao;
+    @Autowired
+    private ReleaseGroupDao releaseGroupDao;
+    // For rows the DAOs have no lookup for.
+    @Autowired
+    private DSLContext dsl;
 
     @Test
     void importMatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
@@ -55,9 +63,10 @@ class DefaultIngestionEngineTest {
 
         engine.processTrack(ingest);
 
-        assertThat(load(ingest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(load(ingest).state()).isEqualTo(IngestState.COMPLETED);
 
-        final var track = dsl.selectFrom(TRACK).where(TRACK.NAME.eq("A Whisper")).fetchSingleInto(Track.class);
+        final var track = loadTrack(ingest);
+        assertThat(track.name()).isEqualTo("A Whisper");
         assertThat(track.duration()).isEqualTo(10);
         assertThat(track.format()).isEqualTo(AudioFormat.FLAC);
 
@@ -89,12 +98,12 @@ class DefaultIngestionEngineTest {
 
     @Test
     void importTracksFromOneReleaseIntoOneFolder() throws IOException, InvalidFormatException, InterruptedException {
-        engine.processTrack(store(flacFile(whisper()), "09 A Whisper.flac"));
-        engine.processTrack(store(flacFile(whisper()), "09 A Whisper (copy).flac"));
+        final var first = store(flacFile(whisper()), "09 A Whisper.flac");
+        final var second = store(flacFile(whisper()), "09 A Whisper (copy).flac");
+        engine.processTrack(first);
+        engine.processTrack(second);
 
-        final var tracks = dsl.selectFrom(TRACK).where(TRACK.NAME.eq("A Whisper")).fetchInto(Track.class);
-        assertThat(tracks).hasSize(2);
-        assertThat(tracks).extracting(Track::releaseId).containsOnly(tracks.getFirst().releaseId());
+        assertThat(loadTrack(second).releaseId()).isEqualTo(loadTrack(first).releaseId());
         assertThat(dsl.fetchCount(RELEASE)).isEqualTo(1);
         assertThat(dsl.fetchCount(RELEASE_GROUP)).isEqualTo(1);
     }
@@ -105,7 +114,7 @@ class DefaultIngestionEngineTest {
 
         engine.processTrack(ingest);
 
-        assertThat(load(ingest.trackIngestId()).state()).isEqualTo(IngestState.INPUT_REQUIRED);
+        assertThat(load(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         // The file stays in the ingest area until the user supplies metadata.
         try (final var stillThere = library.readIngestTrack(ingest)) {
             assertThat(stillThere.readAllBytes()).isNotEmpty();
@@ -114,9 +123,8 @@ class DefaultIngestionEngineTest {
 
     @Test
     void retryOnlyTheMoveAfterItFails() throws IOException, InvalidFormatException, InterruptedException {
-        final var releaseGroup = new ReleaseGroup(
-                uuidv7(), "A Rush of Blood to the Head", UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf"));
-        dsl.newRecord(RELEASE_GROUP, releaseGroup).store();
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(), "A Rush of Blood to the Head", UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
         // A file where the release group's folder belongs makes the move fail.
         final var blocker = libraryProperties.mediaFolder()
                 .resolve(releaseGroup.releaseGroupId() + "[A Rush of Blood to the Head]");
@@ -125,16 +133,14 @@ class DefaultIngestionEngineTest {
         final var ingest = store(flacFile(whisper()), "09 A Whisper.flac");
 
         assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(IOException.class);
-        final var failed = load(ingest.trackIngestId());
+        final var failed = load(ingest);
         assertThat(failed.state()).isEqualTo(IngestState.MOVE_FAILED);
 
         Files.delete(blocker);
         engine.processTrack(failed);
 
-        assertThat(load(ingest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
-        final var track = dsl.selectFrom(TRACK).where(TRACK.TRACK_INGEST_ID.eq(ingest.trackIngestId()))
-                .fetchSingleInto(Track.class);
-        try (final var imported = library.readTrack(track)) {
+        assertThat(load(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        try (final var imported = library.readTrack(loadTrack(ingest))) {
             assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisper()));
         }
     }
@@ -146,7 +152,7 @@ class DefaultIngestionEngineTest {
         assertThatThrownBy(() -> engine.processTrack(ingest))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("Extension mp3 is not supported!");
-        assertThat(load(ingest.trackIngestId()).state()).isEqualTo(IngestState.PENDING);
+        assertThat(load(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 
     private static RawMetadata whisper() {
@@ -165,15 +171,16 @@ class DefaultIngestionEngineTest {
     private TrackToIngest store(final byte[] flac, final String fileName) throws IOException {
         final var groupId = uuidv7();
         library.storeIngestTrack(groupId, fileName, new ByteArrayInputStream(flac));
-        return dsl.selectFrom(TRACK_TO_INGEST)
-                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(groupId))
-                .fetchSingleInto(TrackToIngest.class);
+        final var ingests = trackToIngestDao.loadByGroup(groupId);
+        assertThat(ingests).hasSize(1);
+        return ingests.getFirst();
     }
 
-    // The DAOs need a transaction, which these tests don't have, so rows are read with jOOQ directly.
-    private TrackToIngest load(final UUID trackIngestId) {
-        return dsl.selectFrom(TRACK_TO_INGEST)
-                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackIngestId))
-                .fetchSingleInto(TrackToIngest.class);
+    private TrackToIngest load(final TrackToIngest ingest) {
+        return trackToIngestDao.load(ingest.trackIngestId());
+    }
+
+    private Track loadTrack(final TrackToIngest ingest) {
+        return trackDao.loadByIngest(ingest.trackIngestId());
     }
 }

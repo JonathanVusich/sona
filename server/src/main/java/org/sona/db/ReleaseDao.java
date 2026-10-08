@@ -5,7 +5,6 @@ import org.jooq.DSLContext;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.Release;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.jooq.impl.DSL.excluded;
@@ -13,7 +12,7 @@ import static org.sona.model.Tables.RELEASE;
 
 @Component
 @RequiredArgsConstructor
-@Transactional(propagation = Propagation.MANDATORY)
+@Transactional
 public class ReleaseDao {
 
     private final DSLContext dsl;
