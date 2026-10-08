@@ -7,6 +7,7 @@ import org.sona.model.Tables;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -14,7 +15,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-@Transactional
+@Transactional(propagation = Propagation.MANDATORY)
 public class TrackToIngestDao {
 
     private final DSLContext dsl;

@@ -5,6 +5,7 @@ import org.jooq.DSLContext;
 import org.sona.mappers.TrackMapper;
 import org.sona.model.tables.pojos.Track;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -13,7 +14,7 @@ import static org.sona.model.Tables.TRACK;
 
 @Component
 @RequiredArgsConstructor
-@Transactional
+@Transactional(propagation = Propagation.MANDATORY)
 public class TrackDao {
 
     private final DSLContext dsl;
