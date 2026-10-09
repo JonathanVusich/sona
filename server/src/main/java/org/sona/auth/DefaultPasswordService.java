@@ -43,7 +43,7 @@ public class DefaultPasswordService implements PasswordService {
     }
 
     @Override
-    public PasswordChange change(final SignedInUser signedIn, final String currentPassword, final String newPassword) {
+    public PasswordChange change(final SignedInUser.Local signedIn, final String currentPassword, final String newPassword) {
         final var user = localUserDao.find(signedIn.userId()).orElseThrow();
         if (!encoder.matches(currentPassword, user.passwordHash())) {
             return PasswordChange.INCORRECT_CURRENT_PASSWORD;

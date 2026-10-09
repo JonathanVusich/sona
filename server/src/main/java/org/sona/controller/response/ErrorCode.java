@@ -21,7 +21,9 @@ public enum ErrorCode {
 
     INCORRECT_CURRENT_PASSWORD(200, HttpStatus.BAD_REQUEST, "The current password is incorrect."),
     INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST,
-            "The new password must not be empty or the same as the current one.");
+            "The new password must not be empty or the same as the current one."),
+    PASSWORD_MANAGED_BY_PROVIDER(202, HttpStatus.BAD_REQUEST,
+            "You sign in through your identity provider, so change your password there.");
 
     @JsonValue
     private final int code;

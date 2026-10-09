@@ -2,7 +2,9 @@ package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.PasswordService;
+import org.sona.auth.SignedInUser;
 import org.sona.auth.UserAuthentication;
+import org.sona.auth.UserDirectory;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
 import org.sona.controller.response.ErrorCode;
@@ -20,16 +22,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public final class UserController {
 
+    private final UserDirectory userDirectory;
     private final PasswordService passwordService;
 
-    /**
-     * Answered from the access token alone, which carries everything here.
-     */
     @GetMapping(ApiRoutes.CURRENT_USER)
     public CurrentUserResponse me(final UserAuthentication authentication) {
         final var user = authentication.user();
+        final var username = switch (user) {
+            // Answered from the access token alone, which carries everything here.
+            case SignedInUser.Local local -> local.username();
+            // The frontend calls this after signing in, which is when the user gets their Sona account.
+            case SignedInUser.Oidc oidc -> userDirectory.resolve(oidc).username();
+        };
         final var permissions = authentication.permissions().stream().sorted().toList();
-        return new CurrentUserResponse(user.userId(), user.username(), user.role(), user.state(), permissions);
+        return new CurrentUserResponse(user.userId(), username, user.role(), user.state(), permissions);
     }
 
     /**
@@ -38,8 +44,14 @@ public final class UserController {
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
     public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
                                                @RequestBody final ChangePasswordRequest request) {
-        final var change = passwordService.change(authentication.user(), request.currentPassword(),
-                request.newPassword());
+        return switch (authentication.user()) {
+            case SignedInUser.Local local -> changePassword(local, request);
+            case SignedInUser.Oidc _ -> throw new ApiException(ErrorCode.PASSWORD_MANAGED_BY_PROVIDER);
+        };
+    }
+
+    private ResponseEntity<Void> changePassword(final SignedInUser.Local user, final ChangePasswordRequest request) {
+        final var change = passwordService.change(user, request.currentPassword(), request.newPassword());
         return switch (change) {
             case CHANGED -> ResponseEntity.noContent().build();
             case INCORRECT_CURRENT_PASSWORD -> throw new ApiException(ErrorCode.INCORRECT_CURRENT_PASSWORD);

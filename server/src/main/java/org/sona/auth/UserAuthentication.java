@@ -7,8 +7,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import java.util.Set;
 
 /**
- * A request authenticated by an access token. The token is trusted as it is, so its user's permissions follow from
- * the role it states.
+ * A request authenticated by an access token, from Sona or an OIDC provider. The token is trusted as it is, so its
+ * user's permissions follow from the role it states.
  */
 public final class UserAuthentication extends AbstractAuthenticationToken {
 

@@ -6,3 +6,9 @@ musicbrainz:
 auth:
   accessTokenLifetime: 15m
   refreshTokenLifetime: 30d
+  # OIDC providers whose access tokens Sona accepts, for example:
+  # oidcProviders:
+  #   - issuerUri: "https://auth.example.com/application/o/sona/"
+  #     audience: "sona"
+  #     roleClaim: "groups"
+  #     adminValues: ["sona-admins"]
