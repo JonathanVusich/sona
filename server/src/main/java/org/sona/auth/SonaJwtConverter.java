@@ -23,7 +23,7 @@ public final class SonaJwtConverter implements Converter<Jwt, UserAuthentication
         final var role = role(jwt.getClaimAsString(ROLE_CLAIM));
         final var state = state(jwt.getClaimAsString(STATE_CLAIM));
         final var userId = UUID.fromString(jwt.getSubject());
-        final var user = new SignedInUser(userId, jwt.getClaimAsString(USERNAME_CLAIM), role, state);
+        final var user = new SignedInUser.Local(userId, jwt.getClaimAsString(USERNAME_CLAIM), role, state);
         return new UserAuthentication(user, jwt);
     }
 

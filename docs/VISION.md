@@ -93,7 +93,8 @@ There is no deadline. Done when it's good.
 - Roles: **admin** vs **user**.
 - Auth: **local passwords**, **OIDC / SSO** (Authentik, Authelia, Keycloak), and **API tokens** for clients.
 - **Admins can do everything; users can only read the library.**
-- **Built on Spring Security:** the API is an OAuth2 resource server that takes JWT bearer tokens.
+- **Built on Spring Security:** the API is an OAuth2 resource server that takes JWT bearer tokens. It accepts
+  OIDC providers' own tokens, so a user signed in at the provider needs no second login.
 
 ## Deployment and operations
 

@@ -18,5 +18,5 @@ public interface PasswordService {
      *
      * @return whether the password changed, or why not
      */
-    PasswordChange change(SignedInUser user, String currentPassword, String newPassword);
+    PasswordChange change(SignedInUser.Local user, String currentPassword, String newPassword);
 }
