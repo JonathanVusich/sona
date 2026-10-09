@@ -1,18 +1,18 @@
 package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.UserDao;
-import org.sona.model.tables.pojos.Users;
+import org.sona.db.LocalUserDao;
+import org.sona.model.tables.pojos.LocalUser;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class DefaultUserDirectory implements UserDirectory {
 
-    private final UserDao userDao;
+    private final LocalUserDao localUserDao;
 
     @Override
-    public Users resolve(final SignedInUser user) {
-        return userDao.find(user.userId()).orElseThrow();
+    public LocalUser resolve(final SignedInUser user) {
+        return localUserDao.find(user.userId()).orElseThrow();
     }
 }

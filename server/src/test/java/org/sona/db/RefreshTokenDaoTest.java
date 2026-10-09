@@ -6,7 +6,7 @@ import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.RefreshToken;
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.OffsetDateTime;
@@ -22,14 +22,14 @@ class RefreshTokenDaoTest {
     RefreshTokenDao dao;
 
     @Autowired
-    UserDao userDao;
+    LocalUserDao localUserDao;
 
-    Users alice;
+    LocalUser alice;
 
     @BeforeEach
     void setUp() {
-        alice = new Users(uuidv7(), "alice", "{noop}alice", UserRole.USER, AccountState.ACTIVE, null, null);
-        userDao.insert(alice);
+        alice = new LocalUser(uuidv7(), "alice", "{noop}alice", UserRole.USER, AccountState.ACTIVE);
+        localUserDao.insert(alice);
     }
 
     @Test
@@ -75,8 +75,8 @@ class RefreshTokenDaoTest {
 
     @Test
     void revokeAllRevokesOnlyTheUsersTokens() {
-        final var bob = new Users(uuidv7(), "bob", "{noop}bob", UserRole.USER, AccountState.ACTIVE, null, null);
-        userDao.insert(bob);
+        final var bob = new LocalUser(uuidv7(), "bob", "{noop}bob", UserRole.USER, AccountState.ACTIVE);
+        localUserDao.insert(bob);
         dao.insert(token(uuidv7(), "alice's", OffsetDateTime.now().plusDays(1)));
         dao.insert(new RefreshToken(uuidv7(), bob.userId(), uuidv7(), "bob's", OffsetDateTime.now().plusDays(1), null));
 

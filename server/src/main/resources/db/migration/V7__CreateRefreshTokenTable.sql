@@ -2,7 +2,7 @@
 -- can revoke the whole chain.
 create table if not exists refresh_token (
     refresh_token_id uuid primary key,
-    user_id uuid not null references users on delete cascade,
+    user_id uuid not null references local_user on delete cascade,
     family_id uuid not null,
 
     -- SHA-256 of the token, hex encoded. The token itself is never stored.

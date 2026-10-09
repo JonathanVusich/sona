@@ -1,6 +1,6 @@
 package org.sona.auth;
 
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 
 import java.util.Optional;
 
@@ -11,7 +11,7 @@ public interface TokenService {
      *
      * @return an access token and the first refresh token of the session
      */
-    Tokens issue(Users user);
+    Tokens issue(LocalUser user);
 
     /**
      * Replaces the refresh token with a new one. Using a refresh token that was already replaced means it was copied,
@@ -29,5 +29,5 @@ public interface TokenService {
     /**
      * Ends every session the user has.
      */
-    void revokeAll(Users user);
+    void revokeAll(LocalUser user);
 }

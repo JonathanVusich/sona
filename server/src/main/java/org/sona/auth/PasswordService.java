@@ -1,6 +1,6 @@
 package org.sona.auth;
 
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 
 public interface PasswordService {
 
@@ -9,5 +9,5 @@ public interface PasswordService {
      *
      * @return whether the password changed, or why not
      */
-    PasswordChange change(Users user, String currentPassword, String newPassword);
+    PasswordChange change(LocalUser user, String currentPassword, String newPassword);
 }

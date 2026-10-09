@@ -1,6 +1,6 @@
 package org.sona.auth;
 
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 
 public interface UserDirectory {
 
@@ -9,5 +9,5 @@ public interface UserDirectory {
      *
      * @return the user's row
      */
-    Users resolve(SignedInUser user);
+    LocalUser resolve(SignedInUser user);
 }

@@ -7,7 +7,7 @@ import org.sona.config.properties.AuthProperties;
 import org.sona.controller.request.LoginRequest;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.db.UserDao;
+import org.sona.db.LocalUserDao;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -36,7 +36,7 @@ public final class AuthController {
 
     private final AuthenticationManager passwordAuthentication;
     private final TokenService tokenService;
-    private final UserDao userDao;
+    private final LocalUserDao localUserDao;
     private final AuthProperties properties;
 
     @PostMapping(ApiRoutes.AUTH_TOKEN)
@@ -44,7 +44,7 @@ public final class AuthController {
         final var credentials = UsernamePasswordAuthenticationToken.unauthenticated(request.username(),
                 request.password());
         final var authentication = passwordAuthentication.authenticate(credentials);
-        final var user = userDao.findByUsername(authentication.getName()).orElseThrow();
+        final var user = localUserDao.findByUsername(authentication.getName()).orElseThrow();
         final var tokens = tokenService.issue(user);
         return issued(tokens);
     }

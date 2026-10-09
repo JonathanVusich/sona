@@ -3,9 +3,9 @@ package org.sona.controller;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
-import org.sona.auth.TestUsers;
+import org.sona.auth.TestLocalUsers;
 import org.sona.controller.response.CurrentUserResponse;
-import org.sona.db.UserDao;
+import org.sona.db.LocalUserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UserControllerTest {
 
     @Autowired
-    UserDao userDao;
+    LocalUserDao localUserDao;
 
     @Autowired
     PasswordEncoder encoder;
@@ -27,12 +27,12 @@ class UserControllerTest {
     int port;
 
     ApiClient api;
-    TestUsers users;
+    TestLocalUsers users;
 
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        users = new TestUsers(userDao, encoder);
+        users = new TestLocalUsers(localUserDao, encoder);
     }
 
     @Test

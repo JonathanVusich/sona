@@ -1,10 +1,10 @@
 package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.UserDao;
+import org.sona.db.LocalUserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -22,15 +22,15 @@ import static org.sona.utils.IDGenerator.uuidv7;
 @RequiredArgsConstructor
 public class InitialAdmin implements ApplicationRunner {
 
-    private final UserDao userDao;
+    private final LocalUserDao localUserDao;
     private final PasswordEncoder encoder;
 
     @Override
     public void run(final ApplicationArguments args) {
-        if (userDao.isEmpty()) {
-            final var admin = new Users(uuidv7(), "admin", encoder.encode("admin"), UserRole.ADMIN,
-                    AccountState.PASSWORD_CHANGE_REQUIRED, null, null);
-            userDao.insert(admin);
+        if (localUserDao.isEmpty()) {
+            final var admin = new LocalUser(uuidv7(), "admin", encoder.encode("admin"), UserRole.ADMIN,
+                    AccountState.PASSWORD_CHANGE_REQUIRED);
+            localUserDao.insert(admin);
         }
     }
 }

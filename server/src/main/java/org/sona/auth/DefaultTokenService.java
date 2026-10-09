@@ -3,10 +3,10 @@ package org.sona.auth;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
 import org.sona.db.RefreshTokenDao;
-import org.sona.db.UserDao;
+import org.sona.db.LocalUserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.tables.pojos.RefreshToken;
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -41,11 +41,11 @@ public class DefaultTokenService implements TokenService {
 
     private final JwtEncoder encoder;
     private final RefreshTokenDao refreshTokenDao;
-    private final UserDao userDao;
+    private final LocalUserDao localUserDao;
     private final AuthProperties properties;
 
     @Override
-    public Tokens issue(final Users user) {
+    public Tokens issue(final LocalUser user) {
         return issue(user, uuidv7());
     }
 
@@ -58,7 +58,7 @@ public class DefaultTokenService implements TokenService {
             return Optional.empty();
         }
         // Checked here because access tokens are trusted as they are until they expire.
-        return userDao.find(used.userId())
+        return localUserDao.find(used.userId())
                 .filter(user -> user.state() != AccountState.DISABLED)
                 .map(user -> issue(user, used.familyId()));
     }
@@ -70,18 +70,18 @@ public class DefaultTokenService implements TokenService {
     }
 
     @Override
-    public void revokeAll(final Users user) {
+    public void revokeAll(final LocalUser user) {
         refreshTokenDao.revokeAll(user.userId());
     }
 
-    private Tokens issue(final Users user, final UUID familyId) {
+    private Tokens issue(final LocalUser user, final UUID familyId) {
         final var refreshToken = randomToken();
         final var expiresAt = Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
         refreshTokenDao.insert(new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
         return new Tokens(accessToken(user), refreshToken);
     }
 
-    private String accessToken(final Users user) {
+    private String accessToken(final LocalUser user) {
         final var now = Instant.now();
         final var claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)

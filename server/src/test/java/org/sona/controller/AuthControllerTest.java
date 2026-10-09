@@ -5,11 +5,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.auth.Permission;
-import org.sona.auth.TestUsers;
+import org.sona.auth.TestLocalUsers;
 import org.sona.controller.response.CurrentUserResponse;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.db.UserDao;
+import org.sona.db.LocalUserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,13 +20,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.model.Tables.USERS;
+import static org.sona.model.Tables.LOCAL_USER;
 
 @IntegrationTest
 class AuthControllerTest {
 
     @Autowired
-    UserDao userDao;
+    LocalUserDao localUserDao;
 
     @Autowired
     PasswordEncoder encoder;
@@ -38,12 +38,12 @@ class AuthControllerTest {
     int port;
 
     ApiClient api;
-    TestUsers users;
+    TestLocalUsers users;
 
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        users = new TestUsers(userDao, encoder);
+        users = new TestLocalUsers(localUserDao, encoder);
     }
 
     @Test
@@ -182,9 +182,9 @@ class AuthControllerTest {
 
     private void disable(final String username) {
         // There's no endpoint or DAO method for disabling users yet.
-        dsl.update(USERS)
-                .set(USERS.STATE, AccountState.DISABLED)
-                .where(USERS.USERNAME.eq(username))
+        dsl.update(LOCAL_USER)
+                .set(LOCAL_USER.STATE, AccountState.DISABLED)
+                .where(LOCAL_USER.USERNAME.eq(username))
                 .execute();
     }
 }
