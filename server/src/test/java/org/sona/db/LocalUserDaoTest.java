@@ -4,17 +4,17 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
-import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.pojos.LocalUser;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
-class UserDaoTest {
+class LocalUserDaoTest {
 
     @Autowired
-    UserDao dao;
+    LocalUserDao dao;
 
     @Test
     void insertAndFind() {
@@ -60,7 +60,7 @@ class UserDaoTest {
         assertThat(updated.state()).isEqualTo(AccountState.ACTIVE);
     }
 
-    private static Users user(final String username, final UserRole role, final AccountState state) {
-        return new Users(uuidv7(), username, "{noop}" + username, role, state, null, null);
+    private static LocalUser user(final String username, final UserRole role, final AccountState state) {
+        return new LocalUser(uuidv7(), username, "{noop}" + username, role, state);
     }
 }
