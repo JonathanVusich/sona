@@ -8,19 +8,16 @@ import org.sona.auth.SonaJwtConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
@@ -38,6 +35,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
+                                                   final AuthenticationEntryPoint authenticationEntryPoint,
                                                    final AccessDeniedHandler accessDeniedHandler) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
         // SameSite=Strict.
@@ -54,6 +52,7 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt
                                 .decoder(tokenDecoder)
                                 .jwtAuthenticationConverter(new SonaJwtConverter()))
+                        .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .build();
     }
@@ -61,16 +60,6 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    /**
-     * Checks usernames and passwords when a user logs in.
-     */
-    @Bean
-    public AuthenticationManager passwordAuthentication(final UserDetailsService users, final PasswordEncoder encoder) {
-        final var provider = new DaoAuthenticationProvider(users);
-        provider.setPasswordEncoder(encoder);
-        return new ProviderManager(provider);
     }
 
     /**

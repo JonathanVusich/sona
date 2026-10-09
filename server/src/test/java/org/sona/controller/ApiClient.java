@@ -56,6 +56,10 @@ public final class ApiClient {
                 .exchange();
     }
 
+    public RestTestClient.ResponseSpec logoutWithoutCookie() {
+        return client.post().uri(ApiRoutes.AUTH_LOGOUT).exchange();
+    }
+
     public RestTestClient.ResponseSpec get(final String path, final String accessToken) {
         return client.get().uri(path)
                 .headers(headers -> headers.setBearerAuth(accessToken))

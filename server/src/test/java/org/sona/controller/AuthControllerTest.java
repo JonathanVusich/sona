@@ -93,7 +93,11 @@ class AuthControllerTest {
     void loginRejectsAWrongPassword() {
         users.create("alice", UserRole.USER);
 
-        api.login("alice", "wrong").expectStatus().isUnauthorized();
+        api.login("alice", "wrong")
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(101)
+                .jsonPath("$.reason").isEqualTo("The username or password is incorrect.");
     }
 
     @Test
@@ -110,7 +114,10 @@ class AuthControllerTest {
 
     @Test
     void requestsWithoutATokenAreRejected() {
-        api.getAnonymously(ApiRoutes.CURRENT_USER).expectStatus().isUnauthorized();
+        api.getAnonymously(ApiRoutes.CURRENT_USER)
+                .expectStatus().isUnauthorized()
+                .expectHeader().exists(HttpHeaders.WWW_AUTHENTICATE)
+                .expectBody().jsonPath("$.code").isEqualTo(100);
     }
 
     @Test
@@ -165,7 +172,19 @@ class AuthControllerTest {
 
     @Test
     void refreshWithAnUnknownTokenIsRejected() {
-        api.refresh("unknown").expectStatus().isUnauthorized();
+        api.refresh("unknown")
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(102);
+    }
+
+    @Test
+    void meIsAnsweredFromTheToken() {
+        users.create("alice", UserRole.USER);
+        final var session = api.session("alice", "alice");
+
+        dsl.deleteFrom(LOCAL_USER).execute();
+
+        api.get(ApiRoutes.CURRENT_USER, session.accessToken()).expectStatus().isOk();
     }
 
     @Test
@@ -178,6 +197,29 @@ class AuthControllerTest {
                 .expectHeader().value(HttpHeaders.SET_COOKIE, cookie -> assertThat(cookie).contains("Max-Age=0"));
 
         api.refresh(session.refreshToken()).expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void logoutNeedsARefreshToken() {
+        api.logoutWithoutCookie()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(102);
+    }
+
+    @Test
+    void logoutRejectsAnUnknownRefreshToken() {
+        api.logout("unknown")
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(102);
+    }
+
+    @Test
+    void logoutRejectsARefreshTokenThatWasAlreadyUsed() {
+        users.create("alice", UserRole.USER);
+        final var session = api.session("alice", "alice");
+        api.logout(session.refreshToken()).expectStatus().isNoContent();
+
+        api.logout(session.refreshToken()).expectStatus().isUnauthorized();
     }
 
     private void disable(final String username) {

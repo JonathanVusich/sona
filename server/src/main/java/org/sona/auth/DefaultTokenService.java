@@ -64,9 +64,15 @@ public class DefaultTokenService implements TokenService {
     }
 
     @Override
-    public void revoke(final String refreshToken) {
-        refreshTokenDao.find(sha256Hex(refreshToken))
-                .ifPresent(token -> refreshTokenDao.revokeFamily(token.familyId()));
+    public boolean revoke(final String refreshToken) {
+        final var tokenHash = sha256Hex(refreshToken);
+        final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
+        if (used == null) {
+            revokeFamilyIfReused(tokenHash);
+            return false;
+        }
+        refreshTokenDao.revokeFamily(used.familyId());
+        return true;
     }
 
     @Override

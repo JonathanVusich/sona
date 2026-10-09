@@ -1,23 +1,19 @@
 package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.sona.auth.PasswordService;
 import org.sona.auth.TokenService;
 import org.sona.auth.Tokens;
 import org.sona.config.properties.AuthProperties;
 import org.sona.controller.request.LoginRequest;
+import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.db.LocalUserDao;
+import org.sona.exception.ApiException;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,17 +30,15 @@ public final class AuthController {
 
     public static final String REFRESH_COOKIE = "sona_refresh";
 
-    private final AuthenticationManager passwordAuthentication;
+    private final PasswordService passwordService;
     private final TokenService tokenService;
-    private final LocalUserDao localUserDao;
     private final AuthProperties properties;
 
     @PostMapping(ApiRoutes.AUTH_TOKEN)
     public ResponseEntity<TokenResponse> login(@RequestBody final LoginRequest request) {
-        final var credentials = UsernamePasswordAuthenticationToken.unauthenticated(request.username(),
-                request.password());
-        final var authentication = passwordAuthentication.authenticate(credentials);
-        final var user = localUserDao.findByUsername(authentication.getName()).orElseThrow();
+        // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
+        final var user = passwordService.authenticate(request.username(), request.password())
+                .orElseThrow(() -> new ApiException(ErrorCode.INVALID_CREDENTIALS));
         final var tokens = tokenService.issue(user);
         return issued(tokens);
     }
@@ -53,27 +47,23 @@ public final class AuthController {
     public ResponseEntity<TokenResponse> refresh(
             @CookieValue(name = REFRESH_COOKIE, required = false) final String refreshToken) {
         if (refreshToken == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new ApiException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        return tokenService.refresh(refreshToken)
-                .map(this::issued)
-                .orElseGet(() -> cleared(HttpStatus.UNAUTHORIZED));
+        final var tokens = tokenService.refresh(refreshToken)
+                .orElseThrow(() -> new ApiException(ErrorCode.INVALID_REFRESH_TOKEN));
+        return issued(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_LOGOUT)
     public ResponseEntity<Void> logout(
             @CookieValue(name = REFRESH_COOKIE, required = false) final String refreshToken) {
-        if (refreshToken != null) {
-            tokenService.revoke(refreshToken);
+        if (refreshToken == null || !tokenService.revoke(refreshToken)) {
+            throw new ApiException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        return cleared(HttpStatus.NO_CONTENT);
-    }
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ProblemDetail> loginFailed(final AuthenticationException exception) {
-        // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
-        final var problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid username or password");
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+        final var cookie = refreshCookie("", Duration.ZERO);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .build();
     }
 
     private ResponseEntity<TokenResponse> issued(final Tokens tokens) {
@@ -83,16 +73,6 @@ public final class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(body);
-    }
-
-    /**
-     * @return a response with the status that also deletes the refresh cookie
-     */
-    private <T> ResponseEntity<T> cleared(final HttpStatus status) {
-        final var cookie = refreshCookie("", Duration.ZERO);
-        return ResponseEntity.status(status)
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .build();
     }
 
     private static ResponseCookie refreshCookie(final String value, final Duration maxAge) {

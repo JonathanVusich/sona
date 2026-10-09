@@ -56,7 +56,9 @@ class UserControllerTest {
 
         api.get("/api/library", session.accessToken())
                 .expectStatus().isForbidden()
-                .expectBody().jsonPath("$.code").isEqualTo("password_change_required");
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(103)
+                .jsonPath("$.reason").isEqualTo("Change your password before continuing.");
     }
 
     @Test
@@ -105,7 +107,9 @@ class UserControllerTest {
         users.create("alice", UserRole.USER);
         final var session = api.session("alice", "alice");
 
-        api.changePassword(session.accessToken(), "wrong", "s3cret").expectStatus().isBadRequest();
+        api.changePassword(session.accessToken(), "wrong", "s3cret")
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(200);
     }
 
     @Test
@@ -113,7 +117,9 @@ class UserControllerTest {
         users.create("alice", UserRole.USER);
         final var session = api.session("alice", "alice");
 
-        api.changePassword(session.accessToken(), "alice", "alice").expectStatus().isBadRequest();
+        api.changePassword(session.accessToken(), "alice", "alice")
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(201);
         api.changePassword(session.accessToken(), "alice", " ").expectStatus().isBadRequest();
     }
 }

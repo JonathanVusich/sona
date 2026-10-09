@@ -22,9 +22,12 @@ public interface TokenService {
     Optional<Tokens> refresh(String refreshToken);
 
     /**
-     * Ends the session the refresh token belongs to.
+     * Ends the session the refresh token belongs to. Using a refresh token that was already replaced means it was
+     * copied, so its whole session is revoked then too.
+     *
+     * @return whether the refresh token was valid: known, unexpired and not yet revoked
      */
-    void revoke(String refreshToken);
+    boolean revoke(String refreshToken);
 
     /**
      * Ends every session the user has.
