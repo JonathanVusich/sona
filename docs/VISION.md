@@ -71,7 +71,7 @@ There is no deadline. Done when it's good.
 - **MusicBrainz is the primary source of truth**, supplemented by **Discogs** and **Spotify / Apple**.
 - Providers sit behind an **internal interface** (plain classes in the codebase). Sona has no runtime
   plugin system.
-- **The public MusicBrainz API is the default**, with a client-side rate limit (~1 req/s). A **local
+- **The public MusicBrainz API is the default**, with a client-side rate limit. A **local
   MusicBrainz mirror is an optional, opt-in add-on** (e.g. a separate Docker Compose profile) for large
   libraries.
 - The **`metadata` Gradle module is intended to become a separate, independently deployable
@@ -80,11 +80,10 @@ There is no deadline. Done when it's good.
 ## Files on disk
 
 - **Tags are fully rewritten** with Sona's resolved metadata on import.
-- **Audio data must be preserved byte for byte.** Only metadata blocks change; verify with the stream MD5.
-- **The library layout is based on Sona's own database IDs** (`release_group[id]/release[id]/track[id].ext`),
-  not MusicBrainz IDs, so files that have no MusicBrainz match (or are entered manually) fit the same layout.
-  The library is Sona's internal storage, so it doesn't need to be friendly to other players. It must still be
-  **consistent, and easy for a user to retrieve their music from** if they leave Sona.
+- **Audio data must be preserved byte for byte.** Only metadata changes.
+- **The library layout is based on Sona's own database IDs**, not MusicBrainz IDs, so files that have no
+  MusicBrainz match (or are entered manually) fit the same layout. The library is Sona's internal storage, so it
+  doesn't need to be friendly to other players. It must still be **consistent, and easy for a user to retrieve their music from** if they leave Sona.
 - **Formats:** FLAC first, then **eventually all common formats**.
 - **Parsers and writers are hand-written on purpose** (control and correctness). Don't replace them
   with jaudiotagger or similar.
@@ -93,6 +92,8 @@ There is no deadline. Done when it's good.
 
 - Roles: **admin** vs **user**.
 - Auth: **local passwords**, **OIDC / SSO** (Authentik, Authelia, Keycloak), and **API tokens** for clients.
+- **Admins can do everything; users can only read the library.**
+- **Built on Spring Security:** the API is an OAuth2 resource server that takes JWT bearer tokens.
 
 ## Deployment and operations
 
@@ -108,11 +109,9 @@ There is no deadline. Done when it's good.
 
 - **Bleeding edge is fine:** latest JDK and Spring Boot release candidates are acceptable.
 - **Ask before adding any new dependency.**
-- `dev.javax:bitstream` (the author's own library) is published to Maven Central.
 - **Tests:**
   - Integration tests use **Testcontainers** Postgres.
   - MusicBrainz interactions use **recorded responses served by WireMock**, not the live API.
-  - Audio fixtures should be **tiny synthetic files** or real files trimmed to their metadata, not full songs.
 - **CI:** GitHub Actions builds and tests every PR. No enforced formatter; follow the existing style.
 - **Agent autonomy:** agents may branch, commit, push and **open PRs** for review.
 
