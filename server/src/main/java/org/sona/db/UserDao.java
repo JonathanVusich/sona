@@ -3,7 +3,7 @@ package org.sona.db;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.UsersMapper;
-import org.sona.model.enums.AccountState;
+import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +14,9 @@ import java.util.UUID;
 import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.USERS;
 
+/**
+ * Every user, however they sign in. {@link PasswordDao} and {@link OidcIdentityDao} keep how they sign in.
+ */
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -49,7 +52,17 @@ public class UserDao {
     }
 
     /**
-     * Inserts the user, or overwrites the stored one with the same username with its password, role and state.
+     * Sets the role, which for an OIDC user follows the one their provider gives them each time they sign in.
+     */
+    public void updateRole(UUID userId, UserRole role) {
+        dsl.update(USERS)
+                .set(USERS.ROLE, role)
+                .where(USERS.USER_ID.eq(userId))
+                .execute();
+    }
+
+    /**
+     * Inserts the user, or overwrites the role and state of the stored one with the same username.
      *
      * @return the stored user, which keeps its original ID if it already existed
      */
@@ -58,22 +71,10 @@ public class UserDao {
                 .set(mapper.toRecord(user))
                 .onConflict(USERS.USERNAME)
                 .doUpdate()
-                .set(USERS.PASSWORD_HASH, excluded(USERS.PASSWORD_HASH))
                 .set(USERS.ROLE, excluded(USERS.ROLE))
                 .set(USERS.STATE, excluded(USERS.STATE))
                 .returning()
                 .fetchSingle();
         return mapper.fromRecord(record);
-    }
-
-    /**
-     * Sets a new password hash, which also ends a required password change.
-     */
-    public void updatePassword(UUID userId, String passwordHash) {
-        dsl.update(USERS)
-                .set(USERS.PASSWORD_HASH, passwordHash)
-                .set(USERS.STATE, AccountState.ACTIVE)
-                .where(USERS.USER_ID.eq(userId))
-                .execute();
     }
 }
