@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.RefreshToken;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,7 @@ class RefreshTokenDaoTest {
 
     @BeforeEach
     void setUp() {
-        alice = new Users(uuidv7(), "alice", "{noop}alice", UserRole.USER, AccountState.ACTIVE, null, null);
+        alice = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.USER, AccountState.ACTIVE);
         userDao.insert(alice);
     }
 
@@ -75,7 +76,7 @@ class RefreshTokenDaoTest {
 
     @Test
     void revokeAllRevokesOnlyTheUsersTokens() {
-        final var bob = new Users(uuidv7(), "bob", "{noop}bob", UserRole.USER, AccountState.ACTIVE, null, null);
+        final var bob = new Users(uuidv7(), UserType.LOCAL, "bob", UserRole.USER, AccountState.ACTIVE);
         userDao.insert(bob);
         dao.insert(token(uuidv7(), "alice's", OffsetDateTime.now().plusDays(1)));
         dao.insert(new RefreshToken(uuidv7(), bob.userId(), uuidv7(), "bob's", OffsetDateTime.now().plusDays(1), null));
