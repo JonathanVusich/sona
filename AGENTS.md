@@ -59,7 +59,7 @@ IngestionEngine.processTrack ◄────────────────
 | `metadata.resolver` | `MetadataResolver` / `MusicBrainzResolver`: turns `RawMetadata` into a `ResolvedTrack` via MusicBrainz search. `MusicBrainzTag` lists the Picard `musicbrainz_*` tag names. |
 | `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). |
 | `library` | `Library` / `DefaultLibrary`: owns the filesystem layout for the ingest staging area and the media library. Library paths are stored in the DB relative to the media folder, '/'-separated. `PathSegment` formats sanitised `uuid[name]` names. |
-| `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserAuthorizationManager`). `TokenService` / `DefaultTokenService` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookies`); the database is checked again on each refresh. |
+| `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserAuthorizationManager`). `TokenService` / `DefaultTokenService` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookies`); the database is checked again on each refresh. `PasswordService` checks local users' passwords at login and changes them. |
 | `db` | DAOs over jOOQ (`TrackToIngestDao`, `TrackDao`, `UserDao`, `PasswordDao`, `OidcIdentityDao`, `OidcSessionDao`, `RefreshTokenDao`). Return lists, not open `fetchStream()` cursors. |
 | `mappers` | MapStruct mappers between jOOQ records and pojos. |
 | `config` | Spring `@Configuration` classes (the MusicBrainz `RestClient` and URI builder, `SecurityConfig`, the per-start `SigningKeyConfig`) and `config.properties` (`@ConfigurationProperties` records, found by `@ConfigurationPropertiesScan`). |
@@ -114,7 +114,8 @@ Test notes:
   (in-memory Jimfs library folders, MusicBrainz pointed at a WireMock server). Tests commit, and
   `TruncateTablesExtension` empties every table afterwards. Needs Docker.
 - HTTP tests call the real port through `ApiClient` (a Spring `RestTestClient`), so they pass through the security
-  filters. `TestTokens` signs access tokens as Sona does.
+  filters. `TestTokens` signs access tokens as Sona does, and `TestUsers` creates local users whose password is their
+  username.
 - **MusicBrainz is never called live.** Tests stub it with [WireMock](https://wiremock.org). Mapping files in
   `src/test/resources/wiremock/mappings` match exact queries and return responses recorded from the live API
   into `src/test/resources/wiremock/__files`; unmatched requests get a 404. Unit tests register a

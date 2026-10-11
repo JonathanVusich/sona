@@ -12,6 +12,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -22,7 +24,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
 import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
+import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
+import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
 import static org.sona.controller.ApiRoutes.JWKS;
 
 @Configuration
@@ -39,10 +43,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers(HttpMethod.POST, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
+                        .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS).permitAll()
-                        // A user who must change their password may still see that they must.
-                        .requestMatchers(CURRENT_USER).authenticated()
+                        // A user who must change their password may still do so, and see that they must.
+                        .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
                         .anyRequest().access(new ActiveUserAuthorizationManager()))
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt
@@ -51,6 +55,11 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
     /**
