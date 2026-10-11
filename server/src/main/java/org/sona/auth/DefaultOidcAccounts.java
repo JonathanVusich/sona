@@ -23,7 +23,7 @@ public class DefaultOidcAccounts implements OidcAccounts {
     private final RegistrationTokens registrationTokens;
 
     @Override
-    public OidcSignIn signIn(final ProviderUser providerUser) {
+    public OidcSignIn signIn(final ProviderUser providerUser, final String providerRefreshToken) {
         final var user = userDao.find(providerUser.userId()).orElse(null);
         if (user == null) {
             return new OidcSignIn.RegistrationRequired(registrationTokens.issue(providerUser));
@@ -31,7 +31,7 @@ public class DefaultOidcAccounts implements OidcAccounts {
         return switch (user.state()) {
             case ACTIVE -> {
                 final var current = followProviderRole(user, providerUser.role());
-                yield new OidcSignIn.SignedIn(tokenService.issue(current));
+                yield new OidcSignIn.SignedIn(tokenService.issue(current, providerRefreshToken));
             }
             case DISABLED -> new OidcSignIn.Disabled();
         };

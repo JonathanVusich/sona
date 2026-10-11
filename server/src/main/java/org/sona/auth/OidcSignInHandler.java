@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -51,6 +52,7 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
 
     private final OidcAccounts oidcAccounts;
     private final OidcClientRegistrations registrations;
+    private final RequestAuthorizedClientRepository authorizedClients;
     private final RefreshCookies refreshCookies;
     private final AuthProperties properties;
 
@@ -60,8 +62,16 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
         endSignInSession(request);
         final var token = (OAuth2AuthenticationToken) authentication;
         final var providerId = token.getAuthorizedClientRegistrationId();
+        final OAuth2AuthorizedClient client = authorizedClients.loadAuthorizedClient(providerId, token, request);
+        final var refreshToken = client.getRefreshToken();
+        if (refreshToken == null) {
+            log.warn("{} returned no refresh token, so Sona can't check sessions with it. Ask for offline_access.",
+                    providerId);
+            response.sendRedirect(error(ErrorCode.SIGN_IN_FAILED));
+            return;
+        }
         final var user = providerUser(providerId, (OidcUser) token.getPrincipal());
-        switch (oidcAccounts.signIn(user)) {
+        switch (oidcAccounts.signIn(user, refreshToken.getTokenValue())) {
             case OidcSignIn.SignedIn signedIn -> {
                 final var cookie = refreshCookies.issue(signedIn.tokens().refreshToken());
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

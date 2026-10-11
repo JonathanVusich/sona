@@ -95,7 +95,7 @@ There is no deadline. Done when it's good.
 - **Admins can do everything; users can only read the library.**
 - **Built on Spring Security:** the API is an OAuth2 resource server that takes JWT bearer tokens, always Sona's own.
   OIDC providers are only used to sign in (authorization code flow). A user picks their Sona username the first time
-  they sign in.
+  they sign in, and every session refresh is checked with their provider, so disabling them there locks them out.
 
 ## Deployment and operations
 
