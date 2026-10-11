@@ -3,3 +3,6 @@ library:
   mediaFolder: "/media"
 musicbrainz:
   url: "https://musicbrainz.org/ws/2/"
+auth:
+  accessTokenLifetime: 15m
+  refreshTokenLifetime: 30d

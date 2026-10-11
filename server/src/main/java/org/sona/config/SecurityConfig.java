@@ -20,6 +20,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import static org.sona.auth.SonaJwtConverter.ISSUER;
+import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
+import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
 import static org.sona.controller.ApiRoutes.JWKS;
 
@@ -31,11 +33,13 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
                                                    final AuthenticationEntryPoint authenticationEntryPoint,
                                                    final AccessDeniedHandler accessDeniedHandler) {
-        // CSRF protection isn't needed: requests authenticate with a bearer header.
+        // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
+        // SameSite=Strict.
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(HttpMethod.POST, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS).permitAll()
                         // A user who must change their password may still see that they must.
                         .requestMatchers(CURRENT_USER).authenticated()
