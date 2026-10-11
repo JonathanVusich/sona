@@ -59,7 +59,7 @@ IngestionEngine.processTrack ◄────────────────
 | `metadata.resolver` | `MetadataResolver` / `MusicBrainzResolver`: turns `RawMetadata` into a `ResolvedTrack` via MusicBrainz search. `MusicBrainzTag` lists the Picard `musicbrainz_*` tag names. |
 | `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). |
 | `library` | `Library` / `DefaultLibrary`: owns the filesystem layout for the ingest staging area and the media library. Library paths are stored in the DB relative to the media folder, '/'-separated. `PathSegment` formats sanitised `uuid[name]` names. |
-| `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserAuthorizationManager`). `TokenService` / `DefaultTokenService` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookies`); the database is checked again on each refresh. `PasswordService` checks local users' passwords at login and changes them. |
+| `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserAuthorizationManager`). `TokenService` / `DefaultTokenService` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookies`); the database is checked again on each refresh. `PasswordService` checks local users' passwords at login and changes them. `InitialAdmin` (every profile except `dev`) and `DevUsers` (`dev`) create the default accounts. |
 | `db` | DAOs over jOOQ (`TrackToIngestDao`, `TrackDao`, `UserDao`, `PasswordDao`, `OidcIdentityDao`, `OidcSessionDao`, `RefreshTokenDao`). Return lists, not open `fetchStream()` cursors. |
 | `mappers` | MapStruct mappers between jOOQ records and pojos. |
 | `config` | Spring `@Configuration` classes (the MusicBrainz `RestClient` and URI builder, `SecurityConfig`, the per-start `SigningKeyConfig`) and `config.properties` (`@ConfigurationProperties` records, found by `@ConfigurationPropertiesScan`). |
@@ -88,6 +88,8 @@ IngestionEngine.processTrack ◄────────────────
   the server and tests from `server/` (Gradle does this for you).
 - `library.ingestFolder` / `library.mediaFolder` → `LibraryProperties`; `musicbrainz.url` → `MusicBrainzProperties`;
   `auth.*` (token lifetimes) → `AuthProperties`.
+- `bootRun` activates the `dev` profile, which creates `admin`/`admin` and `user`/`user`. Any other profile gets
+  `admin`/`admin` on an empty database, who must change the password first.
 - The MusicBrainz rate limit is in `application.properties` (`resilience4j.ratelimiter.instances.musicbrainz.*`).
 - The datasource is Spring Boot's (`spring.datasource.*` in `application.properties`, local dev credentials).
   The `flyway` / `jooq` blocks in `build.gradle.kts` repeat them for build-time codegen; keep them in sync.
@@ -102,7 +104,7 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:compileJava
 ./gradlew :server:test                               # integration tests start their own Postgres via Testcontainers
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
-./gradlew :server:bootRun
+./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 ```
 
 The docker-compose database is only needed for `bootRun` and jOOQ codegen; tests don't use it.

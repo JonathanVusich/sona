@@ -140,3 +140,8 @@ tasks.named("compileJava") {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Local runs seed the dev users, admin/admin and user/user.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    args("--spring.profiles.active=dev")
+}
