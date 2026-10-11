@@ -128,7 +128,8 @@ Test notes:
 - **Audio fixtures:** prefer `FlacBuilder` (`flac().tag("TITLE", "…").build()`) to generate tiny synthetic FLACs
   in-test. `FlacSample` exposes real-world files trimmed to their metadata blocks, with the audio frames removed.
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
-- GitHub Actions should build and test every PR (not set up yet).
+- GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
+  every module, and type-checks and builds `web/` on every PR and push to `main`.
 
 ## Code style
 
