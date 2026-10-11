@@ -2,6 +2,7 @@ package org.sona.controller;
 
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.request.LoginRequest;
+import org.sona.controller.request.RegisterRequest;
 import org.sona.controller.response.TokenResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -89,6 +90,13 @@ public final class ApiClient {
                         .queryParam("state", state)
                         .build())
                 .cookie(sessionCookie.getName(), sessionCookie.getValue())
+                .exchange();
+    }
+
+    public RestTestClient.ResponseSpec register(final String registrationToken, final String username) {
+        return client.post().uri(ApiRoutes.AUTH_REGISTER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new RegisterRequest(registrationToken, username))
                 .exchange();
     }
 

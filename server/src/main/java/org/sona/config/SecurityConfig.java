@@ -27,6 +27,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
 import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
+import static org.sona.controller.ApiRoutes.AUTH_REGISTER;
 import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
 import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
@@ -52,7 +53,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
+                        .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT, AUTH_REGISTER)
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
                         .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
                         // A user who must change their password may still do so, and see that they must.

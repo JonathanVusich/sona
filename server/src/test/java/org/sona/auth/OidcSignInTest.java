@@ -36,7 +36,7 @@ import static org.sona.utils.IDGenerator.uuidv5;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
- * Signing in through an OIDC provider with the authorization code flow.
+ * Signing in through an OIDC provider with the authorization code flow, and registering on the first sign-in.
  */
 @IntegrationTest
 class OidcSignInTest {
@@ -119,6 +119,76 @@ class OidcSignInTest {
         assertThat(location(signIn)).isEqualTo("/#error=106");
     }
 
+    @Test
+    void registeringCreatesTheAccount() {
+        final var registered = api.register(registrationToken("alice-id"), "alice")
+                .expectStatus().isCreated()
+                .expectBody().isEmpty();
+
+        assertThat(registered.getResponseHeaders().getLocation())
+                .hasToString(ApiRoutes.OIDC_AUTHORIZE + "/" + FakeOidcProvider.ID);
+        final var me = me(session("alice-id", List.of()).accessToken());
+        assertThat(me.username()).isEqualTo("alice");
+        assertThat(userDao.find(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
+        assertThat(oidcIdentityDao.find(userId("alice-id")))
+                .contains(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id"));
+    }
+
+    @Test
+    void aTakenUsernameIsRefused() {
+        existingUser("other-id", "bob");
+
+        api.register(registrationToken("bob-id"), "bob")
+                .expectStatus().isEqualTo(409)
+                .expectBody().jsonPath("$.code").isEqualTo(203);
+    }
+
+    @Test
+    void aBlankUsernameIsRefused() {
+        api.register(registrationToken("alice-id"), " ")
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(204);
+    }
+
+    @Test
+    void registeringTwiceIsRefused() {
+        final var token = registrationToken("alice-id");
+        api.register(token, "alice").expectStatus().isCreated();
+
+        api.register(token, "alice2")
+                .expectStatus().isEqualTo(409)
+                .expectBody().jsonPath("$.code").isEqualTo(205);
+    }
+
+    @Test
+    void anInvalidRegistrationTokenIsRefused() {
+        api.register("not-a-token", "alice")
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(107);
+    }
+
+    @Test
+    void aRegistrationTokenIsNotAnAccessToken() {
+        api.get(ApiRoutes.CURRENT_USER, registrationToken("alice-id")).expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void aProviderUserHasNoPasswordToChange() {
+        existingUser("alice-id", "alice");
+        final var session = session("alice-id", List.of());
+
+        api.changePassword(session.accessToken(), "old", "new")
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(202);
+    }
+
+    @Test
+    void aProviderUserCannotLogInWithAPassword() {
+        existingUser("alice-id", "alice");
+
+        api.login("alice", "").expectStatus().isUnauthorized();
+    }
+
     /**
      * The sign-in Sona started at the provider, as the browser carries it there and back.
      *
@@ -131,6 +201,15 @@ class OidcSignInTest {
         final var userId = userId(subject);
         userDao.insert(new Users(userId, UserType.OIDC, username, UserRole.USER, AccountState.ACTIVE));
         oidcIdentityDao.insert(new OidcIdentity(userId, provider.issuer(), subject));
+    }
+
+    /**
+     * @return the registration token a sign-in by a new user gives the frontend
+     */
+    private String registrationToken(final String subject) {
+        final var signIn = signIn(subject, List.of());
+        final var fragment = UriComponentsBuilder.fromUriString(location(signIn)).build().getFragment();
+        return fragment.substring("registration_token=".length());
     }
 
     private StartedSignIn startSignIn() {

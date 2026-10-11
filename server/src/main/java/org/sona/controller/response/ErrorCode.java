@@ -20,12 +20,16 @@ public enum ErrorCode {
     ACCESS_DENIED(104, HttpStatus.FORBIDDEN, "You don't have permission to do that."),
     ACCOUNT_DISABLED(105, HttpStatus.FORBIDDEN, "Your account is disabled."),
     SIGN_IN_FAILED(106, HttpStatus.UNAUTHORIZED, "Signing in through your identity provider failed. Try again."),
+    INVALID_REGISTRATION_TOKEN(107, HttpStatus.UNAUTHORIZED, "Your sign-up has expired. Sign in again."),
 
     INCORRECT_CURRENT_PASSWORD(200, HttpStatus.BAD_REQUEST, "The current password is incorrect."),
     INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST,
             "The new password must not be empty or the same as the current one."),
     PASSWORD_MANAGED_BY_PROVIDER(202, HttpStatus.BAD_REQUEST,
-            "You sign in through your identity provider, so change your password there.");
+            "You sign in through your identity provider, so change your password there."),
+    USERNAME_TAKEN(203, HttpStatus.CONFLICT, "That username is taken."),
+    INVALID_USERNAME(204, HttpStatus.BAD_REQUEST, "The username must not be empty."),
+    ALREADY_REGISTERED(205, HttpStatus.CONFLICT, "You already have an account.");
 
     @JsonValue
     private final int code;

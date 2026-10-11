@@ -12,6 +12,7 @@ public final class ApiRoutes {
     public static final String AUTH_TOKEN = AUTH + "/token";
     public static final String AUTH_REFRESH = AUTH + "/refresh";
     public static final String AUTH_LOGOUT = AUTH + "/logout";
+    public static final String AUTH_REGISTER = AUTH + "/register";
 
     public static final String OIDC = AUTH + "/oidc";
     public static final String OIDC_PROVIDERS = OIDC + "/providers";
