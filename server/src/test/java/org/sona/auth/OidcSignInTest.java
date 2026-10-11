@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.EntityExchangeResult;
+import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -31,12 +32,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.OIDC_SESSION;
 import static org.sona.model.Tables.USERS;
 import static org.sona.utils.IDGenerator.uuidv5;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
- * Signing in through an OIDC provider with the authorization code flow, and registering on the first sign-in.
+ * Signing in through an OIDC provider with the authorization code flow, registering on the first sign-in, and
+ * checking the session with the provider on every refresh.
  */
 @IntegrationTest
 class OidcSignInTest {
@@ -61,6 +64,44 @@ class OidcSignInTest {
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
+    }
+
+    @Test
+    void signingInUsesPkce() {
+        final var parameters = authorizeParameters(api.startOidcSignIn(FakeOidcProvider.ID));
+
+        assertThat(parameters.getFirst("code_challenge")).isNotBlank();
+        assertThat(parameters.getFirst("code_challenge_method")).isEqualTo("S256");
+    }
+
+    @Test
+    void aSilentSignInAsksTheProviderToShowNothing() {
+        final var silent = authorizeParameters(api.startSilentOidcSignIn(FakeOidcProvider.ID));
+        final var normal = authorizeParameters(api.startOidcSignIn(FakeOidcProvider.ID));
+
+        assertThat(silent.getFirst("prompt")).isEqualTo("none");
+        assertThat(normal.getFirst("prompt")).isNull();
+    }
+
+    @Test
+    void aSilentSignInWithoutAProviderSessionLeavesTheUserToSignIn() {
+        final var start = startSignIn(api.startSilentOidcSignIn(FakeOidcProvider.ID));
+
+        final var signIn = api.failOidcSignIn(FakeOidcProvider.ID, "login_required", start.state(),
+                        start.sessionCookie())
+                .expectStatus().isFound()
+                .expectBody().isEmpty();
+
+        assertThat(location(signIn)).isEqualTo("/#error=108");
+    }
+
+    @Test
+    void aSignInRemembersTheProvider() {
+        existingUser("alice-id", "alice");
+
+        final var signIn = signIn("alice-id", List.of());
+
+        assertThat(cookie(signIn, OidcSignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
     }
 
     @Test
@@ -189,6 +230,58 @@ class OidcSignInTest {
         api.login("alice", "").expectStatus().isUnauthorized();
     }
 
+    @Test
+    void aProviderThatGivesNoRefreshTokenFailsTheSignIn() {
+        existingUser("alice-id", "alice");
+        final var start = startSignIn();
+        final var code = "code-" + uuidv7();
+        final var idToken = provider.idToken(start.nonce(), claims -> claims.subject("alice-id"));
+        provider.acceptCodeWithoutRefreshToken(code, idToken);
+
+        final var signIn = api.finishOidcSignIn(FakeOidcProvider.ID, code, start.state(), start.sessionCookie())
+                .expectStatus().isFound()
+                .expectBody().isEmpty();
+
+        assertThat(location(signIn)).isEqualTo("/#error=106");
+    }
+
+    @Test
+    void eachRefreshIsCheckedWithTheProvider() {
+        existingUser("alice-id", "alice");
+        final var cookie = signedInCookie("alice-id", List.of(), "alice-refresh-1");
+        provider.acceptRefresh("alice-refresh-1", "alice-refresh-2");
+        provider.acceptRefresh("alice-refresh-2", "alice-refresh-3");
+
+        final var first = ApiClient.session(api.refresh(cookie));
+        ApiClient.session(api.refresh(first.refreshToken()));
+
+        // The provider rotated its refresh token, and Sona used the new one.
+        assertThat(provider.refreshes("alice-refresh-1")).isEqualTo(1);
+        assertThat(provider.refreshes("alice-refresh-2")).isEqualTo(1);
+    }
+
+    @Test
+    void aSessionTheProviderRefusesEnds() {
+        existingUser("alice-id", "alice");
+        final var cookie = signedInCookie("alice-id", List.of(), "alice-refresh");
+        provider.rejectRefresh("alice-refresh");
+
+        api.refresh(cookie)
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(102);
+    }
+
+    @Test
+    void loggingOutForgetsTheProviderRefreshToken() {
+        existingUser("alice-id", "alice");
+        final var cookie = signedInCookie("alice-id", List.of(), "alice-refresh");
+        assertThat(dsl.fetchCount(OIDC_SESSION)).isEqualTo(1);
+
+        api.logout(cookie).expectStatus().isNoContent();
+
+        assertThat(dsl.fetchCount(OIDC_SESSION)).isZero();
+    }
+
     /**
      * The sign-in Sona started at the provider, as the browser carries it there and back.
      *
@@ -213,8 +306,11 @@ class OidcSignInTest {
     }
 
     private StartedSignIn startSignIn() {
-        final var start = api.startOidcSignIn(FakeOidcProvider.ID)
-                .expectStatus().isFound()
+        return startSignIn(api.startOidcSignIn(FakeOidcProvider.ID));
+    }
+
+    private StartedSignIn startSignIn(final RestTestClient.ResponseSpec response) {
+        final var start = response.expectStatus().isFound()
                 .expectBody().isEmpty();
         final var parameters = authorizeParameters(start);
         final var setCookie = start.getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
@@ -225,6 +321,10 @@ class OidcSignInTest {
     /**
      * @return the query parameters Sona sends the browser to the provider with
      */
+    private static MultiValueMap<String, String> authorizeParameters(final RestTestClient.ResponseSpec response) {
+        return authorizeParameters(response.expectStatus().isFound().expectBody().isEmpty());
+    }
+
     private static MultiValueMap<String, String> authorizeParameters(final EntityExchangeResult<Void> start) {
         return UriComponentsBuilder.fromUri(start.getResponseHeaders().getLocation()).build().getQueryParams();
     }
@@ -235,30 +335,53 @@ class OidcSignInTest {
      * @return Sona's redirect back to the frontend
      */
     private EntityExchangeResult<Void> signIn(final String subject, final List<String> groups) {
+        return signIn(subject, groups, "refresh-" + uuidv7());
+    }
+
+    /**
+     * @param providerRefreshToken the refresh token the provider gives Sona
+     */
+    private EntityExchangeResult<Void> signIn(final String subject, final List<String> groups,
+                                              final String providerRefreshToken) {
         final var start = startSignIn();
         final var code = "code-" + uuidv7();
         final var idToken = provider.idToken(start.nonce(), claims -> claims.subject(subject).claim("groups", groups));
-        provider.acceptCode(code, idToken);
+        provider.acceptCode(code, idToken, providerRefreshToken);
         return api.finishOidcSignIn(FakeOidcProvider.ID, code, start.state(), start.sessionCookie())
                 .expectStatus().isFound()
                 .expectBody().isEmpty();
     }
 
     /**
-     * @return the session the frontend gets by refreshing after a sign-in that must start one
+     * @return the session the frontend gets by refreshing after a sign-in, which the provider accepts
      */
     private ApiClient.Session session(final String subject, final List<String> groups) {
-        final var signIn = signIn(subject, groups);
+        final var providerRefreshToken = "refresh-" + uuidv7();
+        final var cookie = signedInCookie(subject, groups, providerRefreshToken);
+        provider.acceptRefresh(providerRefreshToken, providerRefreshToken + "-next");
+        return ApiClient.session(api.refresh(cookie));
+    }
+
+    /**
+     * @return the refresh cookie of a sign-in that must start a session
+     */
+    private String signedInCookie(final String subject, final List<String> groups,
+                                  final String providerRefreshToken) {
+        final var signIn = signIn(subject, groups, providerRefreshToken);
         assertThat(location(signIn)).isEqualTo("/");
-        return ApiClient.session(api.refresh(refreshCookie(signIn).orElseThrow()));
+        return refreshCookie(signIn).orElseThrow();
     }
 
     private static Optional<String> refreshCookie(final EntityExchangeResult<Void> result) {
+        return cookie(result, RefreshCookies.NAME);
+    }
+
+    private static Optional<String> cookie(final EntityExchangeResult<Void> result, final String name) {
         final var setCookies = Objects.requireNonNullElse(result.getResponseHeaders().get(HttpHeaders.SET_COOKIE),
                 List.<String>of());
         return setCookies.stream()
                 .map(setCookie -> HttpCookie.parse(setCookie).getFirst())
-                .filter(cookie -> cookie.getName().equals(RefreshCookies.NAME))
+                .filter(cookie -> cookie.getName().equals(name))
                 .map(HttpCookie::getValue)
                 .findFirst();
     }

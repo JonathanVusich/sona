@@ -6,6 +6,8 @@ import jakarta.servlet.DispatcherType;
 import org.sona.auth.ActiveUserAuthorizationManager;
 import org.sona.auth.OidcClientRegistrations;
 import org.sona.auth.OidcSignInHandler;
+import org.sona.auth.RequestAuthorizedClientRepository;
+import org.sona.auth.SilentSignInRequestResolver;
 import org.sona.auth.SonaJwtConverter;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +47,7 @@ public class SecurityConfig {
                                                    final AuthenticationEntryPoint authenticationEntryPoint,
                                                    final AccessDeniedHandler accessDeniedHandler,
                                                    final OidcClientRegistrations oidcRegistrations,
+                                                   final RequestAuthorizedClientRepository authorizedClients,
                                                    final OidcSignInHandler oidcSignIn,
                                                    final AuthProperties properties) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
@@ -70,7 +73,9 @@ public class SecurityConfig {
                 // used here; the API takes Sona's own.
                 .oauth2Login(login -> login
                         .clientRegistrationRepository(oidcRegistrations)
-                        .authorizationEndpoint(endpoint -> endpoint.baseUri(OIDC_AUTHORIZE))
+                        .authorizedClientRepository(authorizedClients)
+                        .authorizationEndpoint(endpoint -> endpoint
+                                .authorizationRequestResolver(new SilentSignInRequestResolver(oidcRegistrations)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
                         .successHandler(oidcSignIn)
                         .failureHandler(oidcSignIn)
