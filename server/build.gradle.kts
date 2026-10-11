@@ -51,6 +51,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress

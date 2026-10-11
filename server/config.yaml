@@ -6,3 +6,15 @@ musicbrainz:
 auth:
   accessTokenLifetime: 15m
   refreshTokenLifetime: 30d
+  # Where the browser goes after signing in through an OIDC provider: the web frontend.
+  frontendUrl: "/"
+  # OIDC providers users can sign in through. Register Sona at the provider as a confidential client, with the
+  # redirect URI <Sona's URL>/api/auth/oidc/callback/<id>. For example:
+  # oidcProviders:
+  #   - id: "authentik"
+  #     name: "Authentik"
+  #     issuerUri: "https://auth.example.com/application/o/sona/"
+  #     clientId: "sona"
+  #     clientSecret: "..."
+  #     roleClaim: "groups"
+  #     adminValues: ["sona-admins"]
