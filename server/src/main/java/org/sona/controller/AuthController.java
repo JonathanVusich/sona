@@ -1,9 +1,9 @@
 package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.auth.PasswordService;
-import org.sona.auth.RefreshCookies;
-import org.sona.auth.TokenService;
+import org.sona.auth.PasswordChecker;
+import org.sona.auth.RefreshCookieService;
+import org.sona.auth.TokenIssuer;
 import org.sona.auth.Tokens;
 import org.sona.config.properties.AuthProperties;
 import org.sona.controller.request.LoginRequest;
@@ -26,35 +26,35 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public final class AuthController {
 
-    private final PasswordService passwordService;
-    private final TokenService tokenService;
-    private final RefreshCookies refreshCookies;
+    private final PasswordChecker passwordChecker;
+    private final TokenIssuer tokenIssuer;
+    private final RefreshCookieService refreshCookies;
     private final AuthProperties properties;
 
     @PostMapping(ApiRoutes.AUTH_TOKEN)
     public ResponseEntity<TokenResponse> login(@RequestBody final LoginRequest request) {
         // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
-        final var user = passwordService.authenticate(request.username(), request.password())
+        final var user = passwordChecker.authenticate(request.username(), request.password())
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_CREDENTIALS));
-        final var tokens = tokenService.issue(user);
+        final var tokens = tokenIssuer.issue(user);
         return issued(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_REFRESH)
     public ResponseEntity<TokenResponse> refresh(
-            @CookieValue(name = RefreshCookies.NAME, required = false) final String refreshToken) {
+            @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
         if (refreshToken == null) {
             throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        final var tokens = tokenService.refresh(refreshToken)
+        final var tokens = tokenIssuer.refresh(refreshToken)
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REFRESH_TOKEN));
         return issued(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_LOGOUT)
     public ResponseEntity<Void> logout(
-            @CookieValue(name = RefreshCookies.NAME, required = false) final String refreshToken) {
-        if (refreshToken == null || !tokenService.revoke(refreshToken)) {
+            @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
+        if (refreshToken == null || !tokenIssuer.revoke(refreshToken)) {
             throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
         final var cookie = refreshCookies.clear();

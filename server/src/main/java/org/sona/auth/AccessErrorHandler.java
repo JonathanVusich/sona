@@ -19,7 +19,7 @@ import java.io.IOException;
  */
 @Component
 @RequiredArgsConstructor
-public final class ErrorResponseAccessDeniedHandler implements AccessDeniedHandler {
+public final class AccessErrorHandler implements AccessDeniedHandler {
 
     // Adds the WWW-Authenticate header that RFC 6750 asks for.
     private final AccessDeniedHandler bearerHandler = new BearerTokenAccessDeniedHandler();

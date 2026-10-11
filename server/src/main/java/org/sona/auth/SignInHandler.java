@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -35,7 +36,7 @@ import java.util.Set;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public final class OidcSignInHandler implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
+public final class SignInHandler implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
 
     /**
      * Remembers which provider the user signed in through, so the frontend can try a silent sign-in there next time.
@@ -50,19 +51,20 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
     private static final Set<String> USER_NEEDED = Set.of("login_required", "interaction_required",
             "consent_required", "account_selection_required");
 
-    private final OidcAccounts oidcAccounts;
-    private final OidcClientRegistrations registrations;
-    private final RequestAuthorizedClientRepository authorizedClients;
-    private final RefreshCookies refreshCookies;
+    private final AccountRegistrar accountRegistrar;
+    private final OidcDiscoveryClient discoveryClient;
+    private final OAuth2AuthorizedClientRepository authorizedClients;
+    private final RefreshCookieService refreshCookies;
     private final AuthProperties properties;
 
     @Override
     public void onAuthenticationSuccess(final HttpServletRequest request, final HttpServletResponse response,
                                         final Authentication authentication) throws IOException {
-        endSignInSession(request);
         final var token = (OAuth2AuthenticationToken) authentication;
         final var providerId = token.getAuthorizedClientRegistrationId();
+        // Read from the sign-in session, so before it ends.
         final OAuth2AuthorizedClient client = authorizedClients.loadAuthorizedClient(providerId, token, request);
+        endSignInSession(request);
         final var refreshToken = client.getRefreshToken();
         if (refreshToken == null) {
             log.warn("{} returned no refresh token, so Sona can't check sessions with it. Ask for offline_access.",
@@ -71,7 +73,7 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
             return;
         }
         final var user = providerUser(providerId, (OidcUser) token.getPrincipal());
-        switch (oidcAccounts.signIn(user, refreshToken.getTokenValue())) {
+        switch (accountRegistrar.signIn(user, refreshToken.getTokenValue())) {
             case OidcSignIn.SignedIn signedIn -> {
                 final var cookie = refreshCookies.issue(signedIn.tokens().refreshToken());
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -123,7 +125,7 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
     }
 
     private ProviderUser providerUser(final String providerId, final OidcUser oidcUser) {
-        final var provider = registrations.provider(providerId).orElseThrow();
+        final var provider = discoveryClient.provider(providerId).orElseThrow();
         return new ProviderUser(providerId, provider.issuerUri(), oidcUser.getSubject(), role(provider, oidcUser));
     }
 

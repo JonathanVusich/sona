@@ -3,10 +3,9 @@ package org.sona.config;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
-import org.sona.auth.ActiveUserAuthorizationManager;
-import org.sona.auth.OidcClientRegistrations;
-import org.sona.auth.OidcSignInHandler;
-import org.sona.auth.RequestAuthorizedClientRepository;
+import org.sona.auth.ActiveUserService;
+import org.sona.auth.OidcDiscoveryClient;
+import org.sona.auth.SignInHandler;
 import org.sona.auth.SilentSignInRequestResolver;
 import org.sona.auth.SonaJwtConverter;
 import org.sona.config.properties.AuthProperties;
@@ -19,6 +18,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -46,9 +47,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
                                                    final AuthenticationEntryPoint authenticationEntryPoint,
                                                    final AccessDeniedHandler accessDeniedHandler,
-                                                   final OidcClientRegistrations oidcRegistrations,
-                                                   final RequestAuthorizedClientRepository authorizedClients,
-                                                   final OidcSignInHandler oidcSignIn,
+                                                   final OidcDiscoveryClient discoveryClient,
+                                                   final OAuth2AuthorizedClientRepository authorizedClients,
+                                                   final SignInHandler oidcSignIn,
                                                    final AuthProperties properties) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
         // SameSite=Strict.
@@ -62,7 +63,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
                         // A user who must change their password may still do so, and see that they must.
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
-                        .anyRequest().access(new ActiveUserAuthorizationManager()))
+                        .anyRequest().access(new ActiveUserService()))
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt
                                 .decoder(tokenDecoder)
@@ -72,10 +73,10 @@ public class SecurityConfig {
                 // Signing in through an OIDC provider, with the authorization code flow. The provider's tokens are only
                 // used here; the API takes Sona's own.
                 .oauth2Login(login -> login
-                        .clientRegistrationRepository(oidcRegistrations)
+                        .clientRegistrationRepository(discoveryClient)
                         .authorizedClientRepository(authorizedClients)
                         .authorizationEndpoint(endpoint -> endpoint
-                                .authorizationRequestResolver(new SilentSignInRequestResolver(oidcRegistrations)))
+                                .authorizationRequestResolver(new SilentSignInRequestResolver(discoveryClient)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
                         .successHandler(oidcSignIn)
                         .failureHandler(oidcSignIn)
@@ -86,6 +87,16 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .build();
+    }
+
+    /**
+     * Keeps the tokens a provider returns at sign-in in the sign-in's session, which ends once
+     * {@link SignInHandler} has kept the refresh token. Spring's default would keep every signed-in user's tokens
+     * in memory for good.
+     */
+    @Bean
+    public OAuth2AuthorizedClientRepository authorizedClientRepository() {
+        return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
     @Bean

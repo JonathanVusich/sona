@@ -101,7 +101,7 @@ class OidcSignInTest {
 
         final var signIn = signIn("alice-id", List.of());
 
-        assertThat(cookie(signIn, OidcSignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
+        assertThat(cookie(signIn, SignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
     }
 
     @Test
@@ -373,7 +373,7 @@ class OidcSignInTest {
     }
 
     private static Optional<String> refreshCookie(final EntityExchangeResult<Void> result) {
-        return cookie(result, RefreshCookies.NAME);
+        return cookie(result, RefreshCookieService.NAME);
     }
 
     private static Optional<String> cookie(final EntityExchangeResult<Void> result, final String name) {

@@ -11,7 +11,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 import java.net.HttpCookie;
 
-import static org.sona.auth.RefreshCookies.NAME;
+import static org.sona.auth.RefreshCookieService.NAME;
 
 /**
  * Calls Sona's API over HTTP, as the frontend does.

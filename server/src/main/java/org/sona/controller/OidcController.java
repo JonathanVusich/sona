@@ -1,8 +1,8 @@
 package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.auth.OidcAccounts;
-import org.sona.auth.OidcClientRegistrations;
+import org.sona.auth.AccountRegistrar;
+import org.sona.auth.OidcDiscoveryClient;
 import org.sona.controller.request.RegisterRequest;
 import org.sona.controller.response.OidcProviderResponse;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +22,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public final class OidcController {
 
-    private final OidcClientRegistrations registrations;
-    private final OidcAccounts oidcAccounts;
+    private final OidcDiscoveryClient discoveryClient;
+    private final AccountRegistrar accountRegistrar;
 
     @GetMapping(ApiRoutes.OIDC_PROVIDERS)
     public List<OidcProviderResponse> providers() {
-        return registrations.providers().stream()
+        return discoveryClient.providers().stream()
                 .map(provider -> new OidcProviderResponse(provider.id(), provider.name()))
                 .toList();
     }
@@ -38,7 +38,7 @@ public final class OidcController {
      */
     @PostMapping(ApiRoutes.AUTH_REGISTER)
     public ResponseEntity<Void> register(@RequestBody final RegisterRequest request) {
-        final var user = oidcAccounts.register(request.registrationToken(), request.username());
+        final var user = accountRegistrar.register(request.registrationToken(), request.username());
         final var signIn = URI.create(ApiRoutes.OIDC_AUTHORIZE + "/" + user.providerId());
         return ResponseEntity.created(signIn).build();
     }

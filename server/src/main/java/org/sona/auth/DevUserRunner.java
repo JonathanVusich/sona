@@ -23,7 +23,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 @Component
 @Profile("dev")
 @RequiredArgsConstructor
-public class DevUsers implements ApplicationRunner {
+public class DevUserRunner implements ApplicationRunner {
 
     private final UserDao userDao;
     private final PasswordDao passwordDao;

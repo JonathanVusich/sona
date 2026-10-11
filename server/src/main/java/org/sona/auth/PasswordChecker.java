@@ -4,7 +4,7 @@ import org.sona.model.tables.pojos.Users;
 
 import java.util.Optional;
 
-public interface PasswordService {
+public interface PasswordChecker {
 
     /**
      * Checks a local user's username and password when they log in.

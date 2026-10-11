@@ -5,7 +5,7 @@ import org.sona.model.tables.pojos.OidcSession;
 /**
  * Checks sessions of users from OIDC providers with their provider.
  */
-public interface ProviderSessions {
+public interface ProviderClient {
 
     /**
      * Refreshes the session at its provider, keeping the refresh token the provider rotates to.

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OidcProvidersTest {
 
     @Autowired
-    OidcClientRegistrations registrations;
+    OidcDiscoveryClient discoveryClient;
 
     @Autowired
     FakeOidcProvider provider;
@@ -38,7 +38,7 @@ class OidcProvidersTest {
 
     @Test
     void aRegistrationIsDiscoveredFromTheProvider() {
-        final var registration = registrations.findByRegistrationId(FakeOidcProvider.ID);
+        final var registration = discoveryClient.findByRegistrationId(FakeOidcProvider.ID);
 
         assertThat(registration.getClientId()).isEqualTo(FakeOidcProvider.CLIENT_ID);
         assertThat(registration.getProviderDetails().getTokenUri()).isEqualTo(provider.issuer() + "/token");
@@ -48,7 +48,7 @@ class OidcProvidersTest {
 
     @Test
     void anUnknownProviderHasNoRegistration() {
-        assertThat(registrations.findByRegistrationId("unknown")).isNull();
-        assertThat(registrations.findByIssuer("https://elsewhere.example")).isEmpty();
+        assertThat(discoveryClient.findByRegistrationId("unknown")).isNull();
+        assertThat(discoveryClient.findByIssuer("https://elsewhere.example")).isEmpty();
     }
 }

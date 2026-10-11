@@ -39,7 +39,7 @@ class DefaultUsersTest {
         // The application already ran this at startup, against the same empty database.
         dsl.truncate(USERS).cascade().execute();
 
-        new InitialAdmin(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
+        new InitialAdminRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
         final var admin = userDao.findByUsername("admin").orElseThrow();
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
@@ -53,7 +53,7 @@ class DefaultUsersTest {
         dsl.truncate(USERS).cascade().execute();
         new TestUsers(userDao, passwordDao, encoder).create("alice", UserRole.USER);
 
-        new InitialAdmin(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
+        new InitialAdminRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
         assertThat(userDao.findByUsername("admin")).isEmpty();
     }
@@ -62,7 +62,7 @@ class DefaultUsersTest {
     void theDevProfileGetsAnActiveAdminAndUser() {
         dsl.truncate(USERS).cascade().execute();
 
-        new DevUsers(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
+        new DevUserRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
         final var admin = userDao.findByUsername("admin").orElseThrow();
         final var user = userDao.findByUsername("user").orElseThrow();
@@ -79,7 +79,7 @@ class DefaultUsersTest {
         final var existing = new TestUsers(userDao, passwordDao, encoder)
                 .create("user", UserRole.ADMIN, AccountState.DISABLED);
 
-        new DevUsers(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
+        new DevUserRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
         final var user = userDao.findByUsername("user").orElseThrow();
         assertThat(user.userId()).isEqualTo(existing.userId());

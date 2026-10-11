@@ -32,7 +32,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 class SessionTest {
 
     @Autowired
-    TokenService tokenService;
+    TokenIssuer tokenIssuer;
 
     @Autowired
     UserDao userDao;
@@ -59,7 +59,7 @@ class SessionTest {
 
     @Test
     void refreshReturnsAnAccessTokenAndANewRefreshCookie() {
-        final var first = tokenService.issue(alice);
+        final var first = tokenIssuer.issue(alice);
 
         final var result = api.refresh(first.refreshToken())
                 .expectStatus().isOk()
@@ -77,7 +77,7 @@ class SessionTest {
 
     @Test
     void aDisabledUserCannotRefreshTheirSession() {
-        final var session = tokenService.issue(alice);
+        final var session = tokenIssuer.issue(alice);
 
         dsl.update(USERS)
                 .set(USERS.STATE, AccountState.DISABLED)
@@ -90,7 +90,7 @@ class SessionTest {
 
     @Test
     void reusingAReplacedRefreshTokenEndsTheSession() {
-        final var first = tokenService.issue(alice);
+        final var first = tokenIssuer.issue(alice);
         final var second = ApiClient.session(api.refresh(first.refreshToken()));
 
         api.refresh(first.refreshToken()).expectStatus().isUnauthorized();
@@ -100,8 +100,8 @@ class SessionTest {
 
     @Test
     void reuseOnlyEndsTheSessionTheTokenBelongsTo() {
-        final var laptop = tokenService.issue(alice);
-        final var phone = tokenService.issue(alice);
+        final var laptop = tokenIssuer.issue(alice);
+        final var phone = tokenIssuer.issue(alice);
         ApiClient.session(api.refresh(laptop.refreshToken()));
 
         api.refresh(laptop.refreshToken()).expectStatus().isUnauthorized();
@@ -118,7 +118,7 @@ class SessionTest {
 
     @Test
     void logoutEndsTheSession() {
-        final var session = tokenService.issue(alice);
+        final var session = tokenIssuer.issue(alice);
 
         api.logout(session.refreshToken())
                 .expectStatus().isNoContent()
@@ -143,7 +143,7 @@ class SessionTest {
 
     @Test
     void logoutRejectsARefreshTokenThatWasAlreadyUsed() {
-        final var session = tokenService.issue(alice);
+        final var session = tokenIssuer.issue(alice);
         api.logout(session.refreshToken()).expectStatus().isNoContent();
 
         api.logout(session.refreshToken()).expectStatus().isUnauthorized();

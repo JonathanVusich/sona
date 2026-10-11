@@ -3,7 +3,7 @@ package org.sona.auth;
 /**
  * The accounts of users who sign in through an OIDC provider.
  */
-public interface OidcAccounts {
+public interface AccountRegistrar {
 
     /**
      * Signs in a user the provider has just authenticated. A known user gets a session whose role follows the one

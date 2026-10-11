@@ -34,7 +34,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 @Service
 @RequiredArgsConstructor
-public class DefaultTokenService implements TokenService {
+public class DefaultTokenIssuer implements TokenIssuer {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -43,7 +43,7 @@ public class DefaultTokenService implements TokenService {
     private final UserDao userDao;
     private final PasswordDao passwordDao;
     private final OidcSessionDao oidcSessionDao;
-    private final ProviderSessions providerSessions;
+    private final ProviderClient providerClient;
     private final AuthProperties properties;
 
     @Override
@@ -109,7 +109,7 @@ public class DefaultTokenService implements TokenService {
         return switch (user.type()) {
             case LOCAL -> true;
             case OIDC -> oidcSessionDao.find(familyId)
-                    .map(providerSessions::refresh)
+                    .map(providerClient::refresh)
                     .orElse(false);
         };
     }
