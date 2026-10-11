@@ -15,7 +15,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
@@ -26,7 +28,9 @@ import static org.sona.controller.ApiRoutes.JWKS;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder) {
+    public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
+                                                   final AuthenticationEntryPoint authenticationEntryPoint,
+                                                   final AccessDeniedHandler accessDeniedHandler) {
         // CSRF protection isn't needed: requests authenticate with a bearer header.
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -39,7 +43,9 @@ public class SecurityConfig {
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt
                                 .decoder(tokenDecoder)
-                                .jwtAuthenticationConverter(new SonaJwtConverter())))
+                                .jwtAuthenticationConverter(new SonaJwtConverter()))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .build();
     }
 

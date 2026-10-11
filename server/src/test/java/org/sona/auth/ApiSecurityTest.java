@@ -73,7 +73,11 @@ class ApiSecurityTest {
     void aUserWhoMustChangeTheirPasswordIsRefusedEverythingElse() {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED);
 
-        api.get("/api/library", token).expectStatus().isForbidden();
+        api.get("/api/library", token)
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(103)
+                .jsonPath("$.reason").isEqualTo("Change your password before continuing.");
     }
 
     @Test
@@ -88,7 +92,8 @@ class ApiSecurityTest {
     void requestsWithoutATokenAreRejected() {
         api.getAnonymously(ApiRoutes.CURRENT_USER)
                 .expectStatus().isUnauthorized()
-                .expectHeader().exists(HttpHeaders.WWW_AUTHENTICATE);
+                .expectHeader().exists(HttpHeaders.WWW_AUTHENTICATE)
+                .expectBody().jsonPath("$.code").isEqualTo(100);
     }
 
     @Test
