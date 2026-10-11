@@ -28,6 +28,7 @@ import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
 import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
 import static org.sona.controller.ApiRoutes.JWKS;
+import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
 
 @Configuration
 @EnableMethodSecurity
@@ -44,7 +45,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
-                        .requestMatchers(HttpMethod.GET, JWKS).permitAll()
+                        .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
                         // A user who must change their password may still do so, and see that they must.
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
                         .anyRequest().access(new ActiveUserAuthorizationManager()))
