@@ -1,7 +1,10 @@
 package org.sona.controller;
 
+import org.sona.controller.request.ChangePasswordRequest;
+import org.sona.controller.request.LoginRequest;
 import org.sona.controller.response.TokenResponse;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -25,6 +28,20 @@ public final class ApiClient {
 
     public ApiClient(final int port) {
         client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+    }
+
+    public RestTestClient.ResponseSpec login(final String username, final String password) {
+        return client.post().uri(ApiRoutes.AUTH_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new LoginRequest(username, password))
+                .exchange();
+    }
+
+    /**
+     * @return the session of a login that must succeed
+     */
+    public Session session(final String username, final String password) {
+        return session(login(username, password));
     }
 
     public RestTestClient.ResponseSpec refresh(final String refreshToken) {
@@ -51,6 +68,15 @@ public final class ApiClient {
 
     public RestTestClient.ResponseSpec getAnonymously(final String path) {
         return client.get().uri(path).exchange();
+    }
+
+    public RestTestClient.ResponseSpec changePassword(final String accessToken, final String currentPassword,
+                                                      final String newPassword) {
+        return client.post().uri(ApiRoutes.CURRENT_USER_PASSWORD)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ChangePasswordRequest(currentPassword, newPassword))
+                .exchange();
     }
 
     /**

@@ -78,6 +78,11 @@ public class DefaultTokenService implements TokenService {
         return true;
     }
 
+    @Override
+    public void revokeAll(final Users user) {
+        refreshTokenDao.revokeAll(user.userId());
+    }
+
     private Tokens issue(final Users user, final UUID familyId) {
         final var refreshToken = randomToken();
         final var expiresAt = Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);

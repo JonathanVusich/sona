@@ -28,4 +28,9 @@ public interface TokenService {
      * @return whether the refresh token was valid: known, unexpired and not yet revoked
      */
     boolean revoke(String refreshToken);
+
+    /**
+     * Ends every session the user has.
+     */
+    void revokeAll(Users user);
 }
