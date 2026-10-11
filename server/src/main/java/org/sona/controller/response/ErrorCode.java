@@ -18,6 +18,8 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(102, HttpStatus.UNAUTHORIZED, "Your session has ended. Sign in again."),
     PASSWORD_CHANGE_REQUIRED(103, HttpStatus.FORBIDDEN, "Change your password before continuing."),
     ACCESS_DENIED(104, HttpStatus.FORBIDDEN, "You don't have permission to do that."),
+    ACCOUNT_DISABLED(105, HttpStatus.FORBIDDEN, "Your account is disabled."),
+    SIGN_IN_FAILED(106, HttpStatus.UNAUTHORIZED, "Signing in through your identity provider failed. Try again."),
 
     INCORRECT_CURRENT_PASSWORD(200, HttpStatus.BAD_REQUEST, "The current password is incorrect."),
     INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST,

@@ -94,6 +94,8 @@ There is no deadline. Done when it's good.
 - Auth: **local passwords**, **OIDC / SSO** (Authentik, Authelia, Keycloak), and **API tokens** for clients.
 - **Admins can do everything; users can only read the library.**
 - **Built on Spring Security:** the API is an OAuth2 resource server that takes JWT bearer tokens, always Sona's own.
+  OIDC providers are only used to sign in (authorization code flow). A user picks their Sona username the first time
+  they sign in.
 
 ## Deployment and operations
 

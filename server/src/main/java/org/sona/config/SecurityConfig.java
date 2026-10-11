@@ -4,7 +4,10 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
 import org.sona.auth.ActiveUserAuthorizationManager;
+import org.sona.auth.OidcClientRegistrations;
+import org.sona.auth.OidcSignInHandler;
 import org.sona.auth.SonaJwtConverter;
+import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,6 +31,8 @@ import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
 import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
 import static org.sona.controller.ApiRoutes.JWKS;
+import static org.sona.controller.ApiRoutes.OIDC_AUTHORIZE;
+import static org.sona.controller.ApiRoutes.OIDC_CALLBACK;
 import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
 
 @Configuration
@@ -37,7 +42,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
                                                    final AuthenticationEntryPoint authenticationEntryPoint,
-                                                   final AccessDeniedHandler accessDeniedHandler) {
+                                                   final AccessDeniedHandler accessDeniedHandler,
+                                                   final OidcClientRegistrations oidcRegistrations,
+                                                   final OidcSignInHandler oidcSignIn,
+                                                   final AuthProperties properties) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
         // SameSite=Strict.
         return http.csrf(AbstractHttpConfigurer::disable)
@@ -46,6 +54,7 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
+                        .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
                         // A user who must change their password may still do so, and see that they must.
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
                         .anyRequest().access(new ActiveUserAuthorizationManager()))
@@ -53,6 +62,20 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt
                                 .decoder(tokenDecoder)
                                 .jwtAuthenticationConverter(new SonaJwtConverter()))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                // Signing in through an OIDC provider, with the authorization code flow. The provider's tokens are only
+                // used here; the API takes Sona's own.
+                .oauth2Login(login -> login
+                        .clientRegistrationRepository(oidcRegistrations)
+                        .authorizationEndpoint(endpoint -> endpoint.baseUri(OIDC_AUTHORIZE))
+                        .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
+                        .successHandler(oidcSignIn)
+                        .failureHandler(oidcSignIn)
+                        // The web frontend has the sign-in page, so Spring doesn't generate one.
+                        .loginPage(properties.frontendUrl()))
+                // An API request without a valid token gets an error response, not a redirect to a sign-in page.
+                .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .build();
