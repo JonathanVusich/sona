@@ -6,6 +6,8 @@ import jakarta.servlet.DispatcherType;
 import org.sona.auth.ActiveUserAuthorizationManager;
 import org.sona.auth.OidcClientRegistrations;
 import org.sona.auth.OidcSignInHandler;
+import org.sona.auth.RequestAuthorizedClientRepository;
+import org.sona.auth.SilentSignInRequestResolver;
 import org.sona.auth.SonaJwtConverter;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
@@ -27,6 +29,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
 import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
+import static org.sona.controller.ApiRoutes.AUTH_REGISTER;
 import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
 import static org.sona.controller.ApiRoutes.CURRENT_USER;
 import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
@@ -44,6 +47,7 @@ public class SecurityConfig {
                                                    final AuthenticationEntryPoint authenticationEntryPoint,
                                                    final AccessDeniedHandler accessDeniedHandler,
                                                    final OidcClientRegistrations oidcRegistrations,
+                                                   final RequestAuthorizedClientRepository authorizedClients,
                                                    final OidcSignInHandler oidcSignIn,
                                                    final AuthProperties properties) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
@@ -52,7 +56,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT).permitAll()
+                        .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT, AUTH_REGISTER)
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
                         .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
                         // A user who must change their password may still do so, and see that they must.
@@ -68,7 +73,9 @@ public class SecurityConfig {
                 // used here; the API takes Sona's own.
                 .oauth2Login(login -> login
                         .clientRegistrationRepository(oidcRegistrations)
-                        .authorizationEndpoint(endpoint -> endpoint.baseUri(OIDC_AUTHORIZE))
+                        .authorizedClientRepository(authorizedClients)
+                        .authorizationEndpoint(endpoint -> endpoint
+                                .authorizationRequestResolver(new SilentSignInRequestResolver(oidcRegistrations)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
                         .successHandler(oidcSignIn)
                         .failureHandler(oidcSignIn)

@@ -2,10 +2,12 @@ package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
+import org.sona.db.OidcSessionDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.RefreshTokenDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
+import org.sona.model.tables.pojos.OidcSession;
 import org.sona.model.tables.pojos.Password;
 import org.sona.model.tables.pojos.RefreshToken;
 import org.sona.model.tables.pojos.Users;
@@ -40,11 +42,20 @@ public class DefaultTokenService implements TokenService {
     private final RefreshTokenDao refreshTokenDao;
     private final UserDao userDao;
     private final PasswordDao passwordDao;
+    private final OidcSessionDao oidcSessionDao;
+    private final ProviderSessions providerSessions;
     private final AuthProperties properties;
 
     @Override
     public Tokens issue(final Users user) {
         return issue(user, uuidv7());
+    }
+
+    @Override
+    public Tokens issue(final Users user, final String providerRefreshToken) {
+        final var familyId = uuidv7();
+        oidcSessionDao.upsert(new OidcSession(familyId, user.userId(), providerRefreshToken));
+        return issue(user, familyId);
     }
 
     @Override
@@ -59,7 +70,7 @@ public class DefaultTokenService implements TokenService {
         final var user = userDao.find(used.userId())
                 .filter(found -> found.state() == AccountState.ACTIVE)
                 .orElse(null);
-        if (user == null) {
+        if (user == null || !stillAllowed(user, used.familyId())) {
             endSession(used.familyId());
             return Optional.empty();
         }
@@ -90,8 +101,22 @@ public class DefaultTokenService implements TokenService {
         return new Tokens(accessToken(user), refreshToken);
     }
 
+    /**
+     * @return whether the user may keep their session: always for a local user, and for a user from an OIDC provider
+     * only while the provider still accepts the session's refresh token
+     */
+    private boolean stillAllowed(final Users user, final UUID familyId) {
+        return switch (user.type()) {
+            case LOCAL -> true;
+            case OIDC -> oidcSessionDao.find(familyId)
+                    .map(providerSessions::refresh)
+                    .orElse(false);
+        };
+    }
+
     private void endSession(final UUID familyId) {
         refreshTokenDao.revokeFamily(familyId);
+        oidcSessionDao.delete(familyId);
     }
 
     private String accessToken(final Users user) {

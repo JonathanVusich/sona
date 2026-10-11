@@ -18,16 +18,18 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 
 /**
- * An OIDC provider served by WireMock, with its own signing key. Tests tell it which authorization codes to accept,
- * and it answers Sona's token requests with ID tokens it signs.
+ * An OIDC provider served by WireMock, with its own signing key. Tests tell it which authorization codes and refresh
+ * tokens to accept, and it answers Sona's token requests with ID tokens it signs.
  */
 public final class FakeOidcProvider {
 
@@ -72,13 +74,56 @@ public final class FakeOidcProvider {
     }
 
     /**
-     * Answers the exchange of the authorization code with the ID token.
+     * Answers the exchange of the authorization code with the ID token and the refresh token.
      */
-    public void acceptCode(final String code, final String idToken) {
+    public void acceptCode(final String code, final String idToken, final String refreshToken) {
+        final var body = """
+                {"access_token": "provider-access", "token_type": "Bearer", "expires_in": 300,
+                 "refresh_token": "%s", "id_token": "%s"}""".formatted(refreshToken, idToken);
+        stubToken("authorization_code", "code=" + code, okJson(body));
+    }
+
+    /**
+     * Answers the exchange of the authorization code with an ID token but no refresh token, as a provider does when
+     * Sona isn't allowed {@code offline_access}.
+     */
+    public void acceptCodeWithoutRefreshToken(final String code, final String idToken) {
         final var body = """
                 {"access_token": "provider-access", "token_type": "Bearer", "expires_in": 300,
                  "id_token": "%s"}""".formatted(idToken);
         stubToken("authorization_code", "code=" + code, okJson(body));
+    }
+
+    /**
+     * Accepts the refresh token, rotating it to the next one.
+     */
+    public void acceptRefresh(final String refreshToken, final String next) {
+        final var body = """
+                {"access_token": "provider-access", "token_type": "Bearer", "expires_in": 300,
+                 "refresh_token": "%s"}""".formatted(next);
+        stubToken("refresh_token", "refresh_token=" + refreshToken, okJson(body));
+    }
+
+    /**
+     * Refuses the refresh token, as a provider does once it has disabled the user or ended their session.
+     */
+    public void rejectRefresh(final String refreshToken) {
+        final var error = aResponse()
+                .withStatus(400)
+                .withHeader("Content-Type", "application/json")
+                .withBody("""
+                        {"error": "invalid_grant"}""");
+        stubToken("refresh_token", "refresh_token=" + refreshToken, error);
+    }
+
+    /**
+     * @return how many times Sona has used the refresh token
+     */
+    public int refreshes(final String refreshToken) {
+        final var requests = postRequestedFor(urlPathEqualTo(TOKEN_PATH))
+                .withRequestBody(containing("grant_type=refresh_token"))
+                .withRequestBody(containing("refresh_token=" + refreshToken));
+        return server.findAll(requests).size();
     }
 
     public void stop() {

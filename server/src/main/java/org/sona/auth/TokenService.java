@@ -14,10 +14,19 @@ public interface TokenService {
     Tokens issue(Users user);
 
     /**
+     * Starts a new session for a user who signed in through an OIDC provider. The provider's refresh token is kept, so
+     * the provider is asked whether the user may still sign in each time the session is refreshed.
+     *
+     * @return an access token and the first refresh token of the session
+     */
+    Tokens issue(Users user, String providerRefreshToken);
+
+    /**
      * Replaces the refresh token with a new one. Using a refresh token that was already replaced means it was copied,
      * so its whole session is revoked.
      *
-     * @return new tokens, or empty if the refresh token is unknown, expired or revoked, or its user is disabled
+     * @return new tokens, or empty if the refresh token is unknown, expired or revoked, or its user is disabled in
+     * Sona or, for a user from an OIDC provider, refused by the provider
      */
     Optional<Tokens> refresh(String refreshToken);
 

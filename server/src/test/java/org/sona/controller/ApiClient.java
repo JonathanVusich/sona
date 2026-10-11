@@ -2,6 +2,7 @@ package org.sona.controller;
 
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.request.LoginRequest;
+import org.sona.controller.request.RegisterRequest;
 import org.sona.controller.response.TokenResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -78,6 +79,14 @@ public final class ApiClient {
     }
 
     /**
+     * Starts signing in through the OIDC provider without letting it show anything, as the frontend does to sign a
+     * user straight in when they still have a session there.
+     */
+    public RestTestClient.ResponseSpec startSilentOidcSignIn(final String providerId) {
+        return client.get().uri(ApiRoutes.OIDC_AUTHORIZE + "/" + providerId + "?prompt=none").exchange();
+    }
+
+    /**
      * Comes back from the OIDC provider with an authorization code, as the browser does once the user signs in there.
      *
      * @param sessionCookie the cookie that started the sign-in, which holds its state
@@ -89,6 +98,26 @@ public final class ApiClient {
                         .queryParam("state", state)
                         .build())
                 .cookie(sessionCookie.getName(), sessionCookie.getValue())
+                .exchange();
+    }
+
+    /**
+     * Comes back from the OIDC provider with an error, as the browser does when it couldn't sign the user in.
+     */
+    public RestTestClient.ResponseSpec failOidcSignIn(final String providerId, final String error,
+                                                      final String state, final HttpCookie sessionCookie) {
+        return client.get().uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
+                        .queryParam("error", error)
+                        .queryParam("state", state)
+                        .build())
+                .cookie(sessionCookie.getName(), sessionCookie.getValue())
+                .exchange();
+    }
+
+    public RestTestClient.ResponseSpec register(final String registrationToken, final String username) {
+        return client.post().uri(ApiRoutes.AUTH_REGISTER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new RegisterRequest(registrationToken, username))
                 .exchange();
     }
 
