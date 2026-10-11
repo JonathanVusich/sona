@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.EntityExchangeResult;
+import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -61,6 +62,44 @@ class OidcSignInTest {
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
+    }
+
+    @Test
+    void signingInUsesPkce() {
+        final var parameters = authorizeParameters(api.startOidcSignIn(FakeOidcProvider.ID));
+
+        assertThat(parameters.getFirst("code_challenge")).isNotBlank();
+        assertThat(parameters.getFirst("code_challenge_method")).isEqualTo("S256");
+    }
+
+    @Test
+    void aSilentSignInAsksTheProviderToShowNothing() {
+        final var silent = authorizeParameters(api.startSilentOidcSignIn(FakeOidcProvider.ID));
+        final var normal = authorizeParameters(api.startOidcSignIn(FakeOidcProvider.ID));
+
+        assertThat(silent.getFirst("prompt")).isEqualTo("none");
+        assertThat(normal.getFirst("prompt")).isNull();
+    }
+
+    @Test
+    void aSilentSignInWithoutAProviderSessionLeavesTheUserToSignIn() {
+        final var start = startSignIn(api.startSilentOidcSignIn(FakeOidcProvider.ID));
+
+        final var signIn = api.failOidcSignIn(FakeOidcProvider.ID, "login_required", start.state(),
+                        start.sessionCookie())
+                .expectStatus().isFound()
+                .expectBody().isEmpty();
+
+        assertThat(location(signIn)).isEqualTo("/#error=108");
+    }
+
+    @Test
+    void aSignInRemembersTheProvider() {
+        existingUser("alice-id", "alice");
+
+        final var signIn = signIn("alice-id", List.of());
+
+        assertThat(cookie(signIn, OidcSignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
     }
 
     @Test
@@ -213,8 +252,11 @@ class OidcSignInTest {
     }
 
     private StartedSignIn startSignIn() {
-        final var start = api.startOidcSignIn(FakeOidcProvider.ID)
-                .expectStatus().isFound()
+        return startSignIn(api.startOidcSignIn(FakeOidcProvider.ID));
+    }
+
+    private StartedSignIn startSignIn(final RestTestClient.ResponseSpec response) {
+        final var start = response.expectStatus().isFound()
                 .expectBody().isEmpty();
         final var parameters = authorizeParameters(start);
         final var setCookie = start.getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
@@ -225,6 +267,10 @@ class OidcSignInTest {
     /**
      * @return the query parameters Sona sends the browser to the provider with
      */
+    private static MultiValueMap<String, String> authorizeParameters(final RestTestClient.ResponseSpec response) {
+        return authorizeParameters(response.expectStatus().isFound().expectBody().isEmpty());
+    }
+
     private static MultiValueMap<String, String> authorizeParameters(final EntityExchangeResult<Void> start) {
         return UriComponentsBuilder.fromUri(start.getResponseHeaders().getLocation()).build().getQueryParams();
     }
@@ -254,11 +300,15 @@ class OidcSignInTest {
     }
 
     private static Optional<String> refreshCookie(final EntityExchangeResult<Void> result) {
+        return cookie(result, RefreshCookies.NAME);
+    }
+
+    private static Optional<String> cookie(final EntityExchangeResult<Void> result, final String name) {
         final var setCookies = Objects.requireNonNullElse(result.getResponseHeaders().get(HttpHeaders.SET_COOKIE),
                 List.<String>of());
         return setCookies.stream()
                 .map(setCookie -> HttpCookie.parse(setCookie).getFirst())
-                .filter(cookie -> cookie.getName().equals(RefreshCookies.NAME))
+                .filter(cookie -> cookie.getName().equals(name))
                 .map(HttpCookie::getValue)
                 .findFirst();
     }

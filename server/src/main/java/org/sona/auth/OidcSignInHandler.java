@@ -9,9 +9,11 @@ import org.sona.config.properties.OidcProvider;
 import org.sona.controller.response.ErrorCode;
 import org.sona.model.enums.UserRole;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -19,8 +21,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Finishes signing in through an OIDC provider, once Spring has checked the provider's ID token, and sends the
@@ -31,6 +35,19 @@ import java.util.Objects;
 @Component
 @RequiredArgsConstructor
 public final class OidcSignInHandler implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
+
+    /**
+     * Remembers which provider the user signed in through, so the frontend can try a silent sign-in there next time.
+     * It isn't secret, so scripts may read it.
+     */
+    public static final String LAST_PROVIDER_COOKIE = "sona_oidc_provider";
+
+    /**
+     * What a provider answers a silent sign-in it can't complete without the user (OpenID Connect Core section
+     * 3.1.2.6).
+     */
+    private static final Set<String> USER_NEEDED = Set.of("login_required", "interaction_required",
+            "consent_required", "account_selection_required");
 
     private final OidcAccounts oidcAccounts;
     private final OidcClientRegistrations registrations;
@@ -48,6 +65,7 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
             case OidcSignIn.SignedIn signedIn -> {
                 final var cookie = refreshCookies.issue(signedIn.tokens().refreshToken());
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+                response.addHeader(HttpHeaders.SET_COOKIE, lastProviderCookie(providerId).toString());
                 response.sendRedirect(frontend().toUriString());
             }
             case OidcSignIn.RegistrationRequired required -> response.sendRedirect(register(required));
@@ -59,8 +77,28 @@ public final class OidcSignInHandler implements AuthenticationSuccessHandler, Au
     public void onAuthenticationFailure(final HttpServletRequest request, final HttpServletResponse response,
                                         final AuthenticationException exception) throws IOException {
         endSignInSession(request);
-        log.warn("Signing in through an OIDC provider failed", exception);
-        response.sendRedirect(error(ErrorCode.SIGN_IN_FAILED));
+        response.sendRedirect(error(failure(exception)));
+    }
+
+    private static ErrorCode failure(final AuthenticationException exception) {
+        return switch (exception) {
+            // A silent sign-in found no session at the provider, so the user picks how to sign in instead.
+            case OAuth2AuthenticationException oauth when USER_NEEDED.contains(oauth.getError().getErrorCode()) ->
+                    ErrorCode.SIGN_IN_REQUIRED;
+            default -> {
+                log.warn("Signing in through an OIDC provider failed", exception);
+                yield ErrorCode.SIGN_IN_FAILED;
+            }
+        };
+    }
+
+    private static ResponseCookie lastProviderCookie(final String providerId) {
+        return ResponseCookie.from(LAST_PROVIDER_COOKIE, providerId)
+                .secure(true)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(Duration.ofDays(365))
+                .build();
     }
 
     /**

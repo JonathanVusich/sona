@@ -21,6 +21,7 @@ public enum ErrorCode {
     ACCOUNT_DISABLED(105, HttpStatus.FORBIDDEN, "Your account is disabled."),
     SIGN_IN_FAILED(106, HttpStatus.UNAUTHORIZED, "Signing in through your identity provider failed. Try again."),
     INVALID_REGISTRATION_TOKEN(107, HttpStatus.UNAUTHORIZED, "Your sign-up has expired. Sign in again."),
+    SIGN_IN_REQUIRED(108, HttpStatus.UNAUTHORIZED, "Sign in to continue."),
 
     INCORRECT_CURRENT_PASSWORD(200, HttpStatus.BAD_REQUEST, "The current password is incorrect."),
     INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST,
