@@ -16,6 +16,10 @@ public final class ApiRoutes {
     public static final String OIDC = AUTH + "/oidc";
     public static final String OIDC_PROVIDERS = OIDC + "/providers";
     /**
+     * Followed by the provider's ID, this starts signing in through it.
+     */
+    public static final String OIDC_AUTHORIZE = OIDC + "/authorize";
+    /**
      * Followed by the provider's ID, this is where the provider sends the browser back.
      */
     public static final String OIDC_CALLBACK = OIDC + "/callback";

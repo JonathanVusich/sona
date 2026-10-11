@@ -70,6 +70,28 @@ public final class ApiClient {
         return client.get().uri(path).exchange();
     }
 
+    /**
+     * Starts signing in through the OIDC provider, as the browser does when the user picks it.
+     */
+    public RestTestClient.ResponseSpec startOidcSignIn(final String providerId) {
+        return client.get().uri(ApiRoutes.OIDC_AUTHORIZE + "/" + providerId).exchange();
+    }
+
+    /**
+     * Comes back from the OIDC provider with an authorization code, as the browser does once the user signs in there.
+     *
+     * @param sessionCookie the cookie that started the sign-in, which holds its state
+     */
+    public RestTestClient.ResponseSpec finishOidcSignIn(final String providerId, final String code,
+                                                        final String state, final HttpCookie sessionCookie) {
+        return client.get().uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
+                        .queryParam("code", code)
+                        .queryParam("state", state)
+                        .build())
+                .cookie(sessionCookie.getName(), sessionCookie.getValue())
+                .exchange();
+    }
+
     public RestTestClient.ResponseSpec changePassword(final String accessToken, final String currentPassword,
                                                       final String newPassword) {
         return client.post().uri(ApiRoutes.CURRENT_USER_PASSWORD)
