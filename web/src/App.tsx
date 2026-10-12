@@ -1,6 +1,6 @@
 import { Navigate, Route, Router, type RouteSectionProps } from "@solidjs/router";
 import { Show } from "solid-js";
-import { user } from "./auth";
+import { currentUser } from "./auth";
 import PlayerBar from "./components/PlayerBar";
 import PlaylistDialog from "./components/PlaylistDialog";
 import Toast from "./components/Toast";
@@ -11,6 +11,7 @@ import Albums from "./pages/Albums";
 import ArtistDetail from "./pages/ArtistDetail";
 import Artists from "./pages/Artists";
 import Discover from "./pages/Discover";
+import ChangePassword from "./pages/ChangePassword";
 import Login from "./pages/Login";
 import PlaylistDetail from "./pages/PlaylistDetail";
 import Playlists from "./pages/Playlists";
@@ -20,14 +21,18 @@ import Settings from "./pages/Settings";
 
 function ListeningLayout(props: RouteSectionProps) {
   return (
-    <Show when={user()} fallback={<Navigate href="/login" />}>
-      <div class="app">
-        <TopBar />
-        <main class="page">{props.children}</main>
-        <PlayerBar />
-        <PlaylistDialog />
-        <Toast />
-      </div>
+    <Show when={currentUser()} fallback={<Navigate href="/login" />}>
+      {(user) => (
+        <Show when={user().state === "ACTIVE"} fallback={<Navigate href="/change-password" />}>
+          <div class="app">
+            <TopBar />
+            <main class="page">{props.children}</main>
+            <PlayerBar />
+            <PlaylistDialog />
+            <Toast />
+          </div>
+        </Show>
+      )}
     </Show>
   );
 }
@@ -36,6 +41,7 @@ export default function App() {
   return (
     <Router>
       <Route path="/login" component={Login} />
+      <Route path="/change-password" component={ChangePassword} />
       <Route path="/" component={ListeningLayout}>
         <Route path="/" component={() => <Navigate href="/discover" />} />
         <Route path="/albums" component={Albums} />

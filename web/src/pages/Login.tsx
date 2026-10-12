@@ -1,30 +1,36 @@
-import { Navigate, useNavigate } from "@solidjs/router";
+import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { login, user } from "../auth";
+import { currentUser, logIn } from "../auth";
 
 export default function Login() {
-  const [name, setName] = createSignal("");
+  const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
-  const [failed, setFailed] = createSignal(false);
-  const navigate = useNavigate();
+  const [error, setError] = createSignal<string | null>(null);
+  const [pending, setPending] = createSignal(false);
 
-  const submit = (event: SubmitEvent) => {
+  // Once logged in, the fallback below leaves this page.
+  const submit = async (event: SubmitEvent) => {
     event.preventDefault();
-    if (login(name().trim(), password())) {
-      navigate("/", { replace: true });
-    } else {
-      setFailed(true);
-    }
+    setPending(true);
+    const result = await logIn({ username: username().trim(), password: password() });
+    setPending(false);
+    setError(result.ok ? null : result.failure.reason);
   };
 
   return (
-    <Show when={!user()} fallback={<Navigate href="/" />}>
+    <Show when={!currentUser()} fallback={<Navigate href="/" />}>
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>
           <label>
             Username
-            <input value={name()} onInput={(e) => setName(e.currentTarget.value)} autocomplete="username" autofocus required />
+            <input
+              value={username()}
+              onInput={(e) => setUsername(e.currentTarget.value)}
+              autocomplete="username"
+              autofocus
+              required
+            />
           </label>
           <label>
             Password
@@ -36,13 +42,12 @@ export default function Login() {
               required
             />
           </label>
-          <Show when={failed()}>
-            <p class="error">Wrong username or password.</p>
+          <Show when={error()}>
+            <p class="error">{error()}</p>
           </Show>
-          <button type="submit" class="primary">
+          <button type="submit" class="primary" disabled={pending()}>
             Log in
           </button>
-          <p class="muted hint">Mock accounts: user / user (read only), admin / admin (read, write, upload)</p>
         </form>
       </div>
     </Show>

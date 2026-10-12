@@ -3,7 +3,7 @@ import { createSignal, For, Show } from "solid-js";
 import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
-import { can } from "../../auth";
+import { hasPermission } from "../../auth";
 import { importFiles } from "../../library";
 
 export default function Upload() {
@@ -43,7 +43,7 @@ export default function Upload() {
   };
 
   return (
-    <Show when={can("upload")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission("LIBRARY_UPLOAD")} fallback={<Navigate href="/" />}>
       <PageLayout header={<PageHeader title="Upload music" />}>
         <div
           class="dropzone"

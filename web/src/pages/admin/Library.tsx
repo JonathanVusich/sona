@@ -4,7 +4,7 @@ import Cover from "../../components/Cover";
 import Dialog, { ConfirmDialog } from "../../components/Dialog";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
-import { can } from "../../auth";
+import { hasPermission } from "../../auth";
 import { plural } from "../../format";
 import {
   artistById,
@@ -49,7 +49,7 @@ export default function Library() {
   };
 
   return (
-    <Show when={can("write")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission("LIBRARY_WRITE")} fallback={<Navigate href="/" />}>
       <PageLayout
         header={
           <PageHeader
@@ -61,7 +61,7 @@ export default function Library() {
               plural(trackCount(), "track"),
             ].join(" · ")}
             action={
-              <Show when={can("upload")}>
+              <Show when={hasPermission("LIBRARY_UPLOAD")}>
                 <A href="/admin/upload" class="button primary">
                   Upload
                 </A>
