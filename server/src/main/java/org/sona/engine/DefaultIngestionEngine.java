@@ -175,7 +175,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 group.firstReleaseDate(), groupArtist.artistId(), group.releaseGroupId()));
         final var releaseArtist = upsertArtist(resolved.artist());
         final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
-                resolved.country(), releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
+                resolved.country(), 0, releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
         // TODO: If ingestion stops after the release is stored, its labels and media are never stored, because a
         //  stored release isn't looked up again.
         storeLabels(release, resolved.labels());

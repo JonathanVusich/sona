@@ -40,6 +40,7 @@ class DefaultLibraryTest {
             null,
             null,
             null,
+            0,
             RELEASE_GROUP.releaseGroupId(),
             null,
             UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")

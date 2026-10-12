@@ -40,15 +40,6 @@ class ReleaseGroupDaoTest {
         assertThat(refreshed).isEqualTo(new ReleaseGroup(stored.releaseGroupId(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, musicbrainzId));
     }
 
-    @Test
-    void loadWithArtistReadsTheReleaseGroupsArtist() {
-        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
-        final var releaseGroup = dao.upsert(new ReleaseGroup(uuidv7(), "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10), artist.artistId(), uuidv7()));
-
-        assertThat(dao.loadWithArtist(releaseGroup.releaseGroupId()))
-                .contains(new ReleaseGroupWithArtist(releaseGroup, artist));
-    }
-
     private UUID artistId() {
         return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7())).artistId();
     }

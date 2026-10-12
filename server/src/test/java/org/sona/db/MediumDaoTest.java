@@ -49,7 +49,7 @@ class MediumDaoTest {
         final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artist.artistId(), uuidv7()));
-        return releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null,
+        return releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null, 0,
                 releaseGroup.releaseGroupId(), artist.artistId(), uuidv7())).releaseId();
     }
 }

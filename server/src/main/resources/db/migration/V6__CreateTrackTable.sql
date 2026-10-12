@@ -20,3 +20,20 @@ create table if not exists track (
 );
 
 create index if not exists track_release_id_idx on track (release_id, disc_number, track_number);
+
+-- Keeps release.track_count up to date as tracks are added, removed, or moved to another release.
+create or replace function count_release_tracks() returns trigger as $$
+begin
+    if tg_op in ('INSERT', 'UPDATE') then
+        update ${schema}.release set track_count = track_count + 1 where release_id = new.release_id;
+    end if;
+    if tg_op in ('UPDATE', 'DELETE') then
+        update ${schema}.release set track_count = track_count - 1 where release_id = old.release_id;
+    end if;
+    return null;
+end;
+$$ language plpgsql;
+
+create or replace trigger track_count_release_tracks
+    after insert or delete or update of release_id on track
+    for each row execute function count_release_tracks();

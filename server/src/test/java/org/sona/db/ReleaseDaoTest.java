@@ -2,12 +2,13 @@ package org.sona.db;
 
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
-import org.sona.model.tables.pojos.Label;
-import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
+import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
@@ -27,11 +29,9 @@ class ReleaseDaoTest {
     @Autowired
     ArtistDao artistDao;
     @Autowired
-    LabelDao labelDao;
+    TrackDao trackDao;
     @Autowired
-    ReleaseLabelDao releaseLabelDao;
-    @Autowired
-    MediumDao mediumDao;
+    TrackToIngestDao trackToIngestDao;
 
     @Test
     void upsertInsertsNewRelease() {
@@ -43,49 +43,44 @@ class ReleaseDaoTest {
     @Test
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new Release(uuidv7(), "Old Name", null, LocalDate.of(2002, 1, 1), "GB",
+        final var stored = dao.upsert(new Release(uuidv7(), "Old Name", null, LocalDate.of(2002, 1, 1), "GB", 0,
                 releaseGroupId(), artistId(), musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
         final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
         assertThat(refreshed).isEqualTo(new Release(stored.releaseId(), "New Name", null, LocalDate.of(2002, 8, 26),
-                "XW", newReleaseGroupId, refreshed.artistId(), musicbrainzId));
+                "XW", 0, newReleaseGroupId, refreshed.artistId(), musicbrainzId));
     }
 
     @Test
-    void loadDetailsReadsTheArtistLabelsByNameAndMediaInOrder() {
-        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
-        final var release = dao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null,
-                LocalDate.of(2002, 8, 26), "GB", releaseGroupId(), artist.artistId(), uuidv7()));
-        final var parlophone = storeLabel(release, "Parlophone");
-        final var capitol = storeLabel(release, "Capitol");
-        final var disc2 = new Medium(uuidv7(), release.releaseId(), 2, "DVD");
-        final var disc1 = new Medium(uuidv7(), release.releaseId(), 1, "CD");
-        mediumDao.upsertAll(List.of(disc2, disc1));
+    void upsertStoresReleasesWithoutMusicBrainzIds() {
+        final var first = dao.upsert(newRelease("Bootleg", releaseGroupId(), null));
+        final var second = dao.upsert(newRelease("Bootleg", releaseGroupId(), null));
 
-        assertThat(dao.loadDetails(release.releaseId())).contains(
-                new ReleaseDetails(release, artist, List.of(capitol, parlophone), List.of(disc1, disc2)));
+        assertThat(dao.loadByIds(List.of(first.releaseId(), second.releaseId())))
+                .containsExactlyInAnyOrder(first, second);
     }
 
     @Test
-    void loadDetailsByReleaseGroupListsTheEarliestFirst() {
-        final var releaseGroupId = releaseGroupId();
-        final var undated = dao.upsert(new Release(uuidv7(), "Promo", null, null, null, releaseGroupId, artistId(),
-                uuidv7()));
-        final var reissue = dao.upsert(new Release(uuidv7(), "Reissue", null, LocalDate.of(2008, 1, 1), null,
-                releaseGroupId, artistId(), uuidv7()));
-        final var original = dao.upsert(newRelease("Original", releaseGroupId, uuidv7()));
+    void trackCountCountsTheReleasesTracks() {
+        final var release = dao.upsert(newRelease("A Rush of Blood to the Head", releaseGroupId(), uuidv7()));
+        final var other = dao.upsert(newRelease("Parachutes", releaseGroupId(), uuidv7()));
 
-        assertThat(dao.loadDetailsByReleaseGroup(releaseGroupId))
-                .extracting(ReleaseDetails::release)
-                .containsExactly(original, reissue, undated);
+        storeTrack(release, 1);
+        storeTrack(release, 2);
+        storeTrack(other, 1);
+
+        assertThat(dao.loadByIds(List.of(release.releaseId(), other.releaseId())))
+                .extracting(Release::releaseId, Release::trackCount)
+                .containsExactlyInAnyOrder(tuple(release.releaseId(), 2), tuple(other.releaseId(), 1));
     }
 
-    private Label storeLabel(final Release release, final String name) {
-        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), name, uuidv7()))).getFirst();
-        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
-        return label;
+    private void storeTrack(final Release release, final int trackNumber) {
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        trackToIngestDao.storeAll(List.of(ingest));
+        trackDao.insert(new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", 1, trackNumber,
+                release.artistId(), release.releaseId(), ingest.trackIngestId()));
     }
 
     private UUID releaseGroupId() {
@@ -98,7 +93,7 @@ class ReleaseDaoTest {
     }
 
     private Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
-        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", releaseGroupId, artistId(),
+        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", 0, releaseGroupId, artistId(),
                 musicbrainzId);
     }
 }

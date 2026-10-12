@@ -11,7 +11,8 @@ create table if not exists release_group (
     first_release_date date,
     artist_id uuid not null references artist (artist_id),
 
-    musicbrainz_release_group_id uuid not null unique
+    -- Null when the release group isn't in MusicBrainz.
+    musicbrainz_release_group_id uuid unique
 );
 
 -- Lists release groups by name.

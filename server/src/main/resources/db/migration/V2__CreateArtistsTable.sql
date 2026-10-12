@@ -7,7 +7,8 @@ create table if not exists artist (
     -- Null when there's no image of the artist.
     thumbnail_path text,
 
-    musicbrainz_artist_id uuid not null unique
+    -- Null when the artist isn't in MusicBrainz.
+    musicbrainz_artist_id uuid unique
 );
 
 -- Lists artists by name.

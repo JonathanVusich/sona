@@ -8,10 +8,13 @@ create table if not exists release (
     date date,
     -- ISO 3166-1 code, or a MusicBrainz code like "XW" for worldwide.
     country text,
+    -- How many of the release's tracks are in the library, kept up to date by a trigger on track.
+    track_count integer not null default 0,
     release_group_id uuid not null references release_group (release_group_id),
     artist_id uuid not null references artist (artist_id),
 
-    musicbrainz_release_id uuid not null unique
+    -- Null when the release isn't in MusicBrainz.
+    musicbrainz_release_id uuid unique
 );
 
 -- A group's releases, earliest first: the earliest stands for the group.
