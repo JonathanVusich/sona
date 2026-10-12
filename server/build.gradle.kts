@@ -160,17 +160,12 @@ val buildWeb by tasks.registering(Exec::class) {
 // -Pe2eBrowser=<name>.
 val e2eBrowser = providers.gradleProperty("e2eBrowser").getOrElse("firefox")
 
-// Where Playwright keeps its browsers. Its default on Windows is under AppData, from where Windows can't load the
-// libraries Firefox ships with (mozglue), so they're kept beside Gradle's own caches instead.
-val playwrightBrowsers = gradle.gradleUserHomeDir.resolve("ms-playwright").absolutePath
-
 // Playwright would download every browser it supports on first use; this installs only the one being tested. On a fresh
 // Linux machine, add its system libraries with --args="install --with-deps <browser>".
 val installBrowsers by tasks.registering(JavaExec::class) {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass = "com.microsoft.playwright.CLI"
     args("install", e2eBrowser)
-    environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsers)
 }
 
 val e2eTest by tasks.registering(Test::class) {
@@ -183,7 +178,6 @@ val e2eTest by tasks.registering(Test::class) {
     }
     dependsOn(buildWeb, installBrowsers)
     environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
-    environment("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsers)
     systemProperty("sona.e2e.browser", e2eBrowser)
     systemProperty("sona.e2e.web-dist", rootProject.layout.projectDirectory.dir("web/dist").asFile.absolutePath)
 }

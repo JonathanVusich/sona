@@ -141,8 +141,7 @@ Test notes:
   during tests. Don't create a user named `admin`: the server creates one at startup. Seed data with `TestUsers` and the DAOs, then do everything else through the
   page. Drive pages through page objects (`LoginPage`, `SettingsMenu`, …), find elements by role and label, and use
   Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which builds `web/`
-  (run `npm ci` in `web/` first) and installs the browser into `~/.gradle/ms-playwright` (Windows can't run
-  Playwright's Firefox from its default folder under `AppData`). A failing test's trace is saved to `server/build/e2e-traces`;
+  (run `npm ci` in `web/` first) and installs the browser. A failing test's trace is saved to `server/build/e2e-traces`;
   open it with `npx playwright show-trace <file>`.
 - GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
   every module, type-checks and builds `web/`, and runs the E2E tests on every PR and push to `main`.

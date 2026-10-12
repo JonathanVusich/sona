@@ -72,7 +72,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # The runner image already has the system libraries Chromium and Firefox need, so only WebKit installs its own.
+        # Installing Firefox's through apt as well once took 14 minutes.
+        include:
+          - browser: chromium
+            install: install chromium
+          - browser: firefox
+            install: install firefox
+          - browser: webkit
+            install: install --with-deps webkit
     services:
       postgres:
         image: postgres:18
@@ -105,8 +113,8 @@ jobs:
         working-directory: web
       - name: Generate jOOQ classes
         run: gradle :server:flywayMigrate :server:jooqCodegen
-      - name: Install ${{ matrix.browser }} and its system libraries
-        run: gradle :server:installBrowsers -Pe2eBrowser=${{ matrix.browser }} --args="install --with-deps ${{ matrix.browser }}"
+      - name: Install ${{ matrix.browser }}
+        run: gradle :server:installBrowsers -Pe2eBrowser=${{ matrix.browser }} --args="${{ matrix.install }}"
       - name: Run E2E tests
         run: gradle :server:e2eTest -Pe2eBrowser=${{ matrix.browser }}
       - name: Upload test reports and traces
