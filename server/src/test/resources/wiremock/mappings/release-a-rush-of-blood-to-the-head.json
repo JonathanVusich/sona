@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/release/5b59d66b-8902-4350-b2e3-324037ef4cb0",
+    "queryParameters": {
+      "inc": { "equalTo": "artist-credits labels release-groups media" },
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "release/a-rush-of-blood-to-the-head.json"
+  }
+}

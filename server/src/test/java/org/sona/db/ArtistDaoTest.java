@@ -16,7 +16,7 @@ class ArtistDaoTest {
 
     @Test
     void upsertInsertsNewArtist() {
-        final var artist = new Artist(uuidv7(), "Coldplay", null, uuidv7());
+        final var artist = new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7());
 
         assertThat(dao.upsert(artist)).isEqualTo(artist);
     }
@@ -24,10 +24,10 @@ class ArtistDaoTest {
     @Test
     void upsertOverwritesArtistWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new Artist(uuidv7(), "Old Name", null, musicbrainzId));
+        final var stored = dao.upsert(new Artist(uuidv7(), "Old Name", "GB", null, musicbrainzId));
 
-        final var refreshed = dao.upsert(new Artist(uuidv7(), "New Name", null, musicbrainzId));
+        final var refreshed = dao.upsert(new Artist(uuidv7(), "New Name", "US", null, musicbrainzId));
 
-        assertThat(refreshed).isEqualTo(new Artist(stored.artistId(), "New Name", null, musicbrainzId));
+        assertThat(refreshed).isEqualTo(new Artist(stored.artistId(), "New Name", "US", null, musicbrainzId));
     }
 }

@@ -9,6 +9,8 @@ public record Artist(
         String name,
         @JsonProperty("sort-name")
         String sortName,
-        String disambiguation
+        String disambiguation,
+        // ISO 3166-1 code of the artist's area. Search results leave it out; lookups include it.
+        String country
 ) {
 }

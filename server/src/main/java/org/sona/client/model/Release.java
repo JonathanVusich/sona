@@ -11,15 +11,24 @@ public record Release(
         UUID statusId,
         @JsonProperty("artist-credit-id")
         UUID artistCreditId,
-        int count,
+        // Search results only.
+        Integer count,
         String title,
         String status,
         @JsonProperty("artist-credit")
         List<ArtistCredit> artistCredit,
         @JsonProperty("release-group")
         ReleaseGroup releaseGroup,
+        // Search results only.
         @JsonProperty("track-count")
-        int trackCount,
-        List<Media> media
+        Integer trackCount,
+        List<Media> media,
+        // As precise as MusicBrainz knows it: "2002", "2002-08" or "2002-08-26".
+        String date,
+        // ISO 3166-1 code, or a MusicBrainz code like "XW" for worldwide.
+        String country,
+        // Only in lookups that include labels.
+        @JsonProperty("label-info")
+        List<LabelInfo> labelInfo
 ) {
 }

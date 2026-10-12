@@ -29,11 +29,16 @@ class DefaultLibraryTest {
     private static final ReleaseGroup RELEASE_GROUP = new ReleaseGroup(
             UUID.fromString("01a11a00-0000-7000-8000-000000000001"),
             "A Rush of Blood: Deluxe/Remastered",
+            null,
+            null,
+            null,
             UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")
     );
     private static final Release RELEASE = new Release(
             UUID.fromString("01a11a00-0000-7000-8000-000000000002"),
             "A Rush of Blood to the Head",
+            null,
+            null,
             null,
             RELEASE_GROUP.releaseGroupId(),
             null,
@@ -87,6 +92,6 @@ class DefaultLibraryTest {
     }
 
     private static Track newTrack(final String path, final UUID trackIngestId) {
-        return new Track(TRACK_ID, "A Whisper", 10, AudioFormat.FLAC, path, null, null, trackIngestId);
+        return new Track(TRACK_ID, "A Whisper", 10, AudioFormat.FLAC, path, 1, 9, null, null, trackIngestId);
     }
 }

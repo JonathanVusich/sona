@@ -1,0 +1,95 @@
+{
+  "packaging": "None",
+  "quality": "normal",
+  "media": [
+    {
+      "position": 1,
+      "id": "4193cf3f-f940-38e8-8f6a-c8742b4f1d8c",
+      "format": "Digital Media",
+      "title": "",
+      "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+      "track-count": 11
+    }
+  ],
+  "disambiguation": "Dolby Atmos mix",
+  "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+  "artist-credit": [
+    {
+      "name": "Coldplay",
+      "joinphrase": "",
+      "artist": {
+        "name": "Coldplay",
+        "type": "Group",
+        "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+        "country": "GB",
+        "sort-name": "Coldplay",
+        "id": "cc197bad-dc9c-440d-a5b5-d52ba2e14234",
+        "disambiguation": ""
+      }
+    }
+  ],
+  "text-representation": {
+    "script": "Latn",
+    "language": "eng"
+  },
+  "title": "A Rush of Blood to the Head",
+  "country": null,
+  "asin": null,
+  "release-group": {
+    "first-release-date": "2002-08-12",
+    "secondary-type-ids": [],
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "primary-type": "Album",
+    "id": "120c786d-a3b2-3c19-b4ff-2b7b3b4435bf",
+    "secondary-types": [],
+    "disambiguation": "",
+    "artist-credit": [
+      {
+        "name": "Coldplay",
+        "joinphrase": "",
+        "artist": {
+          "type": "Group",
+          "name": "Coldplay",
+          "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+          "country": "GB",
+          "sort-name": "Coldplay",
+          "id": "cc197bad-dc9c-440d-a5b5-d52ba2e14234",
+          "disambiguation": ""
+        }
+      }
+    ],
+    "title": "A Rush of Blood to the Head"
+  },
+  "cover-art-archive": {
+    "back": false,
+    "front": true,
+    "artwork": true,
+    "count": 1,
+    "darkened": false
+  },
+  "date": "2022-08-26",
+  "release-events": [
+    {
+      "date": "2022-08-26",
+      "area": null
+    }
+  ],
+  "barcode": "5054197271137",
+  "id": "5b59d66b-8902-4350-b2e3-324037ef4cb0",
+  "status": "Official",
+  "label-info": [
+    {
+      "label": {
+        "name": "Parlophone",
+        "type": "Original Production",
+        "sort-name": "Parlophone",
+        "type-id": "7aaa37fe-2def-3476-b359-80245850062d",
+        "id": "df7d1c7f-ef95-425f-8eef-445b3d7bcbd9",
+        "disambiguation": "",
+        "label-code": 299
+      },
+      "catalog-number": null
+    }
+  ],
+  "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+}

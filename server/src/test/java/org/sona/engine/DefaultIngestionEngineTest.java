@@ -1,5 +1,6 @@
 package org.sona.engine;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
@@ -14,7 +15,9 @@ import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestState;
+import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -26,13 +29,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.UUID;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.model.Tables.ARTIST;
+import static org.sona.model.Tables.LABEL;
+import static org.sona.model.Tables.MEDIUM;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
+import static org.sona.model.Tables.RELEASE_LABEL;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -51,6 +61,8 @@ class DefaultIngestionEngineTest {
     private TrackDao trackDao;
     @Autowired
     private ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    private WireMockServer musicBrainz;
     // For rows the DAOs have no lookup for.
     @Autowired
     private DSLContext dsl;
@@ -69,23 +81,40 @@ class DefaultIngestionEngineTest {
         assertThat(track.name()).isEqualTo("A Whisper");
         assertThat(track.duration()).isEqualTo(10);
         assertThat(track.format()).isEqualTo(AudioFormat.FLAC);
+        assertThat(track.discNumber()).isEqualTo(1);
+        assertThat(track.trackNumber()).isEqualTo(9);
 
         final var release = dsl.selectFrom(RELEASE)
                 .where(RELEASE.RELEASE_ID.eq(track.releaseId()))
                 .fetchSingleInto(Release.class);
         assertThat(release.musicbrainzReleaseId()).isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
+        assertThat(release.date()).isEqualTo(LocalDate.of(2022, 8, 26));
+        final var labelNames = dsl.select(LABEL.NAME)
+                .from(RELEASE_LABEL)
+                .join(LABEL).on(LABEL.LABEL_ID.eq(RELEASE_LABEL.LABEL_ID))
+                .where(RELEASE_LABEL.RELEASE_ID.eq(release.releaseId()))
+                .fetch(LABEL.NAME);
+        assertThat(labelNames).containsExactly("Parlophone");
+        final var media = dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.RELEASE_ID.eq(release.releaseId()))
+                .fetchInto(Medium.class);
+        assertThat(media).extracting(Medium::position, Medium::format).containsExactly(tuple(1, "Digital Media"));
         final var releaseGroup = dsl.selectFrom(RELEASE_GROUP)
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(release.releaseGroupId()))
                 .fetchSingleInto(ReleaseGroup.class);
         assertThat(releaseGroup.musicbrainzReleaseGroupId())
                 .isEqualTo(UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf"));
+        assertThat(releaseGroup.type()).isEqualTo(ReleaseGroupType.ALBUM);
+        assertThat(releaseGroup.firstReleaseDate()).isEqualTo(LocalDate.of(2002, 8, 12));
 
         final var artist = dsl.selectFrom(ARTIST)
                 .where(ARTIST.ARTIST_ID.eq(track.artistId()))
                 .fetchSingleInto(Artist.class);
         assertThat(artist.name()).isEqualTo("Coldplay");
         assertThat(artist.musicbrainzArtistId()).isEqualTo(UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234"));
+        assertThat(artist.country()).isEqualTo("GB");
         assertThat(release.artistId()).isEqualTo(artist.artistId());
+        assertThat(releaseGroup.artistId()).isEqualTo(artist.artistId());
 
         assertThat(track.path()).isEqualTo("%s[A Rush of Blood to the Head]/%s[A Rush of Blood to the Head]/%s[A Whisper].flac"
                 .formatted(releaseGroup.releaseGroupId(), release.releaseId(), track.trackId()));
@@ -100,12 +129,16 @@ class DefaultIngestionEngineTest {
     void importTracksFromOneReleaseIntoOneFolder() throws IOException, InvalidFormatException, InterruptedException {
         final var first = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
         final var second = storeIngest(flacFile(whisperMetadata()), "09 A Whisper (copy).flac");
+        // The stub server is shared with other tests.
+        musicBrainz.resetRequests();
         engine.processTrack(first);
         engine.processTrack(second);
 
         assertThat(loadTrack(second).releaseId()).isEqualTo(loadTrack(first).releaseId());
         assertThat(dsl.fetchCount(RELEASE)).isEqualTo(1);
         assertThat(dsl.fetchCount(RELEASE_GROUP)).isEqualTo(1);
+        // The release was stored with the first track, so it isn't looked up again.
+        assertThat(musicBrainz.findAll(getRequestedFor(urlPathMatching("/ws/2/release/.*")))).hasSize(1);
     }
 
     @Test
@@ -124,8 +157,8 @@ class DefaultIngestionEngineTest {
 
     @Test
     void retryOnlyTheMoveAfterItFails() throws IOException, InvalidFormatException, InterruptedException {
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
-                uuidv7(), "A Rush of Blood to the Head", UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(),
+                "A Rush of Blood to the Head", null, null, null, UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
         // A file where the release group's folder belongs makes the move fail.
         final var blocker = libraryProperties.mediaFolder()
                 .resolve(releaseGroup.releaseGroupId() + "[A Rush of Blood to the Head]");

@@ -7,6 +7,9 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.RELEASE_GROUP;
 
@@ -29,8 +32,17 @@ public class ReleaseGroupDao {
                 .onConflict(RELEASE_GROUP.MUSICBRAINZ_RELEASE_GROUP_ID)
                 .doUpdate()
                 .set(RELEASE_GROUP.NAME, excluded(RELEASE_GROUP.NAME))
+                .set(RELEASE_GROUP.TYPE, excluded(RELEASE_GROUP.TYPE))
+                .set(RELEASE_GROUP.FIRST_RELEASE_DATE, excluded(RELEASE_GROUP.FIRST_RELEASE_DATE))
+                .set(RELEASE_GROUP.ARTIST_ID, excluded(RELEASE_GROUP.ARTIST_ID))
                 .returning()
                 .fetchSingle();
         return mapper.fromRecord(record);
+    }
+
+    public Optional<ReleaseGroup> loadById(final UUID releaseGroupId) {
+        return dsl.selectFrom(RELEASE_GROUP)
+                .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
+                .fetchOptional(mapper::fromRecord);
     }
 }

@@ -6,6 +6,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,21 +30,22 @@ class ReleaseDaoTest {
     @Test
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(newRelease("Old Name", releaseGroupId(), musicbrainzId));
+        final var stored = dao.upsert(new Release(uuidv7(), "Old Name", null, LocalDate.of(2002, 1, 1), "GB",
+                releaseGroupId(), null, musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
         final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
-        assertThat(refreshed).isEqualTo(
-                new Release(stored.releaseId(), "New Name", null, newReleaseGroupId, null, musicbrainzId));
+        assertThat(refreshed).isEqualTo(new Release(stored.releaseId(), "New Name", null, LocalDate.of(2002, 8, 26),
+                "XW", newReleaseGroupId, null, musicbrainzId));
     }
 
     private UUID releaseGroupId() {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", uuidv7()))
+        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, null, uuidv7()))
                 .releaseGroupId();
     }
 
     private static Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
-        return new Release(uuidv7(), name, null, releaseGroupId, null, musicbrainzId);
+        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", releaseGroupId, null, musicbrainzId);
     }
 }

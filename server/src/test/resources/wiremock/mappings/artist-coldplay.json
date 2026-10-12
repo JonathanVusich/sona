@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/artist/cc197bad-dc9c-440d-a5b5-d52ba2e14234",
+    "queryParameters": {
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "artist/coldplay.json"
+  }
+}
