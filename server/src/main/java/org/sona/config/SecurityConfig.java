@@ -3,6 +3,7 @@ package org.sona.config;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import org.sona.auth.ActiveUserService;
 import org.sona.auth.OidcDiscoveryClient;
 import org.sona.auth.SignInHandler;
@@ -28,6 +29,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import static org.sona.auth.SonaJwtConverter.ISSUER;
+import static org.sona.controller.ApiRoutes.API;
 import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
 import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
 import static org.sona.controller.ApiRoutes.AUTH_REGISTER;
@@ -60,6 +62,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT, AUTH_REGISTER)
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
+                        // The web frontend's files are public; it signs in through the API like any other client.
+                        .requestMatchers(SecurityConfig::isFrontendRequest).permitAll()
                         .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
                         // A user who must change their password may still do so, and see that they must.
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
@@ -87,6 +91,10 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .build();
+    }
+
+    private static boolean isFrontendRequest(final HttpServletRequest request) {
+        return HttpMethod.GET.matches(request.getMethod()) && !request.getRequestURI().startsWith(API + "/");
     }
 
     /**

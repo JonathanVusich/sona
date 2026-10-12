@@ -8,7 +8,12 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public final class ApiRoutes {
 
-    public static final String AUTH = "/api/auth";
+    /**
+     * Every endpoint is under here; every other path is the web frontend's.
+     */
+    public static final String API = "/api";
+
+    public static final String AUTH = API + "/auth";
     public static final String AUTH_TOKEN = AUTH + "/token";
     public static final String AUTH_REFRESH = AUTH + "/refresh";
     public static final String AUTH_LOGOUT = AUTH + "/logout";
@@ -25,7 +30,7 @@ public final class ApiRoutes {
      */
     public static final String OIDC_CALLBACK = OIDC + "/callback";
 
-    public static final String CURRENT_USER = "/api/users/me";
+    public static final String CURRENT_USER = API + "/users/me";
     public static final String CURRENT_USER_PASSWORD = CURRENT_USER + "/password";
 
     public static final String JWKS = "/.well-known/jwks.json";

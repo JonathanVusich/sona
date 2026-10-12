@@ -3,8 +3,6 @@ package org.sona.e2e;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sona.IntegrationTest;
-import org.sona.config.TestFrontendConfig;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import java.lang.annotation.ElementType;
@@ -23,7 +21,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("e2e")
 @IntegrationTest
-@Import(TestFrontendConfig.class)
 // Over HTTPS, with a self-signed certificate for localhost, because WebKit won't keep the Secure refresh cookie over
 // plain HTTP, even on localhost.
 @TestPropertySource(properties = {

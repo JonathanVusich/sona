@@ -145,7 +145,8 @@ tasks.test {
     }
 }
 
-// The E2E tests drive the built web frontend in a browser, so they run on their own, with Node installed.
+// Sona serves the web frontend itself, from static/ on its classpath. Building it needs Node, so only the boot jar and
+// the E2E tests include it; `test` and `build` don't.
 val buildWeb by tasks.registering(Exec::class) {
     val web = rootProject.layout.projectDirectory.dir("web")
     workingDir = web.asFile
@@ -154,6 +155,19 @@ val buildWeb by tasks.registering(Exec::class) {
     inputs.dir(web.dir("src"))
     inputs.files(web.file("index.html"), web.file("package-lock.json"), web.file("vite.config.ts"))
     outputs.dir(web.dir("dist"))
+}
+
+val bundledWeb = layout.buildDirectory.dir("bundled-web")
+
+val bundleWeb by tasks.registering(Sync::class) {
+    from(buildWeb)
+    into(bundledWeb.map { it.dir("static") })
+}
+
+tasks.bootJar {
+    from(bundleWeb) {
+        into("BOOT-INF/classes/static")
+    }
 }
 
 // The browser the E2E tests drive: firefox locally, and each of chromium, firefox and webkit on CI, with
@@ -172,14 +186,14 @@ val e2eTest by tasks.registering(Test::class) {
     description = "Runs the end-to-end tests, which drive the web frontend in a browser."
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    // The bundled frontend goes on the classpath as it does in the boot jar.
+    classpath = sourceSets.test.get().runtimeClasspath + files(bundledWeb).builtBy(bundleWeb)
     useJUnitPlatform {
         includeTags("e2e")
     }
-    dependsOn(buildWeb, installBrowsers)
+    dependsOn(installBrowsers)
     environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
     systemProperty("sona.e2e.browser", e2eBrowser)
-    systemProperty("sona.e2e.web-dist", rootProject.layout.projectDirectory.dir("web/dist").asFile.absolutePath)
 }
 
 // Local runs seed the dev users, admin/admin and user/user.
