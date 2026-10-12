@@ -19,7 +19,9 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Optional;
@@ -37,6 +39,13 @@ import static org.sona.utils.IDGenerator.uuidv7;
 public class DefaultTokenIssuer implements TokenIssuer {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * How long a replaced refresh token still refreshes its session. A browser loses the answer to a refresh when its
+     * page is reloaded or closed while it waits, after Sona has already replaced the token, and then sends the old one
+     * again. Reuse after this is taken for a stolen token.
+     */
+    private static final Duration LOST_REFRESH_WINDOW = Duration.ofSeconds(30);
 
     private final JwtEncoder encoder;
     private final RefreshTokenDao refreshTokenDao;
@@ -61,7 +70,11 @@ public class DefaultTokenIssuer implements TokenIssuer {
     @Override
     public Optional<Tokens> refreshSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
-        final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
+        final var replacedAfter = OffsetDateTime.now().minus(LOST_REFRESH_WINDOW);
+        // A token whose replacement was lost refreshes the session in place of the token that replaced it.
+        final var used = refreshTokenDao.revokeIfValid(tokenHash)
+                .or(() -> refreshTokenDao.revokeFamilyTokenIfRecentlyReplaced(tokenHash, replacedAfter))
+                .orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
             return Optional.empty();
