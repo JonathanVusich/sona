@@ -8,4 +8,8 @@ applyTheme(loadTheme());
 // Before the first render, so a reload doesn't flash the login page.
 await restoreSession();
 
-render(() => <App />, document.getElementById("root")!);
+const root = document.getElementById("root");
+if (root === null) {
+  throw new Error("index.html has no #root element to render into.");
+}
+render(() => <App />, root);

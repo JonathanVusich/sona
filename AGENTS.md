@@ -181,6 +181,8 @@ Match the surrounding code. The conventions below are consistent across the code
   members, never the raw strings:
   `export const Theme = { SYSTEM: "system", ... } as const;` then
   `export type Theme = (typeof Theme)[keyof typeof Theme];`. No string-literal union types.
+- Page paths come from `AppRoutes` in `web/src/routes.ts`, and paths with an ID from
+  `routeTo(AppRoutes.ARTIST, artist.id)`, never from string literals.
 - No casts (`as T`) or non-null assertions (`!`); narrow instead.
 - async/await throughout, with no `.then` chains or `void` calls. Only the shared API client (`api/client.ts`) and
   storage helper (`storage.ts`) use `try`/`catch`; API calls return an `ApiResult` that callers branch on.

@@ -19,12 +19,13 @@ import Playlists from "./pages/Playlists";
 import ReleaseDetail from "./pages/ReleaseDetail";
 import ReleaseGroupDetail from "./pages/ReleaseGroupDetail";
 import Settings from "./pages/Settings";
+import { AppRoutes } from "./routes";
 
 function ListeningLayout(props: RouteSectionProps) {
   return (
-    <Show when={currentUser()} fallback={<Navigate href="/login" />}>
+    <Show when={currentUser()} fallback={<Navigate href={AppRoutes.LOGIN} />}>
       {(user) => (
-        <Show when={user().state === SessionState.ACTIVE} fallback={<Navigate href="/change-password" />}>
+        <Show when={user().state === SessionState.ACTIVE} fallback={<Navigate href={AppRoutes.CHANGE_PASSWORD} />}>
           <div class="app">
             <TopBar />
             <main class="page">{props.children}</main>
@@ -41,24 +42,24 @@ function ListeningLayout(props: RouteSectionProps) {
 export default function App() {
   return (
     <Router>
-      <Route path="/login" component={Login} />
-      <Route path="/change-password" component={ChangePassword} />
-      <Route path="/" component={ListeningLayout}>
-        <Route path="/" component={() => <Navigate href="/discover" />} />
-        <Route path="/albums" component={Albums} />
-        <Route path="/artists" component={Artists} />
-        <Route path="/artists/:id" component={ArtistDetail} />
-        <Route path="/release-groups/:id" component={ReleaseGroupDetail} />
-        <Route path="/releases/:id" component={ReleaseDetail} />
-        <Route path="/playlists" component={Playlists} />
-        <Route path="/playlists/:id" component={PlaylistDetail} />
-        <Route path="/discover" component={Discover} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/admin" component={() => <Navigate href="/admin/library" />} />
-        <Route path="/admin/library" component={AdminLibrary} />
-        <Route path="/admin/upload" component={AdminUpload} />
+      <Route path={AppRoutes.LOGIN} component={Login} />
+      <Route path={AppRoutes.CHANGE_PASSWORD} component={ChangePassword} />
+      <Route path={AppRoutes.HOME} component={ListeningLayout}>
+        <Route path={AppRoutes.HOME} component={() => <Navigate href={AppRoutes.DISCOVER} />} />
+        <Route path={AppRoutes.ALBUMS} component={Albums} />
+        <Route path={AppRoutes.ARTISTS} component={Artists} />
+        <Route path={AppRoutes.ARTIST} component={ArtistDetail} />
+        <Route path={AppRoutes.RELEASE_GROUP} component={ReleaseGroupDetail} />
+        <Route path={AppRoutes.RELEASE} component={ReleaseDetail} />
+        <Route path={AppRoutes.PLAYLISTS} component={Playlists} />
+        <Route path={AppRoutes.PLAYLIST} component={PlaylistDetail} />
+        <Route path={AppRoutes.DISCOVER} component={Discover} />
+        <Route path={AppRoutes.SETTINGS} component={Settings} />
+        <Route path={AppRoutes.ADMIN} component={() => <Navigate href={AppRoutes.ADMIN_LIBRARY} />} />
+        <Route path={AppRoutes.ADMIN_LIBRARY} component={AdminLibrary} />
+        <Route path={AppRoutes.ADMIN_UPLOAD} component={AdminUpload} />
       </Route>
-      <Route path="*" component={() => <Navigate href="/" />} />
+      <Route path={AppRoutes.UNKNOWN} component={() => <Navigate href={AppRoutes.HOME} />} />
     </Router>
   );
 }

@@ -1,6 +1,7 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
 import { currentUser, logIn } from "../auth";
+import { AppRoutes } from "../routes";
 
 export default function Login() {
   const [username, setUsername] = createSignal("");
@@ -18,7 +19,7 @@ export default function Login() {
   };
 
   return (
-    <Show when={!currentUser()} fallback={<Navigate href="/" />}>
+    <Show when={!currentUser()} fallback={<Navigate href={AppRoutes.HOME} />}>
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>

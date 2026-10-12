@@ -7,6 +7,7 @@ import { RepeatMode } from "../player";
 import Cover from "./Cover";
 import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, VolumeIcon } from "./Icons";
 import Slider, { SliderSize } from "./Slider";
+import { AppRoutes, routeTo } from "../routes";
 
 export default function PlayerBar() {
   // While the scrub thumb is held, show where it is instead of the playback position.
@@ -22,8 +23,10 @@ export default function PlayerBar() {
 
   // Space toggles playback, unless focus is on something that uses Space itself.
   const onKeyDown = (event: KeyboardEvent) => {
-    const target = event.target as HTMLElement;
-    if (event.code !== "Space" || event.repeat || target.closest("input, textarea, select, button, a, [role=slider]")) {
+    const target = event.target;
+    const usesSpace =
+      target instanceof Element && target.closest("input, textarea, select, button, a, [role=slider]") !== null;
+    if (event.code !== "Space" || event.repeat || usesSpace) {
       return;
     }
     event.preventDefault();
@@ -54,7 +57,7 @@ export default function PlayerBar() {
       <div class="player-now">
         <Show when={context().release} fallback={<div class="cover player-cover empty-cover" />}>
           {(release) => (
-            <A href={`/releases/${release().id}`} aria-label={`Go to ${release().title}`}>
+            <A href={routeTo(AppRoutes.RELEASE, release().id)} aria-label={`Go to ${release().title}`}>
               <Cover seed={context().group?.title ?? release().title} class="player-cover" />
             </A>
           )}
@@ -63,7 +66,7 @@ export default function PlayerBar() {
           <div class="player-title">{track()?.title ?? "Not playing"}</div>
           <Show when={context().artist} fallback={<div class="player-artist">Pick something to play</div>}>
             {(artist) => (
-              <A href={`/artists/${artist().id}`} class="player-artist">
+              <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="player-artist">
                 {artist().name}
               </A>
             )}

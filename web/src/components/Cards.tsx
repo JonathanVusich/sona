@@ -14,6 +14,7 @@ import {
 import { playTracks } from "../player";
 import Cover, { ArtistAvatar } from "./Cover";
 import { PlayIcon } from "./Icons";
+import { AppRoutes, routeTo } from "../routes";
 
 // How cards are laid out, as the class that lays them out.
 export const CardLayout = {
@@ -58,7 +59,7 @@ function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: CardSubtitle }
 
   return (
     <div class="card">
-      <A href={`/release-groups/${props.group.id}`} class="card-link">
+      <A href={routeTo(AppRoutes.RELEASE_GROUP, props.group.id)} class="card-link">
         <Cover seed={props.group.title} />
         <div class="card-title">{props.group.title}</div>
         <div class="card-subtitle">{subtitle()}</div>
@@ -75,7 +76,7 @@ export function ArtistGrid(props: { artists: Artist[] }) {
     <div class="card-grid">
       <For each={props.artists}>
         {(artist) => (
-          <A href={`/artists/${artist.id}`} class="card-link artist-card">
+          <A href={routeTo(AppRoutes.ARTIST, artist.id)} class="card-link artist-card">
             <ArtistAvatar name={artist.name} />
             <div class="card-title">{artist.name}</div>
             <div class="card-subtitle">{plural(groupsOf(artist.id).length, "release")}</div>

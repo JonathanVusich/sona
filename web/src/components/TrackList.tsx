@@ -7,6 +7,7 @@ import { removeFromPlaylist } from "../playlists";
 import { MoreIcon, PlayIcon } from "./Icons";
 import Menu from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
+import { AppRoutes, routeTo } from "../routes";
 
 // Rows play on click. With showContext each row also names and links its artist and release, for lists that mix
 // releases such as playlists. Passing playlistId offers removing tracks from that playlist.
@@ -24,7 +25,7 @@ export default function TrackList(props: {
           const isCurrent = () => current()?.id === track.id;
           // Links and buttons inside the row do their own thing.
           const onRowClick = (event: MouseEvent) => {
-            if (!(event.target as Element).closest("a, button, .menu")) {
+            if (!(event.target instanceof Element && event.target.closest("a, button, .menu"))) {
               props.onPlay(index());
             }
           };
@@ -49,7 +50,7 @@ export default function TrackList(props: {
                 <span class="track-title">{track.title}</span>
                 <Show when={props.showContext && context().artist}>
                   {(artist) => (
-                    <A href={`/artists/${artist().id}`} class="track-sub">
+                    <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="track-sub">
                       {artist().name}
                     </A>
                   )}
@@ -58,7 +59,7 @@ export default function TrackList(props: {
               <Show when={props.showContext}>
                 <span class="track-release">
                   <Show when={context().release}>
-                    {(release) => <A href={`/releases/${release().id}`}>{release().title}</A>}
+                    {(release) => <A href={routeTo(AppRoutes.RELEASE, release().id)}>{release().title}</A>}
                   </Show>
                 </span>
               </Show>
@@ -68,14 +69,14 @@ export default function TrackList(props: {
                 <hr class="menu-divider" />
                 <Show when={context().artist}>
                   {(artist) => (
-                    <A href={`/artists/${artist().id}`} class="menu-item" role="menuitem">
+                    <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="menu-item" role="menuitem">
                       Go to artist
                     </A>
                   )}
                 </Show>
                 <Show when={props.showContext && context().release}>
                   {(release) => (
-                    <A href={`/releases/${release().id}`} class="menu-item" role="menuitem">
+                    <A href={routeTo(AppRoutes.RELEASE, release().id)} class="menu-item" role="menuitem">
                       Go to release
                     </A>
                   )}

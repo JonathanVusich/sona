@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { For } from "solid-js";
 import { plural } from "../format";
 import { tracksOfRelease, type Release } from "../library";
+import { AppRoutes, routeTo } from "../routes";
 
 // The releases of a release group, one row each. The current release, if any, is marked and not linked.
 export default function EditionList(props: { releases: Release[]; currentId?: string }) {
@@ -21,7 +22,7 @@ export default function EditionList(props: { releases: Release[]; currentId?: st
                   <span class="edition-details">{details()}</span>
                 </div>
               ) : (
-                <A href={`/releases/${release.id}`} class="edition">
+                <A href={routeTo(AppRoutes.RELEASE, release.id)} class="edition">
                   <span class="edition-title">{release.title}</span>
                   <span class="edition-details">{details()}</span>
                 </A>

@@ -416,7 +416,10 @@ export function removeRelease(id: string) {
   setTracks((all) => Object.fromEntries(Object.entries(all).filter(([, track]) => track.releaseId !== id)));
   setReleases((all) => all.filter((other) => other.id !== id));
   if (releasesOf(release.groupId).length === 0) {
-    const group = groupById(release.groupId)!;
+    const group = groupById(release.groupId);
+    if (group === undefined) {
+      return;
+    }
     setGroups((all) => all.filter((other) => other.id !== group.id));
     if (groupsOf(group.artistId).length === 0) {
       setArtists((all) => all.filter((artist) => artist.id !== group.artistId));
