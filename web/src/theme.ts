@@ -1,13 +1,19 @@
+import { readSetting, writeSetting } from "./storage";
+
 export type Theme = "system" | "light" | "dark";
 
+const THEMES: readonly Theme[] = ["system", "light", "dark"];
 const STORAGE_KEY = "sona.theme";
 
 export function loadTheme(): Theme {
-  try {
-    return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? "system";
-  } catch {
-    return "system";
-  }
+  return parseTheme(readSetting(STORAGE_KEY));
+}
+
+/**
+ * @returns the theme the value names, or "system" when it names none
+ */
+export function parseTheme(value: string | null): Theme {
+  return THEMES.find((theme) => theme === value) ?? "system";
 }
 
 export function applyTheme(theme: Theme) {
@@ -16,9 +22,5 @@ export function applyTheme(theme: Theme) {
   } else {
     document.documentElement.dataset.theme = theme;
   }
-  try {
-    localStorage.setItem(STORAGE_KEY, theme);
-  } catch {
-    // The theme still applies for this page load.
-  }
+  writeSetting(STORAGE_KEY, theme);
 }
