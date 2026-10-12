@@ -1,36 +1,35 @@
-import { Navigate, useNavigate } from "@solidjs/router";
+import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { ApiError } from "../api";
-import { changePassword, logout, user } from "../auth";
+import { describeError } from "../api/client";
+import { changePassword, currentUser, logOut } from "../auth";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
+// Once it is changed, here or in another tab, the fallback leaves this page.
 export default function ChangePassword() {
-  const [current, setCurrent] = createSignal("");
-  const [next, setNext] = createSignal("");
-  const [confirmed, setConfirmed] = createSignal("");
+  const [currentPassword, setCurrentPassword] = createSignal("");
+  const [newPassword, setNewPassword] = createSignal("");
+  const [confirmedPassword, setConfirmedPassword] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [pending, setPending] = createSignal(false);
-  const navigate = useNavigate();
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
-    if (next() !== confirmed()) {
+    if (newPassword() !== confirmedPassword()) {
       setError("The new passwords don't match.");
       return;
     }
     setPending(true);
     try {
-      await changePassword(current(), next());
-      navigate("/", { replace: true });
+      await changePassword({ currentPassword: currentPassword(), newPassword: newPassword() });
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : "Something went wrong. Try again.");
+      setError(describeError(failure));
     } finally {
       setPending(false);
     }
   };
 
   return (
-    <Show when={user()} fallback={<Navigate href="/login" />}>
+    <Show when={currentUser()?.state === "PASSWORD_CHANGE_REQUIRED"} fallback={<Navigate href="/" />}>
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>
@@ -39,8 +38,8 @@ export default function ChangePassword() {
             Current password
             <input
               type="password"
-              value={current()}
-              onInput={(e) => setCurrent(e.currentTarget.value)}
+              value={currentPassword()}
+              onInput={(e) => setCurrentPassword(e.currentTarget.value)}
               autocomplete="current-password"
               autofocus
               required
@@ -50,8 +49,8 @@ export default function ChangePassword() {
             New password
             <input
               type="password"
-              value={next()}
-              onInput={(e) => setNext(e.currentTarget.value)}
+              value={newPassword()}
+              onInput={(e) => setNewPassword(e.currentTarget.value)}
               autocomplete="new-password"
               required
             />
@@ -60,8 +59,8 @@ export default function ChangePassword() {
             Confirm new password
             <input
               type="password"
-              value={confirmed()}
-              onInput={(e) => setConfirmed(e.currentTarget.value)}
+              value={confirmedPassword()}
+              onInput={(e) => setConfirmedPassword(e.currentTarget.value)}
               autocomplete="new-password"
               required
             />
@@ -72,7 +71,7 @@ export default function ChangePassword() {
           <button type="submit" class="primary" disabled={pending()}>
             Change password
           </button>
-          <button type="button" class="link" onClick={() => void logout()}>
+          <button type="button" class="link" onClick={logOut}>
             Log out
           </button>
         </form>

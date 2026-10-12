@@ -1,26 +1,24 @@
-import { A, useNavigate } from "@solidjs/router";
+import { A } from "@solidjs/router";
 import { Show } from "solid-js";
-import { can, logout, user } from "../auth";
+import { currentUser, hasPermission, logOut } from "../auth";
 import { stop } from "../player";
 import { GearIcon } from "./Icons";
 import Menu from "./Menu";
 
 export default function SettingsMenu() {
-  const navigate = useNavigate();
-
+  // Signed out, the layout sends the browser to the login page.
   const signOut = async () => {
     stop();
-    await logout();
-    navigate("/login", { replace: true });
+    await logOut();
   };
 
   return (
     <Menu label="Settings" icon={<GearIcon />} class="settings-menu">
       <div class="menu-header">
-        <span>{user()?.username}</span>
-        <span class="badge">{user()?.role.toLowerCase()}</span>
+        <span>{currentUser()?.username}</span>
+        <span class="badge">{currentUser()?.role.toLowerCase()}</span>
       </div>
-      <Show when={can("LIBRARY_WRITE")}>
+      <Show when={hasPermission("LIBRARY_WRITE")}>
         <A href="/admin" class="menu-item" role="menuitem">
           Manage library
         </A>

@@ -1,35 +1,41 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { ApiError } from "../api";
-import { login, user } from "../auth";
+import { describeError } from "../api/client";
+import { currentUser, logIn } from "../auth";
 
 export default function Login() {
-  const [name, setName] = createSignal("");
+  const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [pending, setPending] = createSignal(false);
 
-  // Once signed in, the fallback below leaves this page.
+  // Once logged in, the fallback below leaves this page.
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
     setPending(true);
     try {
-      await login(name().trim(), password());
+      await logIn({ username: username().trim(), password: password() });
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : "Something went wrong. Try again.");
+      setError(describeError(failure));
     } finally {
       setPending(false);
     }
   };
 
   return (
-    <Show when={!user()} fallback={<Navigate href="/" />}>
+    <Show when={!currentUser()} fallback={<Navigate href="/" />}>
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>
           <label>
             Username
-            <input value={name()} onInput={(e) => setName(e.currentTarget.value)} autocomplete="username" autofocus required />
+            <input
+              value={username()}
+              onInput={(e) => setUsername(e.currentTarget.value)}
+              autocomplete="username"
+              autofocus
+              required
+            />
           </label>
           <label>
             Password

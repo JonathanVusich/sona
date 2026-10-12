@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { user } from "./auth";
+import { currentUser } from "./auth";
 import { trackIdByTitle } from "./library";
 
 // Playlists are personal: each belongs to one user, and anyone can make their own, whatever their library permissions.
@@ -29,14 +29,18 @@ const [playlists, setPlaylists] = createSignal<Playlist[]>([
 ]);
 
 export const myPlaylists = () => {
-  const current = user();
+  const current = currentUser();
   return current === null ? [] : playlists().filter((playlist) => playlist.owner === current.username);
 };
 
 export const playlistById = (id: string) => myPlaylists().find((playlist) => playlist.id === id);
 
 export function createPlaylist(name: string, description: string, trackIds: string[]): Playlist {
-  const playlist: Playlist = { id: crypto.randomUUID(), owner: user()!.username, name, description, trackIds };
+  const owner = currentUser();
+  if (owner === null) {
+    throw new Error("Sign in to make a playlist.");
+  }
+  const playlist: Playlist = { id: crypto.randomUUID(), owner: owner.username, name, description, trackIds };
   setPlaylists((all) => [...all, playlist]);
   return playlist;
 }

@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { PERMISSION_LABELS, user } from "../auth";
+import { currentUser, PERMISSION_LABELS } from "../auth";
 import PageLayout from "../components/PageLayout";
 import { PageHeader } from "../components/Section";
 import { applyTheme, loadTheme, type Theme } from "../theme";
@@ -18,11 +18,11 @@ export default function Settings() {
         <h3>Account</h3>
         <div class="settings-row">
           <span>Username</span>
-          <span class="settings-value">{user()?.username}</span>
+          <span class="settings-value">{currentUser()?.username}</span>
         </div>
         <div class="settings-row">
           <span>Permissions</span>
-          <span class="settings-value">{user()?.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")}</span>
+          <span class="settings-value">{currentUser()?.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ")}</span>
         </div>
       </div>
 
