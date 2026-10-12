@@ -148,12 +148,21 @@ tasks.test {
     }
 }
 
-// Sona serves the web frontend itself, from static/ on its classpath. Building it needs Node, so only the boot jar and
-// the E2E tests include it; `test` and `build` don't.
-val buildWeb by tasks.registering(Exec::class) {
-    val web = rootProject.layout.projectDirectory.dir("web")
+// Sona serves the web frontend itself, from static/ on its classpath. Building it needs Node, so the boot jar (and with
+// it `build`) and the E2E tests include it; `test` doesn't.
+val web = rootProject.layout.projectDirectory.dir("web")
+val npm = if (System.getProperty("os.name").startsWith("Windows")) "npm.cmd" else "npm"
+
+val installWebDependencies by tasks.registering(Exec::class) {
     workingDir = web.asFile
-    val npm = if (System.getProperty("os.name").startsWith("Windows")) "npm.cmd" else "npm"
+    commandLine(npm, "ci")
+    inputs.files(web.file("package.json"), web.file("package-lock.json"))
+    outputs.dir(web.dir("node_modules"))
+}
+
+val buildWeb by tasks.registering(Exec::class) {
+    dependsOn(installWebDependencies)
+    workingDir = web.asFile
     commandLine(npm, "run", "build")
     inputs.dir(web.dir("src"))
     inputs.files(web.file("index.html"), web.file("package-lock.json"), web.file("vite.config.ts"))

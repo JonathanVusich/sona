@@ -38,6 +38,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: 9.5.0
+      # The boot jar bundles the web frontend, which Gradle builds with npm.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - name: Generate jOOQ classes
         run: gradle :server:flywayMigrate :server:jooqCodegen
       - name: Build and test
@@ -102,8 +108,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
-        working-directory: web
       - name: Generate jOOQ classes
         run: gradle :server:flywayMigrate :server:jooqCodegen
       - name: Run E2E tests

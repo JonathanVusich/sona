@@ -97,7 +97,7 @@ IngestionEngine.processTrack ◄────────────────
 
 ## Building and testing
 
-Prerequisites: JDK 25, Docker, Node 22 (for `web/` and the E2E tests). (`dev.javax:bitstream` is the author's own library, published to Maven Central.)
+Prerequisites: JDK 25, Docker, Node 22 (for `web/`, which the boot jar bundles, and the E2E tests). (`dev.javax:bitstream` is the author's own library, published to Maven Central.)
 
 ```bash
 docker compose -f server/docker-compose.yml up -d     # start Postgres
@@ -142,8 +142,7 @@ Test notes:
   `BrowserContext` for several tabs that share cookies. Access tokens last ten seconds, so token refreshes happen
   during tests. Don't create a user named `admin`: the server creates one at startup. Seed data with `TestUsers` and
   the DAOs, then do everything else through the page. Drive pages through page objects (`LoginPage`, `SettingsMenu`, …), find elements by role and label, and use
-  Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which bundles `web/`
-  (run `npm ci` in `web/` first). A failing test's trace is saved to `server/build/e2e-traces`;
+  Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which bundles `web/`. A failing test's trace is saved to `server/build/e2e-traces`;
   open it with `npx playwright show-trace <file>`.
 - GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
   every module, type-checks and builds `web/`, and runs the E2E tests on every PR and push to `main`.
