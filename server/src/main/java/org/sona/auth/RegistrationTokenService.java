@@ -23,7 +23,7 @@ import java.util.Optional;
  * have their own issuer, so they are never accepted as access tokens.
  */
 @Component
-public final class RegistrationTokens {
+public final class RegistrationTokenService {
 
     private static final String ISSUER = "sona-registration";
     private static final Duration LIFETIME = Duration.ofMinutes(10);
@@ -35,7 +35,7 @@ public final class RegistrationTokens {
     private final JwtEncoder encoder;
     private final JwtDecoder decoder;
 
-    public RegistrationTokens(final JwtEncoder encoder, final RSAKey signingKey) throws JOSEException {
+    public RegistrationTokenService(final JwtEncoder encoder, final RSAKey signingKey) throws JOSEException {
         this.encoder = encoder;
         final var decoder = NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));

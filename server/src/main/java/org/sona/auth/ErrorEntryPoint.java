@@ -17,7 +17,7 @@ import java.io.IOException;
  */
 @Component
 @RequiredArgsConstructor
-public final class ErrorResponseAuthenticationEntryPoint implements AuthenticationEntryPoint {
+public final class ErrorEntryPoint implements AuthenticationEntryPoint {
 
     // Adds the WWW-Authenticate header that RFC 6750 asks for.
     private final AuthenticationEntryPoint bearerEntryPoint = new BearerTokenAuthenticationEntryPoint();

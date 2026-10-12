@@ -1,7 +1,7 @@
 package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.auth.PasswordService;
+import org.sona.auth.PasswordChecker;
 import org.sona.auth.UserAuthentication;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public final class UserController {
 
-    private final PasswordService passwordService;
+    private final PasswordChecker passwordChecker;
 
     /**
      * Answered from the access token alone, which carries everything here.
@@ -38,7 +38,7 @@ public final class UserController {
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
     public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
                                                @RequestBody final ChangePasswordRequest request) {
-        final var change = passwordService.change(authentication.user(), request.currentPassword(),
+        final var change = passwordChecker.change(authentication.user(), request.currentPassword(),
                 request.newPassword());
         return switch (change) {
             case CHANGED -> ResponseEntity.noContent().build();

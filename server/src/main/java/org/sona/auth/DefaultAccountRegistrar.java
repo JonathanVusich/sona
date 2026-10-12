@@ -15,12 +15,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class DefaultOidcAccounts implements OidcAccounts {
+public class DefaultAccountRegistrar implements AccountRegistrar {
 
     private final UserDao userDao;
     private final OidcIdentityDao oidcIdentityDao;
-    private final TokenService tokenService;
-    private final RegistrationTokens registrationTokens;
+    private final TokenIssuer tokenIssuer;
+    private final RegistrationTokenService registrationTokens;
 
     @Override
     public OidcSignIn signIn(final ProviderUser providerUser, final String providerRefreshToken) {
@@ -31,7 +31,7 @@ public class DefaultOidcAccounts implements OidcAccounts {
         return switch (user.state()) {
             case ACTIVE -> {
                 final var current = followProviderRole(user, providerUser.role());
-                yield new OidcSignIn.SignedIn(tokenService.issue(current, providerRefreshToken));
+                yield new OidcSignIn.SignedIn(tokenIssuer.issue(current, providerRefreshToken));
             }
             case DISABLED -> new OidcSignIn.Disabled();
         };

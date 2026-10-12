@@ -14,7 +14,7 @@ import java.time.Duration;
  */
 @Component
 @RequiredArgsConstructor
-public final class RefreshCookies {
+public final class RefreshCookieService {
 
     public static final String NAME = "sona_refresh";
 

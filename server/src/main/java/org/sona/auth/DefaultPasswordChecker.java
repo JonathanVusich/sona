@@ -10,24 +10,24 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 @Service
-public class DefaultPasswordService implements PasswordService {
+public class DefaultPasswordChecker implements PasswordChecker {
 
     private final UserDao userDao;
     private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
-    private final TokenService tokenService;
+    private final TokenIssuer tokenIssuer;
     /**
      * Checked against when the user has no password, so refusing an unknown user takes as long as refusing a wrong
      * password, and response times don't reveal which usernames exist.
      */
     private final String unknownUserHash;
 
-    public DefaultPasswordService(final UserDao userDao, final PasswordDao passwordDao, final PasswordEncoder encoder,
-                                  final TokenService tokenService) {
+    public DefaultPasswordChecker(final UserDao userDao, final PasswordDao passwordDao, final PasswordEncoder encoder,
+                                  final TokenIssuer tokenIssuer) {
         this.userDao = userDao;
         this.passwordDao = passwordDao;
         this.encoder = encoder;
-        this.tokenService = tokenService;
+        this.tokenIssuer = tokenIssuer;
         this.unknownUserHash = encoder.encode("unknown user");
     }
 
@@ -69,7 +69,7 @@ public class DefaultPasswordService implements PasswordService {
             return PasswordChange.INVALID_NEW_PASSWORD;
         }
         passwordDao.update(user.userId(), encoder.encode(newPassword));
-        tokenService.revokeAll(user);
+        tokenIssuer.revokeAll(user);
         return PasswordChange.CHANGED;
     }
 }

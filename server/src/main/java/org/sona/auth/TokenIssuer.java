@@ -4,7 +4,7 @@ import org.sona.model.tables.pojos.Users;
 
 import java.util.Optional;
 
-public interface TokenService {
+public interface TokenIssuer {
 
     /**
      * Starts a new session for the user.

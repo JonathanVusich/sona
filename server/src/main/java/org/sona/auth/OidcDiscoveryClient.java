@@ -21,13 +21,13 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
  * Sona still starts while a provider is down.
  */
 @Component
-public final class OidcClientRegistrations implements ClientRegistrationRepository {
+public final class OidcDiscoveryClient implements ClientRegistrationRepository {
 
     private final List<OidcProvider> providers;
     private final Map<String, OidcProvider> providersById;
     private final Map<String, ClientRegistration> discovered = new ConcurrentHashMap<>();
 
-    public OidcClientRegistrations(final AuthProperties properties) {
+    public OidcDiscoveryClient(final AuthProperties properties) {
         this.providers = properties.oidcProviders();
         this.providersById = providers.stream().collect(toUnmodifiableMap(OidcProvider::id, Function.identity()));
     }

@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  * Allows requests only from users whose account is active, so a user who must change their password can't do
  * anything else first.
  */
-public final class ActiveUserAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
+public final class ActiveUserService implements AuthorizationManager<RequestAuthorizationContext> {
 
     @Override
     public AuthorizationResult authorize(final Supplier<? extends Authentication> authentication,

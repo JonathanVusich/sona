@@ -17,11 +17,11 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DefaultProviderSessions implements ProviderSessions {
+public class DefaultProviderClient implements ProviderClient {
 
     private final OidcIdentityDao oidcIdentityDao;
     private final OidcSessionDao oidcSessionDao;
-    private final OidcClientRegistrations registrations;
+    private final OidcDiscoveryClient discoveryClient;
     private final OAuth2AccessTokenResponseClient<OAuth2RefreshTokenGrantRequest> tokenClient =
             new RestClientRefreshTokenTokenResponseClient();
 
@@ -29,7 +29,7 @@ public class DefaultProviderSessions implements ProviderSessions {
     public boolean refresh(final OidcSession session) {
         final var identity = oidcIdentityDao.find(session.userId()).orElseThrow();
         // A provider that has been removed from the configuration no longer vouches for anyone.
-        final var registration = registrations.findByIssuer(identity.issuer()).orElse(null);
+        final var registration = discoveryClient.findByIssuer(identity.issuer()).orElse(null);
         if (registration == null) {
             return false;
         }
