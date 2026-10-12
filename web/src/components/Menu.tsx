@@ -4,7 +4,7 @@ import { createSignal, Show, type JSX } from "solid-js";
 const [openMenu, setOpenMenu] = createSignal<symbol | null>(null);
 
 document.addEventListener("click", (event) => {
-  if (openMenu() !== null && !(event.target as Element).closest(".menu[data-open]")) {
+  if (openMenu() !== null && !(event.target instanceof Element && event.target.closest(".menu[data-open]"))) {
     setOpenMenu(null);
   }
 });

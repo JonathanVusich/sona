@@ -1,6 +1,6 @@
 import { A, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
-import { ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
 import Cover from "../components/Cover";
 import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
@@ -12,6 +12,7 @@ import TrackList from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { artistById, groupById, groupsOf, releaseById, releasesOf, tracksOfRelease } from "../library";
 import { playTracks, shufflePlay } from "../player";
+import { AppRoutes, routeTo } from "../routes";
 
 // One concrete edition: its own tracks and details, the other editions of the same release group, and the rest of
 // the artist's discography.
@@ -46,7 +47,7 @@ export default function ReleaseDetail() {
                   <h1>{release().title}</h1>
                   <Show when={artist()}>
                     {(releaseArtist) => (
-                      <A href={`/artists/${releaseArtist().id}`} class="detail-artist">
+                      <A href={routeTo(AppRoutes.ARTIST, releaseArtist().id)} class="detail-artist">
                         {releaseArtist().name}
                       </A>
                     )}
@@ -59,7 +60,7 @@ export default function ReleaseDetail() {
                   <Show when={group()}>
                     {(releaseGroup) => (
                       <p class="detail-meta">
-                        Edition of <A href={`/release-groups/${releaseGroup().id}`}>{releaseGroup().title}</A>
+                        Edition of <A href={routeTo(AppRoutes.RELEASE_GROUP, releaseGroup().id)}>{releaseGroup().title}</A>
                       </p>
                     )}
                   </Show>
@@ -86,7 +87,7 @@ export default function ReleaseDetail() {
             </Show>
             <Show when={moreByArtist().length > 0}>
               <Section title={`More by ${artist()?.name ?? "this artist"}`}>
-                <ReleaseGroupGrid groups={moreByArtist()} layout="row" subtitle="year" />
+                <ReleaseGroupGrid groups={moreByArtist()} layout={CardLayout.ROW} subtitle={CardSubtitle.YEAR} />
               </Section>
             </Show>
           </PageLayout>

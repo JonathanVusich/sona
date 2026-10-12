@@ -1,12 +1,38 @@
 // Response bodies, as the server's controller.response records define them.
 
-export type UserRole = "ADMIN" | "USER";
-export type Permission = "LIBRARY_READ" | "LIBRARY_WRITE" | "LIBRARY_UPLOAD" | "USERS_MANAGE";
-export type SessionState = "ACTIVE" | "PASSWORD_CHANGE_REQUIRED";
+export const UserRole = {
+  ADMIN: "ADMIN",
+  USER: "USER",
+} as const;
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const Permission = {
+  LIBRARY_READ: "LIBRARY_READ",
+  LIBRARY_WRITE: "LIBRARY_WRITE",
+  LIBRARY_UPLOAD: "LIBRARY_UPLOAD",
+  USERS_MANAGE: "USERS_MANAGE",
+} as const;
+
+export type Permission = (typeof Permission)[keyof typeof Permission];
+
+export const SessionState = {
+  ACTIVE: "ACTIVE",
+  // Until they change their password, the user may only do that.
+  PASSWORD_CHANGE_REQUIRED: "PASSWORD_CHANGE_REQUIRED",
+} as const;
+
+export type SessionState = (typeof SessionState)[keyof typeof SessionState];
+
+export const TokenType = {
+  BEARER: "BEARER",
+} as const;
+
+export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 
 export interface TokenResponse {
   accessToken: string;
-  tokenType: "BEARER";
+  tokenType: TokenType;
   /** Seconds until the access token expires. */
   expiresIn: number;
 }

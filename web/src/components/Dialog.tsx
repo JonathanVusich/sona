@@ -2,12 +2,17 @@ import { createEffect, Show, type JSX } from "solid-js";
 
 // A native modal dialog. Its content is only rendered while open, so forms start fresh each time.
 export default function Dialog(props: { open: boolean; title: string; onClose: () => void; children: JSX.Element }) {
-  let element!: HTMLDialogElement;
+  let element: HTMLDialogElement | undefined;
 
   createEffect(() => {
-    if (props.open && !element.open) {
+    // Read before anything else, so the effect follows it.
+    const open = props.open;
+    if (element === undefined) {
+      return;
+    }
+    if (open && !element.open) {
       element.showModal();
-    } else if (!props.open && element.open) {
+    } else if (!open && element.open) {
       element.close();
     }
   });
@@ -18,7 +23,7 @@ export default function Dialog(props: { open: boolean; title: string; onClose: (
       class="dialog"
       onClose={() => props.onClose()}
       // The dialog element itself is only hit on the backdrop; the content sits in an inner box.
-      onClick={(event) => event.target === element && props.onClose()}
+      onClick={(event) => event.target === event.currentTarget && props.onClose()}
     >
       <Show when={props.open}>
         <div class="dialog-body">

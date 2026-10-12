@@ -3,15 +3,17 @@ import { createSignal, For, Show } from "solid-js";
 import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
+import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { importFiles } from "../../library";
+import { AppRoutes } from "../../routes";
 
 export default function Upload() {
   const [pending, setPending] = createSignal<PickedFile[]>([]);
   const [dragging, setDragging] = createSignal(false);
   const navigate = useNavigate();
-  let filesInput!: HTMLInputElement;
-  let folderInput!: HTMLInputElement;
+  let filesInput: HTMLInputElement | undefined;
+  let folderInput: HTMLInputElement | undefined;
 
   const add = (picked: PickedFile[]) => {
     setPending((current) => {
@@ -39,11 +41,11 @@ export default function Upload() {
 
   const submit = () => {
     importFiles(pending());
-    navigate("/admin/library");
+    navigate(AppRoutes.ADMIN_LIBRARY);
   };
 
   return (
-    <Show when={hasPermission("LIBRARY_UPLOAD")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission(Permission.LIBRARY_UPLOAD)} fallback={<Navigate href={AppRoutes.HOME} />}>
       <PageLayout header={<PageHeader title="Upload music" />}>
         <div
           class="dropzone"
@@ -57,8 +59,8 @@ export default function Upload() {
         >
           <p>Drag and drop audio files or folders here</p>
           <div class="dropzone-actions">
-            <button onClick={() => filesInput.click()}>Choose files</button>
-            <button onClick={() => folderInput.click()}>Choose folder</button>
+            <button onClick={() => filesInput?.click()}>Choose files</button>
+            <button onClick={() => folderInput?.click()}>Choose folder</button>
           </div>
           <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
           <input

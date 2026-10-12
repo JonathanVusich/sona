@@ -14,7 +14,12 @@ export interface ApiFailure {
 
 export type ApiResult<T> = { ok: true; body: T } | { ok: false; failure: ApiFailure };
 
-type Method = "GET" | "POST";
+const HttpMethod = {
+  GET: "GET",
+  POST: "POST",
+} as const;
+
+type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 
 interface RequestOptions {
   accessToken?: string;
@@ -22,36 +27,36 @@ interface RequestOptions {
 }
 
 export async function login(request: LoginRequest): Promise<ApiResult<TokenResponse>> {
-  return sendForJson("POST", ApiRoutes.AUTH_TOKEN, { body: request });
+  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_TOKEN, { body: request });
 }
 
 export async function refreshTokens(): Promise<ApiResult<TokenResponse>> {
-  return sendForJson("POST", ApiRoutes.AUTH_REFRESH);
+  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_REFRESH);
 }
 
 export async function logout(): Promise<ApiResult<void>> {
-  return sendForNothing("POST", ApiRoutes.AUTH_LOGOUT);
+  return sendForNothing(HttpMethod.POST, ApiRoutes.AUTH_LOGOUT);
 }
 
 export async function fetchCurrentUser(accessToken: string): Promise<ApiResult<CurrentUserResponse>> {
-  return sendForJson("GET", ApiRoutes.CURRENT_USER, { accessToken });
+  return sendForJson(HttpMethod.GET, ApiRoutes.CURRENT_USER, { accessToken });
 }
 
 export async function changePassword(accessToken: string, request: ChangePasswordRequest): Promise<ApiResult<void>> {
-  return sendForNothing("POST", ApiRoutes.CURRENT_USER_PASSWORD, { accessToken, body: request });
+  return sendForNothing(HttpMethod.POST, ApiRoutes.CURRENT_USER_PASSWORD, { accessToken, body: request });
 }
 
-async function sendForJson<T>(method: Method, path: string, options?: RequestOptions): Promise<ApiResult<T>> {
+async function sendForJson<T>(method: HttpMethod, path: string, options?: RequestOptions): Promise<ApiResult<T>> {
   const result = await sendRequest(method, path, options);
   return result.ok ? { ok: true, body: await result.body.json() } : result;
 }
 
-async function sendForNothing(method: Method, path: string, options?: RequestOptions): Promise<ApiResult<void>> {
+async function sendForNothing(method: HttpMethod, path: string, options?: RequestOptions): Promise<ApiResult<void>> {
   const result = await sendRequest(method, path, options);
   return result.ok ? { ok: true, body: undefined } : result;
 }
 
-async function sendRequest(method: Method, path: string, options: RequestOptions = {}): Promise<ApiResult<Response>> {
+async function sendRequest(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<ApiResult<Response>> {
   const { accessToken, body } = options;
   let response: Response;
   // The one place the frontend catches: fetch rejects when Sona can't be reached at all.

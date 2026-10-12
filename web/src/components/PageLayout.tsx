@@ -4,10 +4,10 @@ import { createEffect, on, type JSX } from "solid-js";
 // A page whose header stays put while only the content below it scrolls.
 export default function PageLayout(props: { header: JSX.Element; narrow?: boolean; children?: JSX.Element }) {
   const location = useLocation();
-  let body!: HTMLDivElement;
+  let body: HTMLDivElement | undefined;
 
   // One page component can show different items, such as moving between releases, so start each at the top.
-  createEffect(on(() => location.pathname, () => body.scrollTo(0, 0), { defer: true }));
+  createEffect(on(() => location.pathname, () => body?.scrollTo(0, 0), { defer: true }));
 
   return (
     <>

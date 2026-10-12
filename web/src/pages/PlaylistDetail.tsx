@@ -12,6 +12,7 @@ import { tracksOf } from "../library";
 import { playTracks, shufflePlay } from "../player";
 import { deletePlaylist, playlistById } from "../playlists";
 import { coverSeeds } from "./Playlists";
+import { AppRoutes } from "../routes";
 
 export default function PlaylistDetail() {
   const params = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ export default function PlaylistDetail() {
         const total = () => playlistTracks().reduce((sum, track) => sum + track.duration, 0);
         const remove = () => {
           const id = playlist().id;
-          navigate("/playlists");
+          navigate(AppRoutes.PLAYLISTS);
           deletePlaylist(id);
         };
         return (

@@ -1,4 +1,12 @@
-import { createSignal } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
+
+// How big a slider is drawn, as the class that sizes it.
+export const SliderSize = {
+  LARGE: "slider-large",
+  SMALL: "slider-small",
+} as const;
+
+export type SliderSize = (typeof SliderSize)[keyof typeof SliderSize];
 
 // Pointer-driven slider. The parent owns the value: onInput fires while dragging, onCommit on release or key press.
 export default function Slider(props: {
@@ -7,40 +15,39 @@ export default function Slider(props: {
   step: number;
   label: string;
   valueText: string;
-  size: "large" | "small";
+  size: SliderSize;
   disabled?: boolean;
   onInput: (value: number) => void;
   onCommit: (value: number) => void;
 }) {
   const [dragging, setDragging] = createSignal(false);
-  let element!: HTMLDivElement;
 
   const ratio = () => (props.max > 0 ? Math.min(1, Math.max(0, props.value / props.max)) : 0);
 
-  const valueAt = (clientX: number) => {
-    const rect = element.getBoundingClientRect();
+  const valueAt = (slider: HTMLDivElement, clientX: number) => {
+    const rect = slider.getBoundingClientRect();
     return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * props.max;
   };
 
-  const onPointerDown = (event: PointerEvent) => {
+  const onPointerDown: JSX.EventHandler<HTMLDivElement, PointerEvent> = (event) => {
     if (props.disabled || event.button !== 0) {
       return;
     }
-    element.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     setDragging(true);
-    props.onInput(valueAt(event.clientX));
+    props.onInput(valueAt(event.currentTarget, event.clientX));
   };
 
-  const onPointerMove = (event: PointerEvent) => {
+  const onPointerMove: JSX.EventHandler<HTMLDivElement, PointerEvent> = (event) => {
     if (dragging()) {
-      props.onInput(valueAt(event.clientX));
+      props.onInput(valueAt(event.currentTarget, event.clientX));
     }
   };
 
-  const onPointerUp = (event: PointerEvent) => {
+  const onPointerUp: JSX.EventHandler<HTMLDivElement, PointerEvent> = (event) => {
     if (dragging()) {
       setDragging(false);
-      props.onCommit(valueAt(event.clientX));
+      props.onCommit(valueAt(event.currentTarget, event.clientX));
     }
   };
 
@@ -70,8 +77,7 @@ export default function Slider(props: {
 
   return (
     <div
-      ref={element}
-      class={`slider slider-${props.size}`}
+      class={`slider ${props.size}`}
       classList={{ dragging: dragging(), disabled: props.disabled === true }}
       role="slider"
       tabindex={props.disabled ? -1 : 0}

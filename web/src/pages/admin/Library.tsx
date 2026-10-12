@@ -4,6 +4,7 @@ import Cover from "../../components/Cover";
 import Dialog, { ConfirmDialog } from "../../components/Dialog";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
+import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { plural } from "../../format";
 import {
@@ -19,6 +20,7 @@ import {
   updateRelease,
   type Release,
 } from "../../library";
+import { AppRoutes } from "../../routes";
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
@@ -49,7 +51,7 @@ export default function Library() {
   };
 
   return (
-    <Show when={hasPermission("LIBRARY_WRITE")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission(Permission.LIBRARY_WRITE)} fallback={<Navigate href={AppRoutes.HOME} />}>
       <PageLayout
         header={
           <PageHeader
@@ -61,8 +63,8 @@ export default function Library() {
               plural(trackCount(), "track"),
             ].join(" · ")}
             action={
-              <Show when={hasPermission("LIBRARY_UPLOAD")}>
-                <A href="/admin/upload" class="button primary">
+              <Show when={hasPermission(Permission.LIBRARY_UPLOAD)}>
+                <A href={AppRoutes.ADMIN_UPLOAD} class="button primary">
                   Upload
                 </A>
               </Show>
@@ -135,7 +137,12 @@ export default function Library() {
           title="Remove release?"
           message={`"${removing()?.title}" and its tracks will be removed from the library for everyone.`}
           confirmLabel="Remove"
-          onConfirm={() => removeRelease(removing()!.id)}
+          onConfirm={() => {
+            const release = removing();
+            if (release !== null) {
+              removeRelease(release.id);
+            }
+          }}
           onClose={() => setRemoving(null)}
         />
       </PageLayout>

@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import * as api from "./api/client";
 import type { ApiResult } from "./api/client";
 import type { ChangePasswordRequest, LoginRequest } from "./api/requests";
-import { ErrorCode, type CurrentUserResponse, type Permission, type TokenResponse } from "./api/responses";
+import { ErrorCode, Permission, type CurrentUserResponse, type TokenResponse } from "./api/responses";
 
 // The access token is kept in memory only. The refresh token is in an HttpOnly cookie that scripts can't read, so a
 // reload restores the session by refreshing it.
@@ -13,11 +13,19 @@ interface Session {
 }
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  LIBRARY_READ: "read",
-  LIBRARY_WRITE: "write",
-  LIBRARY_UPLOAD: "upload",
-  USERS_MANAGE: "manage users",
+  [Permission.LIBRARY_READ]: "read",
+  [Permission.LIBRARY_WRITE]: "write",
+  [Permission.LIBRARY_UPLOAD]: "upload",
+  [Permission.USERS_MANAGE]: "manage users",
 };
+
+// What tabs tell each other over the session channel.
+const SessionEvent = {
+  CHANGED: "changed",
+} as const;
+
+const SESSION_CHANNEL = "sona-session";
+const REFRESH_LOCK = "sona-refresh";
 
 const SUCCEEDED: ApiResult<void> = { ok: true, body: undefined };
 const NOT_SIGNED_IN: ApiResult<never> = {
@@ -33,7 +41,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRefresh: Promise<boolean> | null = null;
 
 // Tells the other tabs that the session changed, so they restore it from the cookie they share.
-const otherTabs = new BroadcastChannel("sona-auth");
+const otherTabs = new BroadcastChannel(SESSION_CHANNEL);
 otherTabs.onmessage = restoreSession;
 
 /**
@@ -49,7 +57,7 @@ export async function logIn(request: LoginRequest): Promise<ApiResult<void>> {
     return tokens;
   }
   const started = await startSession(tokens.body);
-  otherTabs.postMessage("changed");
+  otherTabs.postMessage(SessionEvent.CHANGED);
   return started;
 }
 
@@ -57,7 +65,7 @@ export async function logOut(): Promise<void> {
   // If the session has already ended, or Sona can't be reached, this tab forgets it all the same.
   await api.logout();
   endSession();
-  otherTabs.postMessage("changed");
+  otherTabs.postMessage(SessionEvent.CHANGED);
 }
 
 /**
@@ -116,7 +124,7 @@ async function refreshSessionLocked(): Promise<boolean> {
   if (!window.isSecureContext) {
     return false;
   }
-  return await navigator.locks.request("sona-refresh", async () => {
+  return await navigator.locks.request(REFRESH_LOCK, async () => {
     const tokens = await api.refreshTokens();
     if (!tokens.ok) {
       if (tokens.failure.code === ErrorCode.INVALID_REFRESH_TOKEN) {

@@ -1,6 +1,8 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
+import { SessionState } from "../api/responses";
 import { changePassword, currentUser, logOut } from "../auth";
+import { AppRoutes } from "../routes";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
 // Once it is changed, here or in another tab, the fallback leaves this page.
@@ -24,7 +26,7 @@ export default function ChangePassword() {
   };
 
   return (
-    <Show when={currentUser()?.state === "PASSWORD_CHANGE_REQUIRED"} fallback={<Navigate href="/" />}>
+    <Show when={currentUser()?.state === SessionState.PASSWORD_CHANGE_REQUIRED} fallback={<Navigate href={AppRoutes.HOME} />}>
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>

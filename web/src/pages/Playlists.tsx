@@ -7,6 +7,7 @@ import { PageHeader } from "../components/Section";
 import { plural } from "../format";
 import { contextOf, tracksOf } from "../library";
 import { myPlaylists, type Playlist } from "../playlists";
+import { AppRoutes, routeTo } from "../routes";
 
 // Titles of the first release groups a playlist draws from, for its mosaic cover.
 export function coverSeeds(playlist: Playlist): string[] {
@@ -16,7 +17,7 @@ export function coverSeeds(playlist: Playlist): string[] {
 
 export default function Playlists() {
   const navigate = useNavigate();
-  const create = () => openPlaylistDialog({ onCreated: (created) => navigate(`/playlists/${created.id}`) });
+  const create = () => openPlaylistDialog({ onCreated: (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)) });
 
   return (
     <PageLayout
@@ -32,7 +33,7 @@ export default function Playlists() {
         <div class="card-grid">
           <For each={myPlaylists()}>
             {(playlist) => (
-              <A href={`/playlists/${playlist.id}`} class="card-link">
+              <A href={routeTo(AppRoutes.PLAYLIST, playlist.id)} class="card-link">
                 <Mosaic seeds={coverSeeds(playlist)} />
                 <div class="card-title">{playlist.name}</div>
                 <div class="card-subtitle">{plural(tracksOf(playlist.trackIds).length, "song")}</div>
