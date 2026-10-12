@@ -2,7 +2,6 @@ package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
-import org.sona.controller.ApiRoutes;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
@@ -16,28 +15,18 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public final class RefreshCookieService {
 
-    public static final String NAME = "sona_refresh";
+    public static final String NAME = CookieUtils.REFRESH_COOKIE;
 
     private final AuthProperties properties;
 
     public ResponseCookie issueCookie(final String refreshToken) {
-        return buildCookie(refreshToken, properties.refreshTokenLifetime());
+        return CookieUtils.refreshCookie(refreshToken, properties.refreshTokenLifetime());
     }
 
     /**
      * @return a cookie that deletes the refresh cookie
      */
     public ResponseCookie clearCookie() {
-        return buildCookie("", Duration.ZERO);
-    }
-
-    private static ResponseCookie buildCookie(final String value, final Duration maxAge) {
-        return ResponseCookie.from(NAME, value)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
-                .path(ApiRoutes.AUTH)
-                .maxAge(maxAge)
-                .build();
+        return CookieUtils.refreshCookie("", Duration.ZERO);
     }
 }

@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -34,17 +33,11 @@ public final class FlacParser implements Parser {
     @Override
     public RawMetadata parseMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
         final var flacMetadata = parseAllMetadata(inputStream);
-        final var streamInfo = flacMetadata.metadataBlocks().getOrDefault(BlockType.STREAM_INFO, List.of()).stream()
-                .map(StreamInfo.class::cast)
-                .findFirst()
+        final var streamInfo = flacMetadata.streamInfo()
                 .orElseThrow(() -> new InvalidFormatException("FLAC file is missing its STREAMINFO block!"));
-        final var commentBlocks = flacMetadata.metadataBlocks().getOrDefault(BlockType.VORBIS_COMMENT, List.of());
-        final var comments = commentBlocks.stream()
-                .filter(VorbisComment.class::isInstance)
-                .map(VorbisComment.class::cast)
-                .toList();
+        final var comments = flacMetadata.vorbisComments();
 
-        final var rawMetadata = new RawMetadata(duration(streamInfo));
+        final var rawMetadata = new RawMetadata(streamInfo.duration());
 
         for (final var comment : comments) {
             for (final var field : comment.fields()) {
@@ -60,12 +53,6 @@ public final class FlacParser implements Parser {
         }
 
         return rawMetadata;
-    }
-
-    private static Duration duration(final StreamInfo streamInfo) {
-        final var samples = streamInfo.interChannelSamples();
-        final var sampleRate = streamInfo.sampleRate();
-        return Duration.ofSeconds(samples / sampleRate, (samples % sampleRate) * 1_000_000_000L / sampleRate);
     }
 
     FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {

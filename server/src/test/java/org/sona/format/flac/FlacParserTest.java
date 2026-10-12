@@ -70,13 +70,15 @@ class FlacParserTest {
         try (final var inputStream = FlacSample.LUCAS_FLOYD.inputStream()) {
             final var metadata = new FlacParser().parseAllMetadata(inputStream);
 
-            final var picture = (Picture) metadata.metadataBlocks().get(BlockType.PICTURE).getFirst();
-            assertThat(picture.pictureType()).isEqualTo(PictureType.FRONT_COVER);
-            assertThat(picture.mediaType()).isEqualTo("image/jpeg");
-            assertThat(picture.description()).isEmpty();
-            assertThat(picture.width()).isEqualTo(360);
-            assertThat(picture.height()).isEqualTo(327);
-            assertThat(picture.data()).hasSize(62_895).startsWith(0xFF, 0xD8);
+            final var block = metadata.metadataBlocks().get(BlockType.PICTURE).getFirst();
+            assertThat(block).isInstanceOfSatisfying(Picture.class, picture -> {
+                assertThat(picture.pictureType()).isEqualTo(PictureType.FRONT_COVER);
+                assertThat(picture.mediaType()).isEqualTo("image/jpeg");
+                assertThat(picture.description()).isEmpty();
+                assertThat(picture.width()).isEqualTo(360);
+                assertThat(picture.height()).isEqualTo(327);
+                assertThat(picture.data()).hasSize(62_895).startsWith(0xFF, 0xD8);
+            });
         }
     }
 

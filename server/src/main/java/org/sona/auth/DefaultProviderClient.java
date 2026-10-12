@@ -8,11 +8,10 @@ import org.sona.model.tables.pojos.OidcSession;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
-import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
-import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.stereotype.Service;
+
+import static org.sona.auth.OidcUtils.refreshGrantRequest;
 
 @Slf4j
 @Service
@@ -34,7 +33,7 @@ public class DefaultProviderClient implements ProviderClient {
             return false;
         }
         try {
-            final var response = tokenClient.getTokenResponse(grantRequest(registration, session));
+            final var response = tokenClient.getTokenResponse(refreshGrantRequest(registration, session));
             final var rotated = response.getRefreshToken();
             if (rotated != null) {
                 oidcSessionDao.upsert(new OidcSession(session.familyId(), session.userId(), rotated.getTokenValue()));
@@ -46,14 +45,5 @@ public class DefaultProviderClient implements ProviderClient {
             log.info("{} didn't refresh a session: {}", registration.getRegistrationId(), exception.getError());
             return false;
         }
-    }
-
-    private static OAuth2RefreshTokenGrantRequest grantRequest(final ClientRegistration registration,
-                                                               final OidcSession session) {
-        // Sona doesn't keep the provider's access token, and the grant request only reads its scopes.
-        final var accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "unused", null, null,
-                registration.getScopes());
-        final var refreshToken = new OAuth2RefreshToken(session.refreshToken(), null);
-        return new OAuth2RefreshTokenGrantRequest(registration, accessToken, refreshToken);
     }
 }

@@ -1,8 +1,11 @@
 package org.sona.config.properties;
 
+import org.sona.model.enums.UserRole;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An OIDC provider users can sign in through. Sona is a confidential client there, using the authorization code flow.
@@ -27,4 +30,17 @@ public record OidcProvider(
         @DefaultValue("groups") String roleClaim,
         @DefaultValue List<String> adminValues
 ) {
+
+    /**
+     * @return the role the user's groups or roles at this provider give them
+     */
+    public UserRole userRole(final OidcUser user) {
+        final var claim = user.getClaimAsStringList(roleClaim);
+        final var values = Objects.requireNonNullElse(claim, List.<String>of());
+        final var admin = values.stream().anyMatch(adminValues::contains);
+        if (admin) {
+            return UserRole.ADMIN;
+        }
+        return UserRole.USER;
+    }
 }

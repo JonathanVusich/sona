@@ -2,6 +2,8 @@ package org.sona.format.flac;
 
 import org.sona.format.MD5Checksum;
 
+import java.time.Duration;
+
 public record StreamInfo(
         BlockHeader header,
         MD5Checksum checksum,
@@ -15,4 +17,12 @@ public record StreamInfo(
         int bitsPerSample,
         long interChannelSamples
 ) implements Block {
+
+    /**
+     * @return how long the audio plays
+     */
+    public Duration duration() {
+        final var nanos = (interChannelSamples % sampleRate) * 1_000_000_000L / sampleRate;
+        return Duration.ofSeconds(interChannelSamples / sampleRate, nanos);
+    }
 }

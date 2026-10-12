@@ -16,7 +16,7 @@ public final class UserAuthentication extends AbstractAuthenticationToken {
     private final Set<Permission> permissions;
 
     public UserAuthentication(final SignedInUser user, final Jwt token) {
-        final var permissions = permissions(user);
+        final var permissions = user.permissions();
         super(permissions);
         this.user = user;
         this.token = token;
@@ -45,13 +45,5 @@ public final class UserAuthentication extends AbstractAuthenticationToken {
     @Override
     public String getName() {
         return user.username();
-    }
-
-    private static Set<Permission> permissions(final SignedInUser user) {
-        return switch (user.state()) {
-            case ACTIVE -> Permission.grantedPermissions(user.role());
-            // Until they change their password, the user may only do that.
-            case PASSWORD_CHANGE_REQUIRED -> Set.of();
-        };
     }
 }

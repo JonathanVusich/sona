@@ -5,7 +5,6 @@ import org.sona.format.Format;
 import org.sona.format.MD5Checksum;
 import org.sona.format.Writer;
 import org.sona.metadata.RawMetadata;
-import org.sona.metadata.TagValue;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -13,9 +12,9 @@ import java.io.OutputStream;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Stream;
+
+import static org.sona.format.flac.FlacUtils.toFields;
 
 public final class FlacWriter implements Writer {
 
@@ -67,19 +66,6 @@ public final class FlacWriter implements Writer {
         final var unknownFields = rawMetadata.unknownTags()
                 .flatMap(tagSet -> toFields(tagSet.tag(), tagSet.values()));
         return new VorbisComment(header, VENDOR, Stream.concat(knownFields, unknownFields).toList());
-    }
-
-    private static Stream<Field> toFields(final String fieldName, final Set<TagValue> values) {
-        return values.stream()
-                .map(value -> new Field(fieldName.toUpperCase(Locale.ROOT), fieldContent(value)));
-    }
-
-    private static String fieldContent(final TagValue value) {
-        return switch (value) {
-            case TagValue.Str(String content) -> content;
-            case TagValue.Int(int content) -> Integer.toString(content);
-            case TagValue.Binary _ -> throw new IllegalArgumentException("Binary tags can't be written as Vorbis comments");
-        };
     }
 
     void writeFlacHeader(final DataOutputStream outputStream) throws IOException {

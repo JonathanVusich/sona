@@ -16,7 +16,6 @@ import org.sona.metadata.RawMetadata;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
 import org.sona.metadata.resolver.ResolvedTrack;
-import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.Release;
@@ -171,17 +170,11 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 trackId,
                 resolved.title(),
                 Math.toIntExact(duration.toSeconds()),
-                audioFormat(format),
+                format.toAudioFormat(),
                 library.libraryPath(releaseGroup, release, trackId, resolved.title(), format),
                 artist.artistId(),
                 release.releaseId(),
                 trackToIngest.trackIngestId()
         );
-    }
-
-    private static AudioFormat audioFormat(final Format format) {
-        return switch (format) {
-            case FLAC -> AudioFormat.FLAC;
-        };
     }
 }

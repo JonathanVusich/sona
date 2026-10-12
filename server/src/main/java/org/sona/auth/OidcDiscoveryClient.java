@@ -59,7 +59,7 @@ public final class OidcDiscoveryClient implements ClientRegistrationRepository {
         return discovered.computeIfAbsent(registrationId, _ -> discoverRegistration(provider));
     }
 
-    private static ClientRegistration discoverRegistration(final OidcProvider provider) {
+    private ClientRegistration discoverRegistration(final OidcProvider provider) {
         // PKCE is off by default for confidential clients like Sona, and recommended for every client.
         final var settings = ClientRegistration.ClientSettings.builder().requireProofKey(true).build();
         return ClientRegistrations.fromIssuerLocation(provider.issuerUri())
