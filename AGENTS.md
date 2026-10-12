@@ -134,14 +134,16 @@ Test notes:
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
 - **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in a real browser with
   [Playwright for Java](https://playwright.dev/java/), as a user would: Firefox locally, and Chromium, Firefox and
-  WebKit on CI (`-Pe2eBrowser=<name>`). `@E2ETest` is an `@IntegrationTest` whose server serves the bundled
+  WebKit on CI (`-Pe2eBrowser=<name>`). The browsers run in Microsoft's Playwright image, started by Testcontainers
+  (`RunningBrowser`), so nothing is installed on the machine and every machine tests the same Linux builds; keep
+  `playwrightVersion` in `build.gradle.kts` as the one place the client and image versions are set. `@E2ETest` is an `@IntegrationTest` whose server serves the bundled
   frontend as production does, over HTTPS with a self-signed localhost certificate (WebKit won't keep the `Secure`
   refresh cookie over plain HTTP), and gives each test method a fresh browser profile: take a `Page`, or a
   `BrowserContext` for several tabs that share cookies. Access tokens last ten seconds, so token refreshes happen
   during tests. Don't create a user named `admin`: the server creates one at startup. Seed data with `TestUsers` and
   the DAOs, then do everything else through the page. Drive pages through page objects (`LoginPage`, `SettingsMenu`, …), find elements by role and label, and use
   Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which bundles `web/`
-  (run `npm ci` in `web/` first) and installs the browser. A failing test's trace is saved to `server/build/e2e-traces`;
+  (run `npm ci` in `web/` first). A failing test's trace is saved to `server/build/e2e-traces`;
   open it with `npx playwright show-trace <file>`.
 - GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
   every module, type-checks and builds `web/`, and runs the E2E tests on every PR and push to `main`.

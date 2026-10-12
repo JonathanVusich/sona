@@ -44,6 +44,9 @@ flyway {
     )
 }
 
+// The E2E tests' Playwright client, and the Playwright image their browsers run in, which must match it.
+val playwrightVersion = "1.63.0"
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
@@ -86,7 +89,7 @@ dependencies {
     testImplementation("org.wiremock:wiremock-standalone:3.13.2")
     testImplementation("com.google.jimfs:jimfs:1.3.0")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.0")
-    testImplementation("com.microsoft.playwright:playwright:1.63.0")
+    testImplementation("com.microsoft.playwright:playwright:$playwrightVersion")
 
     // https://mvnrepository.com/artifact/org.assertj/assertj-core
     testImplementation("org.assertj:assertj-core:3.27.6")
@@ -174,14 +177,6 @@ tasks.bootJar {
 // -Pe2eBrowser=<name>.
 val e2eBrowser = providers.gradleProperty("e2eBrowser").getOrElse("firefox")
 
-// Playwright would download every browser it supports on first use; this installs only the one being tested. On a fresh
-// Linux machine, add its system libraries with --args="install --with-deps <browser>".
-val installBrowsers by tasks.registering(JavaExec::class) {
-    classpath = sourceSets.test.get().runtimeClasspath
-    mainClass = "com.microsoft.playwright.CLI"
-    args("install", e2eBrowser)
-}
-
 val e2eTest by tasks.registering(Test::class) {
     description = "Runs the end-to-end tests, which drive the web frontend in a browser."
     group = "verification"
@@ -191,9 +186,8 @@ val e2eTest by tasks.registering(Test::class) {
     useJUnitPlatform {
         includeTags("e2e")
     }
-    dependsOn(installBrowsers)
-    environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
     systemProperty("sona.e2e.browser", e2eBrowser)
+    systemProperty("sona.e2e.playwright-version", playwrightVersion)
 }
 
 // Local runs seed the dev users, admin/admin and user/user.

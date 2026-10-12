@@ -67,20 +67,13 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # The E2E tests start Sona against a Testcontainers Postgres and drive the built web frontend in each browser engine.
-    # jOOQ still generates its classes from this Postgres service, as in the server job.
+    # The E2E tests start Sona against a Testcontainers Postgres and drive the bundled web frontend in each browser
+    # engine, which runs in Microsoft's Playwright image, also through Testcontainers. jOOQ still generates its classes
+    # from this Postgres service, as in the server job.
     strategy:
       fail-fast: false
       matrix:
-        # The runner image already has the system libraries Chromium and Firefox need, so only WebKit installs its own.
-        # Installing Firefox's through apt as well once took 14 minutes.
-        include:
-          - browser: chromium
-            install: install chromium
-          - browser: firefox
-            install: install firefox
-          - browser: webkit
-            install: install --with-deps webkit
+        browser: [chromium, firefox, webkit]
     services:
       postgres:
         image: postgres:18
@@ -113,8 +106,6 @@ jobs:
         working-directory: web
       - name: Generate jOOQ classes
         run: gradle :server:flywayMigrate :server:jooqCodegen
-      - name: Install ${{ matrix.browser }}
-        run: gradle :server:installBrowsers -Pe2eBrowser=${{ matrix.browser }} --args="${{ matrix.install }}"
       - name: Run E2E tests
         run: gradle :server:e2eTest -Pe2eBrowser=${{ matrix.browser }}
       - name: Upload test reports and traces

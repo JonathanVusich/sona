@@ -10,6 +10,8 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.testcontainers.Testcontainers;
+import org.testcontainers.containers.GenericContainer;
 
 import java.nio.file.Path;
 
@@ -27,10 +29,12 @@ public final class BrowserExtension implements BeforeEachCallback, AfterEachCall
                 .computeIfAbsent(RunningBrowser.class, _ -> new RunningBrowser(), RunningBrowser.class)
                 .browser();
         final var port = SpringExtension.getApplicationContext(context).getEnvironment()
-                .getRequiredProperty("local.server.port");
-        // The test certificate is self-signed.
+                .getRequiredProperty("local.server.port", Integer.class);
+        // The browser runs in a container, which reaches the server under test through Testcontainers.
+        Testcontainers.exposeHostPorts(port);
+        // The test certificate is self-signed, and issued for localhost.
         final var options = new Browser.NewContextOptions()
-                .setBaseURL("https://localhost:" + port)
+                .setBaseURL("https://" + GenericContainer.INTERNAL_HOST_HOSTNAME + ":" + port)
                 .setIgnoreHTTPSErrors(true);
         final var browserContext = browser.newContext(options);
         browserContext.tracing().start(new Tracing.StartOptions().setScreenshots(true).setSnapshots(true));
