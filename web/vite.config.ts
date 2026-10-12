@@ -3,5 +3,6 @@ import solid from "vite-plugin-solid";
 
 export default defineConfig({
   plugins: [solid()],
-  server: { port: 5173 },
+  // Sona's API is proxied onto the same origin, which the SameSite refresh cookie needs.
+  server: { port: 5173, proxy: { "/api": "http://localhost:8080" } },
 });

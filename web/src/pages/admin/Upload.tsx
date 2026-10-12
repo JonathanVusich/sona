@@ -43,7 +43,7 @@ export default function Upload() {
   };
 
   return (
-    <Show when={can("upload")} fallback={<Navigate href="/" />}>
+    <Show when={can("LIBRARY_UPLOAD")} fallback={<Navigate href="/" />}>
       <PageLayout header={<PageHeader title="Upload music" />}>
         <div
           class="dropzone"

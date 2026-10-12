@@ -8,19 +8,19 @@ import Menu from "./Menu";
 export default function SettingsMenu() {
   const navigate = useNavigate();
 
-  const signOut = () => {
+  const signOut = async () => {
     stop();
-    logout();
+    await logout();
     navigate("/login", { replace: true });
   };
 
   return (
     <Menu label="Settings" icon={<GearIcon />} class="settings-menu">
       <div class="menu-header">
-        <span>{user()?.name}</span>
-        <span class="badge">{user()?.role}</span>
+        <span>{user()?.username}</span>
+        <span class="badge">{user()?.role.toLowerCase()}</span>
       </div>
-      <Show when={can("write")}>
+      <Show when={can("LIBRARY_WRITE")}>
         <A href="/admin" class="menu-item" role="menuitem">
           Manage library
         </A>

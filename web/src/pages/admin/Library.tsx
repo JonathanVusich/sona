@@ -49,7 +49,7 @@ export default function Library() {
   };
 
   return (
-    <Show when={can("write")} fallback={<Navigate href="/" />}>
+    <Show when={can("LIBRARY_WRITE")} fallback={<Navigate href="/" />}>
       <PageLayout
         header={
           <PageHeader
@@ -61,7 +61,7 @@ export default function Library() {
               plural(trackCount(), "track"),
             ].join(" · ")}
             action={
-              <Show when={can("upload")}>
+              <Show when={can("LIBRARY_UPLOAD")}>
                 <A href="/admin/upload" class="button primary">
                   Upload
                 </A>

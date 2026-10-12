@@ -30,13 +30,13 @@ const [playlists, setPlaylists] = createSignal<Playlist[]>([
 
 export const myPlaylists = () => {
   const current = user();
-  return current === null ? [] : playlists().filter((playlist) => playlist.owner === current.name);
+  return current === null ? [] : playlists().filter((playlist) => playlist.owner === current.username);
 };
 
 export const playlistById = (id: string) => myPlaylists().find((playlist) => playlist.id === id);
 
 export function createPlaylist(name: string, description: string, trackIds: string[]): Playlist {
-  const playlist: Playlist = { id: crypto.randomUUID(), owner: user()!.name, name, description, trackIds };
+  const playlist: Playlist = { id: crypto.randomUUID(), owner: user()!.username, name, description, trackIds };
   setPlaylists((all) => [...all, playlist]);
   return playlist;
 }

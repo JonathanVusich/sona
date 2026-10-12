@@ -29,6 +29,7 @@ server/                  The main Spring Boot application (where nearly all work
   docker-compose.yml     Local Postgres (db `sona`, user `postgres`)
   src/main/resources/db/migration/   Flyway migrations (V0..Vn)
 metadata/                Separate, mostly-empty Spring Boot app (stub search controller); not on the critical path
+web/                     SolidJS frontend (Vite). Signs in against the server; the library itself is still mocked
 docs/pull_request_template.md
 ```
 
@@ -105,6 +106,7 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:test                               # integration tests start their own Postgres via Testcontainers
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
+npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
 ```
 
 The docker-compose database is only needed for `bootRun` and jOOQ codegen; tests don't use it.
