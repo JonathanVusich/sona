@@ -1,6 +1,7 @@
 package org.sona.mappers;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Named;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.records.ArtistRecord;
 
@@ -13,6 +14,7 @@ public interface ArtistMapper {
     /**
      * @return the artist, or null when a left join found none, which gives a record of nulls rather than null
      */
+    @Named("fromJoinedRecord")
     default Artist fromJoinedRecord(final ArtistRecord artist) {
         if (artist.getArtistId() == null) {
             return null;

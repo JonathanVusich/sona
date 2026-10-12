@@ -5,8 +5,8 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.SelectOnConditionStep;
-import org.sona.mappers.ArtistMapper;
 import org.sona.mappers.ReleaseGroupMapper;
+import org.sona.mappers.ReleaseGroupWithArtistMapper;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.records.ArtistRecord;
 import org.sona.model.tables.records.ReleaseGroupRecord;
@@ -31,7 +31,7 @@ public class ReleaseGroupDao {
 
     private final DSLContext dsl;
     private final ReleaseGroupMapper mapper;
-    private final ArtistMapper artistMapper;
+    private final ReleaseGroupWithArtistMapper withArtistMapper;
 
     /**
      * Inserts the release group, or overwrites the stored one with the same MusicBrainz ID with its newer data.
@@ -61,7 +61,7 @@ public class ReleaseGroupDao {
     public Optional<ReleaseGroupWithArtist> loadWithArtist(final UUID releaseGroupId) {
         return selectWithArtist()
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
-                .fetchOptional(this::fromRecords);
+                .fetchOptional(withArtistMapper::fromRecord);
     }
 
     /**
@@ -73,7 +73,7 @@ public class ReleaseGroupDao {
                 .where(afterByName(after))
                 .orderBy(RELEASE_GROUP.NAME, RELEASE_GROUP.RELEASE_GROUP_ID)
                 .limit(limit)
-                .fetch(this::fromRecords);
+                .fetch(withArtistMapper::fromRecord);
     }
 
     /**
@@ -87,7 +87,7 @@ public class ReleaseGroupDao {
                 .where(addedBefore(after))
                 .orderBy(RELEASE_GROUP.RELEASE_GROUP_ID.desc())
                 .limit(limit)
-                .fetch(this::fromRecords);
+                .fetch(withArtistMapper::fromRecord);
     }
 
     /**
@@ -104,12 +104,6 @@ public class ReleaseGroupDao {
         return dsl.select(RELEASE_GROUP, ARTIST)
                 .from(RELEASE_GROUP)
                 .leftJoin(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID));
-    }
-
-    private ReleaseGroupWithArtist fromRecords(final Record2<ReleaseGroupRecord, ArtistRecord> record) {
-        final var releaseGroup = mapper.fromRecord(record.value1());
-        final var artist = artistMapper.fromJoinedRecord(record.value2());
-        return new ReleaseGroupWithArtist(releaseGroup, artist);
     }
 
     private static Condition afterByName(final UUID after) {

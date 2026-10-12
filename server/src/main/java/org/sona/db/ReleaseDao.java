@@ -6,9 +6,7 @@ import org.jooq.Field;
 import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SelectOnConditionStep;
-import org.sona.mappers.ArtistMapper;
-import org.sona.mappers.LabelMapper;
-import org.sona.mappers.MediumMapper;
+import org.sona.mappers.ReleaseDetailsMapper;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.records.ArtistRecord;
@@ -40,9 +38,7 @@ public class ReleaseDao {
 
     private final DSLContext dsl;
     private final ReleaseMapper mapper;
-    private final ArtistMapper artistMapper;
-    private final LabelMapper labelMapper;
-    private final MediumMapper mediumMapper;
+    private final ReleaseDetailsMapper detailsMapper;
 
     /**
      * Inserts the release, or overwrites the stored one with the same MusicBrainz ID with its newer data.
@@ -67,7 +63,7 @@ public class ReleaseDao {
     public Optional<ReleaseDetails> loadDetails(final UUID releaseId) {
         return selectDetails()
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
-                .fetchOptional(this::fromRecords);
+                .fetchOptional(detailsMapper::fromRecord);
     }
 
     public Optional<Release> loadByMusicBrainzId(final UUID musicbrainzReleaseId) {
@@ -89,7 +85,7 @@ public class ReleaseDao {
         return selectDetails()
                 .where(RELEASE.RELEASE_GROUP_ID.eq(releaseGroupId))
                 .orderBy(RELEASE.DATE.asc().nullsLast(), RELEASE.RELEASE_ID)
-                .fetch(this::fromRecords);
+                .fetch(detailsMapper::fromRecord);
     }
 
     /**
@@ -120,14 +116,5 @@ public class ReleaseDao {
 
     private static Field<Result<MediumRecord>> media() {
         return multiset(selectFrom(MEDIUM).where(MEDIUM.RELEASE_ID.eq(RELEASE.RELEASE_ID)).orderBy(MEDIUM.POSITION));
-    }
-
-    private ReleaseDetails fromRecords(
-            final Record4<ReleaseRecord, ArtistRecord, Result<LabelRecord>, Result<MediumRecord>> record) {
-        final var release = mapper.fromRecord(record.value1());
-        final var artist = artistMapper.fromJoinedRecord(record.value2());
-        final var labels = record.value3().map(labelMapper::fromRecord);
-        final var media = record.value4().map(mediumMapper::fromRecord);
-        return new ReleaseDetails(release, artist, labels, media);
     }
 }
