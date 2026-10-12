@@ -7,6 +7,8 @@ import org.sona.model.tables.pojos.ReleaseLabel;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.sona.model.Tables.RELEASE_LABEL;
 
 @Component
@@ -18,11 +20,16 @@ public class ReleaseLabelDao {
     private final ReleaseLabelMapper mapper;
 
     /**
-     * Records that the release came out on the label, unless that's already stored.
+     * Records in one statement which labels releases came out on, skipping those already stored.
      */
-    public void upsert(final ReleaseLabel releaseLabel) {
+    public void upsertAll(final List<ReleaseLabel> releaseLabels) {
+        if (releaseLabels.isEmpty()) {
+            return;
+        }
+        final var records = releaseLabels.stream().map(mapper::toRecord).toList();
         dsl.insertInto(RELEASE_LABEL)
-                .set(mapper.toRecord(releaseLabel))
+                .columns(RELEASE_LABEL.fields())
+                .valuesOfRecords(records)
                 .onConflictDoNothing()
                 .execute();
     }

@@ -5,6 +5,8 @@ import org.sona.IntegrationTest;
 import org.sona.model.tables.pojos.Label;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -15,19 +17,25 @@ class LabelDaoTest {
     LabelDao dao;
 
     @Test
-    void upsertInsertsNewLabel() {
-        final var label = new Label(uuidv7(), "Parlophone", uuidv7());
+    void upsertAllInsertsNewLabels() {
+        final var labels = List.of(new Label(uuidv7(), "Parlophone", uuidv7()), new Label(uuidv7(), "Capitol", uuidv7()));
 
-        assertThat(dao.upsert(label)).isEqualTo(label);
+        assertThat(dao.upsertAll(labels)).containsExactlyInAnyOrderElementsOf(labels);
     }
 
     @Test
-    void upsertOverwritesLabelWithSameMusicBrainzId() {
+    void upsertAllOverwritesLabelsWithSameMusicBrainzIdAndInsertsTheRest() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new Label(uuidv7(), "Old Name", musicbrainzId));
+        final var stored = dao.upsertAll(List.of(new Label(uuidv7(), "Old Name", musicbrainzId))).getFirst();
+        final var capitol = new Label(uuidv7(), "Capitol", uuidv7());
 
-        final var refreshed = dao.upsert(new Label(uuidv7(), "New Name", musicbrainzId));
+        final var refreshed = dao.upsertAll(List.of(new Label(uuidv7(), "New Name", musicbrainzId), capitol));
 
-        assertThat(refreshed).isEqualTo(new Label(stored.labelId(), "New Name", musicbrainzId));
+        assertThat(refreshed).containsExactlyInAnyOrder(new Label(stored.labelId(), "New Name", musicbrainzId), capitol);
+    }
+
+    @Test
+    void upsertAllOfNoLabelsStoresNothing() {
+        assertThat(dao.upsertAll(List.of())).isEmpty();
     }
 }

@@ -7,6 +7,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,20 +24,22 @@ class MediumDaoTest {
     ReleaseGroupDao releaseGroupDao;
 
     @Test
-    void upsertInsertsNewMedium() {
-        final var medium = new Medium(uuidv7(), releaseId(), 1, "CD");
+    void upsertAllInsertsNewMedia() {
+        final var releaseId = releaseId();
+        final var media = List.of(new Medium(uuidv7(), releaseId, 1, "CD"), new Medium(uuidv7(), releaseId, 2, "DVD"));
 
-        assertThat(dao.upsert(medium)).isEqualTo(medium);
+        assertThat(dao.upsertAll(media)).containsExactlyInAnyOrderElementsOf(media);
     }
 
     @Test
-    void upsertOverwritesMediumAtTheSamePosition() {
+    void upsertAllOverwritesMediaAtTheSamePositionAndInsertsTheRest() {
         final var releaseId = releaseId();
-        final var stored = dao.upsert(new Medium(uuidv7(), releaseId, 1, null));
+        final var stored = dao.upsertAll(List.of(new Medium(uuidv7(), releaseId, 1, null))).getFirst();
+        final var dvd = new Medium(uuidv7(), releaseId, 2, "DVD");
 
-        final var refreshed = dao.upsert(new Medium(uuidv7(), releaseId, 1, "Digital Media"));
+        final var refreshed = dao.upsertAll(List.of(new Medium(uuidv7(), releaseId, 1, "CD"), dvd));
 
-        assertThat(refreshed).isEqualTo(new Medium(stored.mediumId(), releaseId, 1, "Digital Media"));
+        assertThat(refreshed).containsExactlyInAnyOrder(new Medium(stored.mediumId(), releaseId, 1, "CD"), dvd);
     }
 
     private UUID releaseId() {

@@ -7,6 +7,8 @@ import org.sona.model.tables.pojos.Medium;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.MEDIUM;
 
@@ -19,18 +21,23 @@ public class MediumDao {
     private final MediumMapper mapper;
 
     /**
-     * Inserts the medium, or overwrites the stored one at the same position of the release with its newer data.
+     * Inserts the media in one statement, overwriting stored ones at the same position of their release with their
+     * newer data.
      *
-     * @return the stored medium, which keeps its original ID if it already existed
+     * @return the stored media, which keep their original IDs if they already existed, in no particular order
      */
-    public Medium upsert(final Medium medium) {
-        final var record = dsl.insertInto(MEDIUM)
-                .set(mapper.toRecord(medium))
+    public List<Medium> upsertAll(final List<Medium> media) {
+        if (media.isEmpty()) {
+            return List.of();
+        }
+        final var records = media.stream().map(mapper::toRecord).toList();
+        return dsl.insertInto(MEDIUM)
+                .columns(MEDIUM.fields())
+                .valuesOfRecords(records)
                 .onConflict(MEDIUM.RELEASE_ID, MEDIUM.POSITION)
                 .doUpdate()
                 .set(MEDIUM.FORMAT, excluded(MEDIUM.FORMAT))
                 .returning()
-                .fetchSingle();
-        return mapper.fromRecord(record);
+                .fetch(mapper::fromRecord);
     }
 }

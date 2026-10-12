@@ -18,6 +18,8 @@ import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
+import org.sona.metadata.resolver.ResolvedLabel;
+import org.sona.metadata.resolver.ResolvedMedium;
 import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.model.enums.IngestState;
@@ -33,6 +35,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -175,14 +178,24 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 resolved.country(), releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
         // TODO: If ingestion stops after the release is stored, its labels and media are never stored, because a
         //  stored release isn't looked up again.
-        for (final var resolvedLabel : resolved.labels()) {
-            final var label = labelDao.upsert(new Label(uuidv7(), resolvedLabel.name(), resolvedLabel.labelId()));
-            releaseLabelDao.upsert(new ReleaseLabel(release.releaseId(), label.labelId()));
-        }
-        for (final var medium : resolved.media()) {
-            mediumDao.upsert(new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()));
-        }
+        storeLabels(release, resolved.labels());
+        storeMedia(release, resolved.media());
         return release;
+    }
+
+    private void storeLabels(final Release release, final List<ResolvedLabel> resolvedLabels) {
+        final var labels = labelDao.upsertAll(resolvedLabels.stream()
+                .map(label -> new Label(uuidv7(), label.name(), label.labelId()))
+                .toList());
+        releaseLabelDao.upsertAll(labels.stream()
+                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
+                .toList());
+    }
+
+    private void storeMedia(final Release release, final List<ResolvedMedium> media) {
+        mediumDao.upsertAll(media.stream()
+                .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
+                .toList());
     }
 
     private Artist upsertArtist(final ResolvedArtist artist) {
