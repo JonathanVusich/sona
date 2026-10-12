@@ -7,6 +7,9 @@ import org.sona.model.tables.pojos.Artist;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.ARTIST;
 
@@ -29,8 +32,15 @@ public class ArtistDao {
                 .onConflict(ARTIST.MUSICBRAINZ_ARTIST_ID)
                 .doUpdate()
                 .set(ARTIST.NAME, excluded(ARTIST.NAME))
+                .set(ARTIST.COUNTRY, excluded(ARTIST.COUNTRY))
                 .returning()
                 .fetchSingle();
         return mapper.fromRecord(record);
+    }
+
+    public Optional<Artist> loadByMusicBrainzId(final UUID musicbrainzArtistId) {
+        return dsl.selectFrom(ARTIST)
+                .where(ARTIST.MUSICBRAINZ_ARTIST_ID.eq(musicbrainzArtistId))
+                .fetchOptional(mapper::fromRecord);
     }
 }

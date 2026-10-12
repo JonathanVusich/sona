@@ -2,19 +2,27 @@ package org.sona.metadata.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.client.MusicBrainzClient;
+import org.sona.client.model.ArtistCredit;
+import org.sona.client.model.LabelInfo;
+import org.sona.client.model.Media;
 import org.sona.client.model.Recording;
 import org.sona.client.model.query.RecordingQuery;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
+import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
+
+import static org.sona.utils.DateUtils.parsePartialDate;
 
 @Service
 @RequiredArgsConstructor
@@ -82,6 +90,33 @@ public final class MusicBrainzResolver implements MetadataResolver {
         }
     }
 
+    @Override
+    public ResolvedRelease resolveRelease(final UUID releaseId) {
+        final var release = client.lookupRelease(releaseId);
+        final var releaseGroup = release.releaseGroup();
+        return new ResolvedRelease(
+                release.id(),
+                release.title(),
+                parsePartialDate(release.date()),
+                release.country(),
+                labels(release.labelInfo()),
+                media(release.media()),
+                firstArtist(release.artistCredit()),
+                new ResolvedReleaseGroup(
+                        releaseGroup.id(),
+                        releaseGroup.title(),
+                        releaseGroupType(releaseGroup.primaryType()),
+                        parsePartialDate(releaseGroup.firstReleaseDate()),
+                        firstArtist(releaseGroup.artistCredit())
+                )
+        );
+    }
+
+    @Override
+    public ResolvedArtist resolveArtist(final UUID artistId) {
+        return new ResolvedArtist(client.lookupArtist(artistId));
+    }
+
     private Recording findCandidate(final List<Recording> recordings) {
         return recordings.stream()
                 // TODO: Implement better selection logic
@@ -94,19 +129,53 @@ public final class MusicBrainzResolver implements MetadataResolver {
     private ResolvedTrack convertToTrack(final Recording recording) {
         // TODO: Pick the release that best matches the album tags
         final var release = recording.releases().getFirst();
-        // TODO: Keep every credited artist, not just the first (e.g. "feat." credits)
-        final var artist = recording.artistCredit().getFirst().artist();
-        final var releaseArtist = release.artistCredit().getFirst().artist();
+        // A search result's release only lists the medium the recording is on, with the tracks before it skipped.
+        final var medium = release.media().getFirst();
         return new ResolvedTrack(
                 recording.id(),
                 recording.title(),
-                new ResolvedArtist(artist),
+                firstArtist(recording.artistCredit()),
                 release.id(),
-                release.title(),
-                new ResolvedArtist(releaseArtist),
-                release.releaseGroup().id(),
-                release.releaseGroup().title()
+                medium.position(),
+                medium.trackOffset() + 1
         );
+    }
+
+    // TODO: Keep every credited artist, not just the first (e.g. "feat." credits)
+    private static ResolvedArtist firstArtist(final List<ArtistCredit> credits) {
+        return new ResolvedArtist(credits.getFirst().artist());
+    }
+
+    /**
+     * A label is listed once per catalog number, and left out when only the catalog number is known.
+     */
+    private static List<ResolvedLabel> labels(final List<LabelInfo> labelInfo) {
+        return labelInfo.stream()
+                .map(LabelInfo::label)
+                .filter(Objects::nonNull)
+                .map(label -> new ResolvedLabel(label.id(), label.name()))
+                .distinct()
+                .toList();
+    }
+
+    private static List<ResolvedMedium> media(final List<Media> media) {
+        return media.stream()
+                .map(medium -> new ResolvedMedium(medium.position(), medium.format()))
+                .toList();
+    }
+
+    private static ReleaseGroupType releaseGroupType(final String primaryType) {
+        if (primaryType == null) {
+            return null;
+        }
+        return switch (primaryType) {
+            case "Album" -> ReleaseGroupType.ALBUM;
+            case "Single" -> ReleaseGroupType.SINGLE;
+            case "EP" -> ReleaseGroupType.EP;
+            case "Broadcast" -> ReleaseGroupType.BROADCAST;
+            case "Other" -> ReleaseGroupType.OTHER;
+            default -> throw new IllegalArgumentException("Unknown release group type " + primaryType);
+        };
     }
 
     private Stream<String> semicolonSplit(final String tagValue) {

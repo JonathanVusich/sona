@@ -4,6 +4,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.sona.client.model.ArtistCredit;
+import org.sona.client.model.Media;
 import org.sona.client.model.query.RecordingQuery;
 import org.sona.config.MusicBrainzConfig;
 import org.sona.config.properties.MusicBrainzProperties;
@@ -62,6 +63,28 @@ class MusicBrainzClientTest {
         final var release = recording.releases().getFirst();
         assertThat(release.title()).isEqualTo("A Rush of Blood to the Head");
         assertThat(release.releaseGroup().id()).isEqualTo(UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf"));
+    }
+
+    @Test
+    void lookUpReleaseWithItsLabelsMediaAndReleaseGroup() {
+        // Served by the stub in src/test/resources/wiremock/mappings, which matches the includes asked for.
+        final var release = client.lookupRelease(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
+
+        assertThat(release.date()).isEqualTo("2022-08-26");
+        assertThat(release.labelInfo()).extracting(info -> info.label().name()).containsExactly("Parlophone");
+        assertThat(release.media()).extracting(Media::format).containsExactly("Digital Media");
+        assertThat(release.artistCredit().getFirst().artist().country()).isEqualTo("GB");
+        final var releaseGroup = release.releaseGroup();
+        assertThat(releaseGroup.primaryType()).isEqualTo("Album");
+        assertThat(releaseGroup.artistCredit().getFirst().artist().name()).isEqualTo("Coldplay");
+    }
+
+    @Test
+    void lookUpArtist() {
+        final var artist = client.lookupArtist(UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234"));
+
+        assertThat(artist.name()).isEqualTo("Coldplay");
+        assertThat(artist.country()).isEqualTo("GB");
     }
 
     @Test

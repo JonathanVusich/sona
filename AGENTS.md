@@ -14,6 +14,9 @@ where it is served to clients (Subsonic API first).
 decisions (file ownership, dedupe, matching strategy, scale target of 500k+ tracks, auth, roadmap) and
 the open questions. If a decision isn't covered there, ask rather than guess.
 
+[docs/GAPS.md](docs/GAPS.md) lists data Sona doesn't store yet. Leave such fields null and add the gap there; don't
+fill them from related rows.
+
 The project is early-stage. Expect stubs, `TODO`s, and pieces that are wired up but not yet called by
 anything (there is no HTTP upload endpoint or background worker driving ingestion yet).
 
@@ -189,7 +192,9 @@ Match the surrounding code. The conventions below are consistent across the code
 
 **Database**
 - Use jOOQ's typed DSL with generated `Tables.*` constants; keep queries in `db/` DAOs.
-- Map between jOOQ records and pojos with MapStruct (`@Mapper(componentModel = "spring")`).
+- Map between jOOQ records and pojos with MapStruct (`@Mapper(componentModel = "spring")`), and build API responses
+  from pojos with MapStruct too. DAOs return their table's pojos, not per-caller column picks (`Records.mapping`,
+  `fetchInto`).
 - Migrations are lowercase SQL, `create table if not exists`, `uuid` primary keys named `<table>_id`, one table per
   migration.
 

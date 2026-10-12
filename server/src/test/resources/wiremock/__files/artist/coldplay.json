@@ -1,0 +1,40 @@
+{
+  "end-area": null,
+  "isnis": [
+    "000000011551394X"
+  ],
+  "type": "Group",
+  "name": "Coldplay",
+  "sort-name": "Coldplay",
+  "country": "GB",
+  "gender-id": null,
+  "begin-area": {
+    "type-id": null,
+    "sort-name": "London",
+    "id": "f03d09b3-39dc-4083-afd6-159e3f0d462f",
+    "disambiguation": "Greater London",
+    "name": "London",
+    "type": null
+  },
+  "disambiguation": "",
+  "gender": null,
+  "area": {
+    "sort-name": "United Kingdom",
+    "type-id": null,
+    "id": "8a754a16-0027-3a29-b6d7-2b40ea0481ed",
+    "disambiguation": "",
+    "iso-3166-1-codes": [
+      "GB"
+    ],
+    "name": "United Kingdom",
+    "type": null
+  },
+  "ipis": [],
+  "life-span": {
+    "ended": false,
+    "end": null,
+    "begin": "1996-09"
+  },
+  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+  "id": "cc197bad-dc9c-440d-a5b5-d52ba2e14234"
+}

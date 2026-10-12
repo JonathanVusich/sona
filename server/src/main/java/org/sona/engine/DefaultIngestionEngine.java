@@ -3,8 +3,11 @@ package org.sona.engine;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.db.ArtistDao;
+import org.sona.db.LabelDao;
+import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
+import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
@@ -15,17 +18,24 @@ import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
+import org.sona.metadata.resolver.ResolvedLabel;
+import org.sona.metadata.resolver.ResolvedMedium;
+import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Label;
+import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -50,6 +60,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final ArtistDao artistDao;
     private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseDao releaseDao;
+    private final LabelDao labelDao;
+    private final ReleaseLabelDao releaseLabelDao;
+    private final MediumDao mediumDao;
     private final TrackDao trackDao;
 
     @Override
@@ -137,25 +150,56 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     /**
      * Stores the track together with the artist, release group and release rows it references. Each row commits on
      * its own: the upserts are idempotent, so if the track insert fails, processing the ingest again reuses the rows.
+     * A release or artist already stored isn't looked up again, which saves MusicBrainz requests.
      */
     private Track storeTrack(final TrackToIngest trackToIngest,
                              final ResolvedTrack resolved,
                              final Duration duration,
                              final Format format) {
         // Tracks from the same MusicBrainz release share its rows, and so its library folder.
-        final var artist = upsertArtist(resolved.artist());
-        final var releaseArtist = upsertArtist(resolved.releaseArtist());
-        final var releaseGroup = releaseGroupDao.upsert(
-                new ReleaseGroup(uuidv7(), resolved.releaseGroupTitle(), resolved.releaseGroupId()));
-        final var release = releaseDao.upsert(new Release(uuidv7(), resolved.releaseTitle(), null,
-                releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
+        final var release = releaseDao.loadByMusicBrainzId(resolved.releaseId())
+                .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
+        final var releaseGroup = releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
+        final var artistId = resolved.artist().artistId();
+        final var artist = artistDao.loadByMusicBrainzId(artistId)
+                .orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
         final var track = newTrack(trackToIngest, resolved, artist, releaseGroup, release, duration, format);
         trackDao.insert(track);
         return track;
     }
 
+    private Release storeRelease(final ResolvedRelease resolved) {
+        final var group = resolved.releaseGroup();
+        final var groupArtist = upsertArtist(group.artist());
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), group.title(), group.type(),
+                group.firstReleaseDate(), groupArtist.artistId(), group.releaseGroupId()));
+        final var releaseArtist = upsertArtist(resolved.artist());
+        final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
+                resolved.country(), releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
+        // TODO: If ingestion stops after the release is stored, its labels and media are never stored, because a
+        //  stored release isn't looked up again.
+        storeLabels(release, resolved.labels());
+        storeMedia(release, resolved.media());
+        return release;
+    }
+
+    private void storeLabels(final Release release, final List<ResolvedLabel> resolvedLabels) {
+        final var labels = labelDao.upsertAll(resolvedLabels.stream()
+                .map(label -> new Label(uuidv7(), label.name(), label.labelId()))
+                .toList());
+        releaseLabelDao.upsertAll(labels.stream()
+                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
+                .toList());
+    }
+
+    private void storeMedia(final Release release, final List<ResolvedMedium> media) {
+        mediumDao.upsertAll(media.stream()
+                .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
+                .toList());
+    }
+
     private Artist upsertArtist(final ResolvedArtist artist) {
-        return artistDao.upsert(new Artist(uuidv7(), artist.name(), null, artist.artistId()));
+        return artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null, artist.artistId()));
     }
 
     private Track newTrack(final TrackToIngest trackToIngest,
@@ -172,6 +216,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 Math.toIntExact(duration.toSeconds()),
                 format.toAudioFormat(),
                 library.libraryPath(releaseGroup, release, trackId, resolved.title(), format),
+                resolved.discNumber(),
+                resolved.trackNumber(),
                 artist.artistId(),
                 release.releaseId(),
                 trackToIngest.trackIngestId()

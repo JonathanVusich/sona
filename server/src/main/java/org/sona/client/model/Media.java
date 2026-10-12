@@ -8,10 +8,13 @@ import java.util.UUID;
 public record Media(
         UUID id,
         int position,
+        // Like "CD" or "Digital Media"; null when MusicBrainz doesn't know.
+        String format,
         List<Track> track,
         @JsonProperty("track-count")
         int trackCount,
+        // Search results only: how many of the medium's tracks come before those listed.
         @JsonProperty("track-offset")
-        int trackOffset
+        Integer trackOffset
 ) {
 }
