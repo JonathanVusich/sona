@@ -97,7 +97,7 @@ IngestionEngine.processTrack ◄────────────────
 
 ## Building and testing
 
-Prerequisites: JDK 25, Docker. (`dev.javax:bitstream` is the author's own library, published to Maven Central.)
+Prerequisites: JDK 25, Docker, Node 22 (for `web/` and the E2E tests). (`dev.javax:bitstream` is the author's own library, published to Maven Central.)
 
 ```bash
 docker compose -f server/docker-compose.yml up -d     # start Postgres
@@ -105,6 +105,7 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:compileJava
 ./gradlew :server:test                               # integration tests start their own Postgres via Testcontainers
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
+./gradlew :server:e2eTest                            # builds web/, then drives it in Chromium against a test server
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
 ```
@@ -130,8 +131,27 @@ Test notes:
 - **Audio fixtures:** prefer `FlacBuilder` (`flac().tag("TITLE", "…").build()`) to generate tiny synthetic FLACs
   in-test. `FlacSample` exposes real-world files trimmed to their metadata blocks, with the audio frames removed.
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
+- **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in Chromium with
+  [Playwright for Java](https://playwright.dev/java/), as a user would. `@E2ETest` is an `@IntegrationTest` that also
+  serves `web/dist` from the server's origin (`TestFrontendConfig`) and gives each test method a fresh browser
+  profile: take a `Page`, or a `BrowserContext` for several tabs that share cookies. Access tokens last ten seconds,
+  so token refreshes happen during tests. Seed data with `TestUsers` and the DAOs, then do everything else through the
+  page. Drive pages through page objects (`LoginPage`, `SettingsMenu`, …), find elements by role and label, and use
+  Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which builds `web/`
+  (run `npm ci` in `web/` first) and installs Chromium. A failing test's trace is saved to `server/build/e2e-traces`;
+  open it with `npx playwright show-trace <file>`.
 - GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
-  every module, and type-checks and builds `web/` on every PR and push to `main`.
+  every module, type-checks and builds `web/`, and runs the E2E tests on every PR and push to `main`.
+
+## Adding a feature
+
+1. Check [docs/VISION.md](docs/VISION.md); ask about anything it doesn't settle.
+2. Build the backend with unit and `@IntegrationTest` tests, and the frontend against the real API.
+3. **Every feature a user can see or do ships with E2E tests in the same PR**: an `@E2ETest` class (or new methods in
+   the class for that area) covering the main flow and the errors a user can hit. Add a page object for any new page.
+   A backend-only change with no frontend yet is covered by integration tests, and gets E2E tests in the PR that adds
+   its UI.
+4. Run `./gradlew :server:test :server:e2eTest` before opening the PR.
 
 ## Code style
 
@@ -173,6 +193,7 @@ Match the surrounding code. The conventions below are consistent across the code
 - JUnit 5 + AssertJ (`assertThat`). Parameterise over fixtures with `@EnumSource`.
 - Test classes and methods are package-private; method names describe behaviour (`readAndStoreIngestTrack`).
 - Put tests that need Spring/DB/network behind `@IntegrationTest`; keep parser tests as plain unit tests.
+- User-facing flows get an `@E2ETest` (see *Adding a feature*).
 
 **Dependencies and parsers**
 - **Ask before adding any new dependency.** Latest JDK and Spring release candidates are acceptable.
