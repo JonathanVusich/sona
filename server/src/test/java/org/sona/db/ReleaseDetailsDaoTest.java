@@ -48,39 +48,44 @@ class ReleaseDetailsDaoTest {
         final var release = storeRelease(artist);
         final var parlophone = storeLabel(release, "Parlophone");
         final var capitol = storeLabel(release, "Capitol");
-        final var disc2 = new Medium(uuidv7(), release.releaseId(), 2, "DVD");
-        final var disc1 = new Medium(uuidv7(), release.releaseId(), 1, "CD");
-        mediumDao.upsertAll(List.of(disc2, disc1));
+        final var disc2 = storeMedium(release, 2);
+        final var disc1 = storeMedium(release, 1);
 
-        assertThat(dao.load(release.releaseId())).contains(
-                new ReleaseDetails(release, artist, List.of(capitol, parlophone), List.of(disc1, disc2), List.of()));
+        assertThat(dao.load(release.releaseId())).contains(new ReleaseDetails(release, artist,
+                List.of(capitol, parlophone),
+                List.of(new MediumWithTracks(disc1, List.of()), new MediumWithTracks(disc2, List.of()))));
     }
 
     @Test
-    void loadReadsTheTracksInOrderEachWithItsOwnArtist() {
+    void loadReadsEachMediumsTracksInOrderEachWithItsOwnArtist() {
         final var releaseArtist = storeArtist("Various Artists");
         final var coldplay = storeArtist("Coldplay");
         final var keane = storeArtist("Keane");
         final var release = storeRelease(releaseArtist);
-        final var secondDisc = storeTrack(release, keane, 2, 1);
-        final var second = storeTrack(release, coldplay, 1, 2);
-        final var first = storeTrack(release, keane, 1, 1);
+        final var disc1 = storeMedium(release, 1);
+        final var disc2 = storeMedium(release, 2);
+        final var bonus = storeTrack(disc2, keane, 1);
+        final var second = storeTrack(disc1, coldplay, 2);
+        final var first = storeTrack(disc1, keane, 1);
 
         final var details = dao.load(release.releaseId()).orElseThrow();
 
         assertThat(details.artist()).isEqualTo(releaseArtist);
-        assertThat(details.tracks()).containsExactly(new TrackWithArtist(first, keane),
-                new TrackWithArtist(second, coldplay), new TrackWithArtist(secondDisc, keane));
+        assertThat(details.media()).containsExactly(
+                new MediumWithTracks(disc1, List.of(new TrackWithArtist(first, keane),
+                        new TrackWithArtist(second, coldplay))),
+                new MediumWithTracks(disc2, List.of(new TrackWithArtist(bonus, keane))));
     }
 
     @Test
-    void loadCountsTheReleasesTracks() {
+    void loadCountsTheTracksOnAllOfTheReleasesMedia() {
         final var artist = storeArtist("Coldplay");
         final var release = storeRelease(artist);
-        final var other = storeRelease(artist);
-        storeTrack(release, artist, 1, 1);
-        storeTrack(release, artist, 1, 2);
-        storeTrack(other, artist, 1, 1);
+        final var disc1 = storeMedium(release, 1);
+        final var disc2 = storeMedium(release, 2);
+        storeTrack(disc1, artist, 1);
+        storeTrack(disc2, artist, 1);
+        storeTrack(storeMedium(storeRelease(artist), 1), artist, 1);
 
         assertThat(dao.load(release.releaseId()).orElseThrow().release().trackCount()).isEqualTo(2);
     }
@@ -107,12 +112,15 @@ class ReleaseDetailsDaoTest {
         return label;
     }
 
-    private Track storeTrack(final Release release, final Artist artist, final int discNumber,
-                             final int trackNumber) {
+    private Medium storeMedium(final Release release, final int position) {
+        return mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), position, "CD"))).getFirst();
+    }
+
+    private Track storeTrack(final Medium medium, final Artist artist, final int position) {
         final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.storeAll(List.of(ingest));
-        final var track = new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", discNumber, trackNumber,
-                artist.artistId(), release.releaseId(), ingest.trackIngestId());
+        final var track = new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", medium.mediumId(),
+                position, artist.artistId(), ingest.trackIngestId());
         trackDao.insert(track);
         return track;
     }

@@ -148,8 +148,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     /**
-     * Stores the track together with the artist, release group and release rows it references. Each row commits on
-     * its own: the upserts are idempotent, so if the track insert fails, processing the ingest again reuses the rows.
+     * Stores the track together with the artist, release group, release and medium rows it references. Each row
+     * commits on its own: the upserts are idempotent, so if the track insert fails, processing the ingest again reuses
+     * the rows.
      * A release or artist already stored isn't looked up again, which saves MusicBrainz requests.
      */
     private Track storeTrack(final TrackToIngest trackToIngest,
@@ -160,10 +161,13 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final var release = releaseDao.loadByMusicBrainzId(resolved.releaseId())
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
         final var releaseGroup = releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
+        final var medium = mediumDao.loadByPosition(release.releaseId(), resolved.discNumber())
+                .orElseThrow(() -> new IllegalStateException("Release %s has no medium %d"
+                        .formatted(release.releaseId(), resolved.discNumber())));
         final var artistId = resolved.artist().artistId();
         final var artist = artistDao.loadByMusicBrainzId(artistId)
                 .orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
-        final var track = newTrack(trackToIngest, resolved, artist, releaseGroup, release, duration, format);
+        final var track = newTrack(trackToIngest, resolved, artist, releaseGroup, release, medium, duration, format);
         trackDao.insert(track);
         return track;
     }
@@ -207,6 +211,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                            final Artist artist,
                            final ReleaseGroup releaseGroup,
                            final Release release,
+                           final Medium medium,
                            final Duration duration,
                            final Format format) {
         final var trackId = uuidv7();
@@ -216,10 +221,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 Math.toIntExact(duration.toSeconds()),
                 format.toAudioFormat(),
                 library.libraryPath(releaseGroup, release, trackId, resolved.title(), format),
-                resolved.discNumber(),
+                medium.mediumId(),
                 resolved.trackNumber(),
                 artist.artistId(),
-                release.releaseId(),
                 trackToIngest.trackIngestId()
         );
     }

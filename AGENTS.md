@@ -203,7 +203,7 @@ Match the surrounding code. The conventions below are consistent across the code
   DAO (`ReleaseDetailsDao`).
 - Each page has one endpoint, which reads everything the page shows in one query: joins for single rows, `multiset`
   for lists (`ReleaseDetailsDao.load`). Don't chain lookups by ID and stitch the results together in Java.
-- Model relationships on the MusicBrainz database when in doubt (a track has its own artist, a release its media),
+- Model relationships on the MusicBrainz database when in doubt (a track is on a medium of a release, and has its own artist),
   keeping only the subset Sona needs.
 - Counts derived from other tables are columns kept up to date by a trigger (`release.track_count`), not counted
   per query.

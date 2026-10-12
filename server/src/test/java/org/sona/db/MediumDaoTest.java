@@ -45,6 +45,17 @@ class MediumDaoTest {
         assertThat(refreshed).containsExactlyInAnyOrder(new Medium(stored.mediumId(), releaseId, 1, "CD"), dvd);
     }
 
+    @Test
+    void loadByPositionFindsTheReleasesMediumAtThatPosition() {
+        final var releaseId = releaseId();
+        final var cd = new Medium(uuidv7(), releaseId, 1, "CD");
+        final var dvd = new Medium(uuidv7(), releaseId, 2, "DVD");
+        dao.upsertAll(List.of(cd, dvd, new Medium(uuidv7(), releaseId(), 2, "Vinyl")));
+
+        assertThat(dao.loadByPosition(releaseId, 2)).contains(dvd);
+        assertThat(dao.loadByPosition(releaseId, 3)).isEmpty();
+    }
+
     private UUID releaseId() {
         final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(

@@ -35,7 +35,7 @@ public class ReleaseDetailsDao {
     private final ReleaseDetailsMapper mapper;
 
     public Optional<ReleaseDetails> load(final UUID releaseId) {
-        return dsl.select(RELEASE, ARTIST, labels(), media(), tracks())
+        return dsl.select(RELEASE, ARTIST, labels(), media())
                 .from(RELEASE)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
@@ -49,8 +49,11 @@ public class ReleaseDetailsDao {
         return multiset(selectFrom(LABEL).where(LABEL.LABEL_ID.in(releaseLabelIds)).orderBy(LABEL.NAME));
     }
 
-    private static Field<Result<MediumRecord>> media() {
-        return multiset(selectFrom(MEDIUM).where(MEDIUM.RELEASE_ID.eq(RELEASE.RELEASE_ID)).orderBy(MEDIUM.POSITION));
+    private static Field<Result<Record2<MediumRecord, Result<Record2<TrackRecord, ArtistRecord>>>>> media() {
+        return multiset(select(MEDIUM, tracks())
+                .from(MEDIUM)
+                .where(MEDIUM.RELEASE_ID.eq(RELEASE.RELEASE_ID))
+                .orderBy(MEDIUM.POSITION));
     }
 
     private static Field<Result<Record2<TrackRecord, ArtistRecord>>> tracks() {
@@ -59,7 +62,7 @@ public class ReleaseDetailsDao {
         return multiset(select(TRACK, trackArtist)
                 .from(TRACK)
                 .join(trackArtist).on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
-                .where(TRACK.RELEASE_ID.eq(RELEASE.RELEASE_ID))
-                .orderBy(TRACK.DISC_NUMBER, TRACK.TRACK_NUMBER));
+                .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
+                .orderBy(TRACK.POSITION));
     }
 }

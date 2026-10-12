@@ -93,6 +93,6 @@ class DefaultLibraryTest {
     }
 
     private static Track newTrack(final String path, final UUID trackIngestId) {
-        return new Track(TRACK_ID, "A Whisper", 10, AudioFormat.FLAC, path, 1, 9, null, null, trackIngestId);
+        return new Track(TRACK_ID, "A Whisper", 10, AudioFormat.FLAC, path, null, 9, null, trackIngestId);
     }
 }

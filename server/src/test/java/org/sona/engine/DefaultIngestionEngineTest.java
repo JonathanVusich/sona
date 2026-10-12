@@ -84,11 +84,14 @@ class DefaultIngestionEngineTest {
         assertThat(track.name()).isEqualTo("A Whisper");
         assertThat(track.duration()).isEqualTo(10);
         assertThat(track.format()).isEqualTo(AudioFormat.FLAC);
-        assertThat(track.discNumber()).isEqualTo(1);
-        assertThat(track.trackNumber()).isEqualTo(9);
+        assertThat(track.position()).isEqualTo(9);
 
+        final var medium = dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.MEDIUM_ID.eq(track.mediumId()))
+                .fetchSingleInto(Medium.class);
+        assertThat(medium.position()).isEqualTo(1);
         final var release = dsl.selectFrom(RELEASE)
-                .where(RELEASE.RELEASE_ID.eq(track.releaseId()))
+                .where(RELEASE.RELEASE_ID.eq(medium.releaseId()))
                 .fetchSingleInto(Release.class);
         assertThat(release.musicbrainzReleaseId()).isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
         assertThat(release.date()).isEqualTo(LocalDate.of(2022, 8, 26));
@@ -137,7 +140,7 @@ class DefaultIngestionEngineTest {
         engine.processTrack(first);
         engine.processTrack(second);
 
-        assertThat(loadTrack(second).releaseId()).isEqualTo(loadTrack(first).releaseId());
+        assertThat(loadTrack(second).mediumId()).isEqualTo(loadTrack(first).mediumId());
         assertThat(dsl.fetchCount(RELEASE)).isEqualTo(1);
         assertThat(dsl.fetchCount(RELEASE_GROUP)).isEqualTo(1);
         // The release was stored with the first track, so it isn't looked up again.
