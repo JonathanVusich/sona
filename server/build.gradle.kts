@@ -44,6 +44,9 @@ flyway {
     )
 }
 
+// The E2E tests' Playwright client, and the Playwright image their browsers run in, which must match it.
+val playwrightVersion = "1.63.0"
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
@@ -86,6 +89,7 @@ dependencies {
     testImplementation("org.wiremock:wiremock-standalone:3.13.2")
     testImplementation("com.google.jimfs:jimfs:1.3.0")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.0")
+    testImplementation("com.microsoft.playwright:playwright:$playwrightVersion")
 
     // https://mvnrepository.com/artifact/org.assertj/assertj-core
     testImplementation("org.assertj:assertj-core:3.27.6")
@@ -139,7 +143,60 @@ tasks.named("compileJava") {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("e2e")
+    }
+}
+
+// Sona serves the web frontend itself, from static/ on its classpath. Building it needs Node, so the boot jar (and with
+// it `build`) and the E2E tests include it; `test` doesn't.
+val web = rootProject.layout.projectDirectory.dir("web")
+val npm = if (System.getProperty("os.name").startsWith("Windows")) "npm.cmd" else "npm"
+
+val installWebDependencies by tasks.registering(Exec::class) {
+    workingDir = web.asFile
+    commandLine(npm, "ci")
+    inputs.files(web.file("package.json"), web.file("package-lock.json"))
+    outputs.dir(web.dir("node_modules"))
+}
+
+val buildWeb by tasks.registering(Exec::class) {
+    dependsOn(installWebDependencies)
+    workingDir = web.asFile
+    commandLine(npm, "run", "build")
+    inputs.dir(web.dir("src"))
+    inputs.files(web.file("index.html"), web.file("package-lock.json"), web.file("vite.config.ts"))
+    outputs.dir(web.dir("dist"))
+}
+
+val bundledWeb = layout.buildDirectory.dir("bundled-web")
+
+val bundleWeb by tasks.registering(Sync::class) {
+    from(buildWeb)
+    into(bundledWeb.map { it.dir("static") })
+}
+
+tasks.bootJar {
+    from(bundleWeb) {
+        into("BOOT-INF/classes/static")
+    }
+}
+
+// The browser the E2E tests drive: firefox locally, and each of chromium, firefox and webkit on CI, with
+// -Pe2eBrowser=<name>.
+val e2eBrowser = providers.gradleProperty("e2eBrowser").getOrElse("firefox")
+
+val e2eTest by tasks.registering(Test::class) {
+    description = "Runs the end-to-end tests, which drive the web frontend in a browser."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    // The bundled frontend goes on the classpath as it does in the boot jar.
+    classpath = sourceSets.test.get().runtimeClasspath + files(bundledWeb).builtBy(bundleWeb)
+    useJUnitPlatform {
+        includeTags("e2e")
+    }
+    systemProperty("sona.e2e.browser", e2eBrowser)
+    systemProperty("sona.e2e.playwright-version", playwrightVersion)
 }
 
 // Local runs seed the dev users, admin/admin and user/user.

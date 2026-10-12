@@ -100,6 +100,7 @@ There is no deadline. Done when it's good.
 ## Deployment and operations
 
 - **Docker Compose** (Sona image + Postgres) is the supported deployment.
+- **The Sona image serves the web frontend itself**, from the same origin as the API.
 - **Postgres only.**
 - **Scale target: 500k+ tracks.** Design queries, indexes and ingestion throughput for that.
 - **Flyway migrations run automatically on application startup.**
