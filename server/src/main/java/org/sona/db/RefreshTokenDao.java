@@ -7,10 +7,12 @@ import org.sona.model.tables.pojos.RefreshToken;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.jooq.impl.DSL.currentOffsetDateTime;
+import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.REFRESH_TOKEN;
 
 @Component
@@ -43,6 +45,26 @@ public class RefreshTokenDao {
         return dsl.update(REFRESH_TOKEN)
                 .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
+                .and(REFRESH_TOKEN.REVOKED_AT.isNull())
+                .and(REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime()))
+                .returning()
+                .fetchOptional(mapper::fromRecord);
+    }
+
+    /**
+     * Revokes the valid token of this token's family, if this token was replaced after {@code replacedAfter}. A family
+     * has one valid token at a time, as each refresh revokes the token it replaces.
+     *
+     * @return the family's valid token, now revoked, or empty if this token was replaced earlier or its family has ended
+     */
+    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(String tokenHash, OffsetDateTime replacedAfter) {
+        final var family = select(REFRESH_TOKEN.FAMILY_ID)
+                .from(REFRESH_TOKEN)
+                .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
+                .and(REFRESH_TOKEN.REVOKED_AT.gt(replacedAfter));
+        return dsl.update(REFRESH_TOKEN)
+                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
+                .where(REFRESH_TOKEN.FAMILY_ID.in(family))
                 .and(REFRESH_TOKEN.REVOKED_AT.isNull())
                 .and(REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime()))
                 .returning()

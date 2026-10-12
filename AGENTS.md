@@ -154,10 +154,15 @@ Test notes:
 
 ## Adding a feature
 
+Work on one feature at a time, and finish it before starting the next. Within a feature, the backend comes first:
+build it, get it reviewed and merged, and only once it's settled start the frontend (or anything else that builds on
+it). Don't start work ahead of time that will have to be rebased or redone when the work under it changes, above all
+frontend work on top of an API still in review.
+
 1. Check [docs/VISION.md](docs/VISION.md); ask about anything it doesn't settle. Agree each page's data with the
    maintainer before writing its queries: add no DAO method without an approved use case, and don't infer one from
    the mocked pages in `web/`.
-2. Build the backend with unit and `@IntegrationTest` tests, and the frontend against the real API.
+2. Build the backend with unit and `@IntegrationTest` tests. Once it's merged, build the frontend against the real API.
 3. **Every feature a user can see or do ships with E2E tests in the same PR**: an `@E2ETest` class (or new methods in
    the class for that area) covering the main flow and the errors a user can hit. Add a page object for any new page.
    A backend-only change with no frontend yet is covered by integration tests, and gets E2E tests in the PR that adds

@@ -87,6 +87,43 @@ class RefreshTokenDaoTest {
         assertThat(dao.revokeIfValid("bob's")).isPresent();
     }
 
+    @Test
+    void revokeFamilyTokenIfRecentlyReplacedRevokesTheFamilysValidToken() {
+        final var family = uuidv7();
+        dao.insert(newToken(family, "replaced", OffsetDateTime.now().plusDays(1)));
+        dao.revokeIfValid("replaced");
+        final var replacement = newToken(family, "replacement", OffsetDateTime.now().plusDays(1));
+        dao.insert(replacement);
+
+        final var revoked = dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().minusMinutes(1))
+                .orElseThrow();
+
+        assertThat(revoked.refreshTokenId()).isEqualTo(replacement.refreshTokenId());
+        assertThat(dao.revokeIfValid("replacement")).isEmpty();
+    }
+
+    @Test
+    void revokeFamilyTokenIfRecentlyReplacedRefusesATokenReplacedEarlier() {
+        final var family = uuidv7();
+        dao.insert(newToken(family, "replaced", OffsetDateTime.now().plusDays(1)));
+        dao.revokeIfValid("replaced");
+        dao.insert(newToken(family, "replacement", OffsetDateTime.now().plusDays(1)));
+
+        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().plusMinutes(1))).isEmpty();
+        assertThat(dao.revokeIfValid("replacement")).isPresent();
+    }
+
+    @Test
+    void revokeFamilyTokenIfRecentlyReplacedRefusesAnEndedFamily() {
+        final var family = uuidv7();
+        dao.insert(newToken(family, "replaced", OffsetDateTime.now().plusDays(1)));
+        dao.revokeIfValid("replaced");
+        dao.insert(newToken(family, "replacement", OffsetDateTime.now().plusDays(1)));
+        dao.revokeFamily(family);
+
+        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().minusMinutes(1))).isEmpty();
+    }
+
     private RefreshToken newToken(final UUID familyId, final String tokenHash, final OffsetDateTime expiresAt) {
         return new RefreshToken(uuidv7(), alice.userId(), familyId, tokenHash, expiresAt, null);
     }

@@ -20,13 +20,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 
+import java.time.OffsetDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.REFRESH_TOKEN;
 import static org.sona.model.Tables.USERS;
+import static org.sona.utils.HashUtils.sha256Hex;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * Refreshing and ending the sessions Sona issues. Each refresh replaces the refresh token, and using a replaced one
- * ends its session.
+ * ends its session, unless it was replaced moments ago, when the answer to that refresh may have been lost.
  */
 @IntegrationTest
 class SessionTest {
@@ -92,6 +96,7 @@ class SessionTest {
     void reusingAReplacedRefreshTokenEndsTheSession() {
         final var first = tokenIssuer.startSession(alice);
         final var second = ApiClient.readSession(api.refreshSession(first.refreshToken()));
+        replacedAMinuteAgo(first);
 
         api.refreshSession(first.refreshToken()).expectStatus().isUnauthorized();
 
@@ -99,10 +104,31 @@ class SessionTest {
     }
 
     @Test
+    void aRefreshWhoseAnswerWasLostCanBeSentAgain() {
+        final var first = tokenIssuer.startSession(alice);
+        ApiClient.readSession(api.refreshSession(first.refreshToken()));
+        ApiClient.readSession(api.refreshSession(first.refreshToken()));
+
+        final var retried = ApiClient.readSession(api.refreshSession(first.refreshToken()));
+
+        api.refreshSession(retried.refreshToken()).expectStatus().isOk();
+    }
+
+    @Test
+    void aReplacedRefreshTokenCannotRestartAnEndedSession() {
+        final var first = tokenIssuer.startSession(alice);
+        final var second = ApiClient.readSession(api.refreshSession(first.refreshToken()));
+        api.logout(second.refreshToken()).expectStatus().isNoContent();
+
+        api.refreshSession(first.refreshToken()).expectStatus().isUnauthorized();
+    }
+
+    @Test
     void reuseOnlyEndsTheSessionTheTokenBelongsTo() {
         final var laptop = tokenIssuer.startSession(alice);
         final var phone = tokenIssuer.startSession(alice);
         ApiClient.readSession(api.refreshSession(laptop.refreshToken()));
+        replacedAMinuteAgo(laptop);
 
         api.refreshSession(laptop.refreshToken()).expectStatus().isUnauthorized();
 
@@ -147,5 +173,15 @@ class SessionTest {
         api.logout(session.refreshToken()).expectStatus().isNoContent();
 
         api.logout(session.refreshToken()).expectStatus().isUnauthorized();
+    }
+
+    /**
+     * Moves the token's replacement back past the window in which a lost refresh may be sent again.
+     */
+    private void replacedAMinuteAgo(final Tokens tokens) {
+        dsl.update(REFRESH_TOKEN)
+                .set(REFRESH_TOKEN.REVOKED_AT, OffsetDateTime.now().minusMinutes(1))
+                .where(REFRESH_TOKEN.TOKEN_HASH.eq(sha256Hex(tokens.refreshToken())))
+                .execute();
     }
 }
