@@ -12,7 +12,7 @@ create table if not exists track (
     disc_number integer not null,
     track_number integer not null,
 
-    artist_id uuid references artist (artist_id),
+    artist_id uuid not null references artist (artist_id),
     release_id uuid references release (release_id),
 
     -- The ingest the track came from. Unique, so retrying an ingest can't create a second track.
