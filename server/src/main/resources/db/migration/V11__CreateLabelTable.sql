@@ -3,5 +3,5 @@ create table if not exists label (
 
     name text not null,
 
-    musicbrainz_label_id uuid unique
+    musicbrainz_label_id uuid not null unique
 );

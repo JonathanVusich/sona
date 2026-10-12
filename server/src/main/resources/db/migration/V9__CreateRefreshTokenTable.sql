@@ -8,6 +8,7 @@ create table if not exists refresh_token (
     -- SHA-256 of the token, hex encoded. The token itself is never stored.
     token_hash text not null unique,
     expires_at timestamptz not null,
+    -- Null until the token is revoked.
     revoked_at timestamptz
 );
 

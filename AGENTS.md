@@ -200,6 +200,8 @@ Match the surrounding code. The conventions below are consistent across the code
 - Every query is served by an index (the scale target is 500k+ tracks); the integration tests enforce it.
 - Migrations are lowercase SQL, `create table if not exists`, `uuid` primary keys named `<table>_id`, one table per
   migration.
+- Every column is `not null` unless a row can genuinely lack the value (MusicBrainz doesn't know it, or it doesn't
+  exist yet). Say why in a comment on each nullable column.
 
 **Tests**
 - JUnit 5 + AssertJ (`assertThat`). Parameterise over fixtures with `@EnumSource`.

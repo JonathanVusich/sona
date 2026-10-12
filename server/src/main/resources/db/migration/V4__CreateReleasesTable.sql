@@ -2,6 +2,7 @@ create table if not exists release (
     release_id uuid primary key,
 
     name text not null,
+    -- Null when there's no cover art.
     thumbnail_path text,
     -- MusicBrainz may only know the year or month, and the parts it doesn't know are the first: "2002" is 2002-01-01.
     date date,
@@ -10,8 +11,7 @@ create table if not exists release (
     release_group_id uuid not null references release_group (release_group_id),
     artist_id uuid not null references artist (artist_id),
 
-    -- Nullable in case it is not found in the MB database.
-    musicbrainz_release_id uuid unique
+    musicbrainz_release_id uuid not null unique
 );
 
 -- A group's releases, earliest first: the earliest stands for the group.
