@@ -42,7 +42,7 @@ public final class RegistrationTokenService {
         this.decoder = decoder;
     }
 
-    public String issue(final ProviderUser user) {
+    public String issueToken(final ProviderUser user) {
         final var now = Instant.now();
         final var claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
@@ -61,19 +61,19 @@ public final class RegistrationTokenService {
     /**
      * @return the user the token was issued for, or empty if it is invalid or expired
      */
-    public Optional<ProviderUser> read(final String token) {
+    public Optional<ProviderUser> readToken(final String token) {
         try {
             final var jwt = decoder.decode(token);
             final var user = new ProviderUser(jwt.getClaimAsString(PROVIDER_CLAIM),
                     jwt.getClaimAsString(OIDC_ISSUER_CLAIM), jwt.getClaimAsString(OIDC_SUBJECT_CLAIM),
-                    role(jwt.getClaimAsString(ROLE_CLAIM)));
+                    parseRole(jwt.getClaimAsString(ROLE_CLAIM)));
             return Optional.of(user);
         } catch (final JwtException _) {
             return Optional.empty();
         }
     }
 
-    private static UserRole role(final String claim) {
+    private static UserRole parseRole(final String claim) {
         return switch (claim) {
             case "ADMIN" -> UserRole.ADMIN;
             case "USER" -> UserRole.USER;

@@ -23,7 +23,7 @@ public enum Permission implements GrantedAuthority {
     /**
      * @return the permissions every user with the role has
      */
-    public static Set<Permission> granted(final UserRole role) {
+    public static Set<Permission> grantedPermissions(final UserRole role) {
         return switch (role) {
             case ADMIN -> Set.of(values());
             case USER -> Set.of(LIBRARY_READ);

@@ -21,7 +21,7 @@ public final class FlacFiles {
     public static byte[] flacFile(final RawMetadata metadata) {
         final var outputStream = new ByteArrayOutputStream();
         try {
-            new FlacWriter().write(metadata, outputStream);
+            new FlacWriter().writeMetadata(metadata, outputStream);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -35,6 +35,6 @@ public final class AccessErrorHandler implements AccessDeniedHandler {
                     ErrorCode.PASSWORD_CHANGE_REQUIRED;
             case null, default -> ErrorCode.ACCESS_DENIED;
         };
-        writer.write(response, code);
+        writer.writeError(response, code);
     }
 }

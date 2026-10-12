@@ -37,23 +37,24 @@ class PasswordDaoTest {
         final var second = new Password(alice.userId(), "{noop}second", PasswordState.CHANGE_REQUIRED);
 
         dao.upsert(first);
-        assertThat(dao.find(alice.userId())).contains(first);
+        assertThat(dao.findByUserId(alice.userId())).contains(first);
 
         dao.upsert(second);
-        assertThat(dao.find(alice.userId())).contains(second);
+        assertThat(dao.findByUserId(alice.userId())).contains(second);
     }
 
     @Test
     void updateEndsARequiredPasswordChange() {
         dao.upsert(new Password(alice.userId(), "{noop}old", PasswordState.CHANGE_REQUIRED));
 
-        dao.update(alice.userId(), "{noop}new");
+        dao.updateHash(alice.userId(), "{noop}new");
 
-        assertThat(dao.find(alice.userId())).contains(new Password(alice.userId(), "{noop}new", PasswordState.VALID));
+        assertThat(dao.findByUserId(alice.userId()))
+                .contains(new Password(alice.userId(), "{noop}new", PasswordState.VALID));
     }
 
     @Test
     void aUserWithoutAPasswordHasNone() {
-        assertThat(dao.find(alice.userId())).isEmpty();
+        assertThat(dao.findByUserId(alice.userId())).isEmpty();
     }
 }

@@ -6,7 +6,7 @@ import jakarta.servlet.DispatcherType;
 import org.sona.auth.ActiveUserService;
 import org.sona.auth.OidcDiscoveryClient;
 import org.sona.auth.SignInHandler;
-import org.sona.auth.SilentSignInRequestResolver;
+import org.sona.auth.SilentSignInResolver;
 import org.sona.auth.SonaJwtConverter;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
@@ -76,7 +76,7 @@ public class SecurityConfig {
                         .clientRegistrationRepository(discoveryClient)
                         .authorizedClientRepository(authorizedClients)
                         .authorizationEndpoint(endpoint -> endpoint
-                                .authorizationRequestResolver(new SilentSignInRequestResolver(discoveryClient)))
+                                .authorizationRequestResolver(new SilentSignInResolver(discoveryClient)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
                         .successHandler(oidcSignIn)
                         .failureHandler(oidcSignIn)

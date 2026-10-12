@@ -41,11 +41,11 @@ public final class ApiClient {
     /**
      * @return the session of a login that must succeed
      */
-    public Session session(final String username, final String password) {
-        return session(login(username, password));
+    public Session startSession(final String username, final String password) {
+        return readSession(login(username, password));
     }
 
-    public RestTestClient.ResponseSpec refresh(final String refreshToken) {
+    public RestTestClient.ResponseSpec refreshSession(final String refreshToken) {
         return client.post().uri(ApiRoutes.AUTH_REFRESH)
                 .cookie(NAME, refreshToken)
                 .exchange();
@@ -61,7 +61,7 @@ public final class ApiClient {
         return client.post().uri(ApiRoutes.AUTH_LOGOUT).exchange();
     }
 
-    public RestTestClient.ResponseSpec get(final String path, final String accessToken) {
+    public RestTestClient.ResponseSpec getWithToken(final String path, final String accessToken) {
         return client.get().uri(path)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .exchange();
@@ -114,7 +114,7 @@ public final class ApiClient {
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec register(final String registrationToken, final String username) {
+    public RestTestClient.ResponseSpec registerUser(final String registrationToken, final String username) {
         return client.post().uri(ApiRoutes.AUTH_REGISTER)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new RegisterRequest(registrationToken, username))
@@ -133,7 +133,7 @@ public final class ApiClient {
     /**
      * @return the tokens from a response that must have issued them
      */
-    public static Session session(final RestTestClient.ResponseSpec response) {
+    public static Session readSession(final RestTestClient.ResponseSpec response) {
         final var result = response.expectStatus().isOk()
                 .expectBody(TokenResponse.class)
                 .returnResult();

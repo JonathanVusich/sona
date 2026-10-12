@@ -48,7 +48,7 @@ class AuthControllerTest {
 
     @Test
     void loginReturnsAnAccessTokenAndARefreshCookie() {
-        users.create("alice", UserRole.USER);
+        users.createUser("alice", UserRole.USER);
 
         final var result = api.login("alice", "alice")
                 .expectStatus().isOk()
@@ -64,10 +64,10 @@ class AuthControllerTest {
 
     @Test
     void anAccessTokenIdentifiesTheUserAndTheirPermissions() {
-        final var alice = users.create("alice", UserRole.USER);
-        final var session = api.session("alice", "alice");
+        final var alice = users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
 
-        final var me = api.get(ApiRoutes.CURRENT_USER, session.accessToken())
+        final var me = api.getWithToken(ApiRoutes.CURRENT_USER, session.accessToken())
                 .expectStatus().isOk()
                 .expectBody(CurrentUserResponse.class)
                 .returnResult().getResponseBody();
@@ -78,7 +78,7 @@ class AuthControllerTest {
 
     @Test
     void loginRejectsAWrongPassword() {
-        users.create("alice", UserRole.USER);
+        users.createUser("alice", UserRole.USER);
 
         api.login("alice", "wrong")
                 .expectStatus().isUnauthorized()
@@ -94,7 +94,7 @@ class AuthControllerTest {
 
     @Test
     void loginRejectsADisabledUser() {
-        users.create("alice", UserRole.USER, AccountState.DISABLED);
+        users.createUser("alice", UserRole.USER, AccountState.DISABLED);
 
         api.login("alice", "alice").expectStatus().isUnauthorized();
     }

@@ -29,7 +29,7 @@ public enum FlacTag {
     private final String fieldName;
     private final Tag tag;
 
-    public TagValue convert(String fieldValue) {
+    public TagValue toTagValue(String fieldValue) {
         return switch (this) {
             case ALBUM_ARTIST, TITLE, ALBUM, ARTIST, COMPOSER -> new TagValue.Str(fieldValue);
             case TRACK_NUMBER, DISC_NUMBER -> new TagValue.Int(Integer.parseInt(fieldValue));
@@ -37,7 +37,7 @@ public enum FlacTag {
         };
     }
 
-    public static FlacTag from(String fieldName) {
+    public static FlacTag fromFieldName(String fieldName) {
         return TAGS.get(fieldName);
     }
 }

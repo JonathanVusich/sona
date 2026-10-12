@@ -39,26 +39,28 @@ class FlacParserTest {
 
     @Test
     void parseColdplay() throws IOException, InvalidFormatException {
-        final var metadata = parse(FlacSample.COLDPLAY);
+        final var metadata = parseFlac(FlacSample.COLDPLAY);
 
         assertThat(metadata.duration().toSeconds()).isEqualTo(238);
 
-        assertThat(metadata.search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("A Whisper"));
-        assertThat(metadata.search(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Coldplay"));
-        assertThat(metadata.search(Tag.RELEASE_TITLE)).containsExactly(new TagValue.Str("A Rush of Blood to the Head"));
-        assertThat(metadata.search(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(9));
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("A Whisper"));
+        assertThat(metadata.findValues(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Coldplay"));
+        assertThat(metadata.findValues(Tag.RELEASE_TITLE))
+                .containsExactly(new TagValue.Str("A Rush of Blood to the Head"));
+        assertThat(metadata.findValues(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(9));
     }
 
     @Test
     void parsePicardTaggedFile() throws IOException, InvalidFormatException {
-        final var metadata = parse(FlacSample.LUCAS_FLOYD);
+        final var metadata = parseFlac(FlacSample.LUCAS_FLOYD);
 
         assertThat(metadata.duration()).isEqualTo(Duration.ofSeconds(57, 160_000_000));
 
-        assertThat(metadata.search(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(8));
-        assertThat(metadata.search(Tag.DISC_NUMBER)).containsExactly(new TagValue.Int(2));
-        assertThat(metadata.search(Tag.ALBUM_ARTIST)).containsExactly(new TagValue.Str("Philip Glass; Paul Barnes"));
-        assertThat(metadata.search(Tag.RELEASE_YEAR)).containsExactly(new TagValue.Int(2016));
+        assertThat(metadata.findValues(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(8));
+        assertThat(metadata.findValues(Tag.DISC_NUMBER)).containsExactly(new TagValue.Int(2));
+        assertThat(metadata.findValues(Tag.ALBUM_ARTIST))
+                .containsExactly(new TagValue.Str("Philip Glass; Paul Barnes"));
+        assertThat(metadata.findValues(Tag.RELEASE_YEAR)).containsExactly(new TagValue.Int(2016));
         assertThat(metadata.unknownTags())
                 .contains(new TagSet("musicbrainz_trackid", Set.of(new TagValue.Str("d19c6734-0690-4ee6-9228-91b95f32554d"))));
     }
@@ -80,16 +82,16 @@ class FlacParserTest {
 
     @Test
     void parseFileWithOnlyUnknownTags() throws IOException, InvalidFormatException {
-        final var parsed = parse(FlacSample.SAMPLE_3);
+        final var parsed = parseFlac(FlacSample.SAMPLE_3);
 
-        assertThat(parsed.search(Tag.TRACK_TITLE)).isEmpty();
+        assertThat(parsed.findValues(Tag.TRACK_TITLE)).isEmpty();
         assertThat(parsed.unknownTags())
                 .containsExactly(new TagSet("encoder", Set.of(new TagValue.Str("Lavf58.29.100"))));
     }
 
     @Test
     void parseFileWithoutVorbisComment() throws IOException, InvalidFormatException {
-        final var parsed = parse(flac(streamInfo(lastHeader(BlockType.STREAM_INFO))));
+        final var parsed = parseFlac(flacStream(streamInfo(lastHeader(BlockType.STREAM_INFO))));
 
         assertThat(parsed.duration()).isEqualTo(Duration.ofSeconds(10));
         assertThat(parsed.unknownTags()).isEmpty();
@@ -97,22 +99,23 @@ class FlacParserTest {
 
     @Test
     void fieldNamesAreCaseInsensitive() throws IOException, InvalidFormatException {
-        final var parsed = parse(flac(streamInfo(header(BlockType.STREAM_INFO)),
+        final var parsed = parseFlac(flacStream(streamInfo(blockHeader(BlockType.STREAM_INFO)),
                 vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TiTlE", "Mixed Case"))));
 
-        assertThat(parsed.search(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Mixed Case"));
+        assertThat(parsed.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Mixed Case"));
     }
 
     @Test
     void rejectNonFlacInput() {
         final var notFlac = new ByteArrayInputStream("ID3\u0004 not a flac file".getBytes());
 
-        assertThatThrownBy(() -> parse(notFlac)).isInstanceOf(InvalidFormatException.class);
+        assertThatThrownBy(() -> parseFlac(notFlac)).isInstanceOf(InvalidFormatException.class);
     }
 
     @Test
     void rejectMissingStreamInfo() {
-        assertThatThrownBy(() -> parse(flac(vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TITLE", "No Stream Info")))))
+        final var comment = vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TITLE", "No Stream Info"));
+        assertThatThrownBy(() -> parseFlac(flacStream(comment)))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessageContaining("STREAMINFO");
     }
@@ -120,16 +123,17 @@ class FlacParserTest {
     @Test
     void writtenBlocksParseBackUnchanged() throws IOException, InvalidFormatException {
         final var blocks = new Block[]{
-                streamInfo(header(BlockType.STREAM_INFO)),
-                new SeekTable(header(BlockType.SEEK_TABLE), List.of(new SeekPoint(0, 0, (short) 4096))),
-                vorbisComment(header(BlockType.VORBIS_COMMENT), new Field("TITLE", "Round Trip")),
-                new Application(header(BlockType.APPLICATION), 0x52494646, new byte[]{1, 2, 3, 4}),
-                cueSheet(header(BlockType.CUESHEET)),
-                new Picture(header(BlockType.PICTURE), PictureType.FRONT_COVER, "image/png", "Front ✓", 2, 1, 24, 0, new byte[]{9, 8, 7}),
+                streamInfo(blockHeader(BlockType.STREAM_INFO)),
+                new SeekTable(blockHeader(BlockType.SEEK_TABLE), List.of(new SeekPoint(0, 0, (short) 4096))),
+                vorbisComment(blockHeader(BlockType.VORBIS_COMMENT), new Field("TITLE", "Round Trip")),
+                new Application(blockHeader(BlockType.APPLICATION), 0x52494646, new byte[]{1, 2, 3, 4}),
+                cueSheet(blockHeader(BlockType.CUESHEET)),
+                new Picture(blockHeader(BlockType.PICTURE), PictureType.FRONT_COVER, "image/png", "Front ✓", 2, 1, 24,
+                        0, new byte[]{9, 8, 7}),
                 new Padding(new BlockHeader(BlockPosition.LAST, BlockType.PADDING, 1024))
         };
 
-        final var read = new FlacParser().parseAllMetadata(flac(blocks));
+        final var read = new FlacParser().parseAllMetadata(flacStream(blocks));
 
         // The writer works out each block's size, so only padding's size is known up front.
         assertThat(read).usingRecursiveComparison()
@@ -162,7 +166,7 @@ class FlacParserTest {
     }
 
     // FlacWriter works out the size of every block but padding, so it's left at 0 here.
-    private static BlockHeader header(final BlockType blockType) {
+    private static BlockHeader blockHeader(final BlockType blockType) {
         return new BlockHeader(BlockPosition.NOT_LAST, blockType, 0);
     }
 
@@ -170,7 +174,7 @@ class FlacParserTest {
         return new BlockHeader(BlockPosition.LAST, blockType, 0);
     }
 
-    private static InputStream flac(final Block... blocks) throws IOException {
+    private static InputStream flacStream(final Block... blocks) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
         final var dataStream = new DataOutputStream(outputStream);
         final var flacWriter = new FlacWriter();
@@ -181,13 +185,13 @@ class FlacParserTest {
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
-    private static RawMetadata parse(final FlacSample sample) throws IOException, InvalidFormatException {
+    private static RawMetadata parseFlac(final FlacSample sample) throws IOException, InvalidFormatException {
         try (final var inputStream = sample.inputStream()) {
-            return parse(inputStream);
+            return parseFlac(inputStream);
         }
     }
 
-    private static RawMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
-        return new FlacParser().parse(inputStream);
+    private static RawMetadata parseFlac(final InputStream inputStream) throws IOException, InvalidFormatException {
+        return new FlacParser().parseMetadata(inputStream);
     }
 }

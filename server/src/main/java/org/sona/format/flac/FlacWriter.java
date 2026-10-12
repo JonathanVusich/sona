@@ -42,7 +42,7 @@ public final class FlacWriter implements Writer {
     }
 
     @Override
-    public void write(final RawMetadata rawMetadata, final OutputStream outputStream) throws IOException {
+    public void writeMetadata(final RawMetadata rawMetadata, final OutputStream outputStream) throws IOException {
         final var dataStream = new DataOutputStream(outputStream);
         writeFlacHeader(dataStream);
         writeBlock(dataStream, streamInfo(rawMetadata));
@@ -63,13 +63,13 @@ public final class FlacWriter implements Writer {
     private static VorbisComment vorbisComment(final RawMetadata rawMetadata) {
         final var header = new BlockHeader(BlockPosition.LAST, BlockType.VORBIS_COMMENT, 0);
         final var knownFields = Arrays.stream(FlacTag.values())
-                .flatMap(flacTag -> fields(flacTag.getFieldName(), rawMetadata.search(flacTag.getTag())));
+                .flatMap(flacTag -> toFields(flacTag.getFieldName(), rawMetadata.findValues(flacTag.getTag())));
         final var unknownFields = rawMetadata.unknownTags()
-                .flatMap(tagSet -> fields(tagSet.tag(), tagSet.values()));
+                .flatMap(tagSet -> toFields(tagSet.tag(), tagSet.values()));
         return new VorbisComment(header, VENDOR, Stream.concat(knownFields, unknownFields).toList());
     }
 
-    private static Stream<Field> fields(final String fieldName, final Set<TagValue> values) {
+    private static Stream<Field> toFields(final String fieldName, final Set<TagValue> values) {
         return values.stream()
                 .map(value -> new Field(fieldName.toUpperCase(Locale.ROOT), fieldContent(value)));
     }

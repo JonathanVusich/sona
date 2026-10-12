@@ -37,10 +37,10 @@ class OidcSessionDaoTest {
         final var rotated = new OidcSession(familyId, alice.userId(), "rotated");
 
         dao.upsert(first);
-        assertThat(dao.find(familyId)).contains(first);
+        assertThat(dao.findByFamilyId(familyId)).contains(first);
 
         dao.upsert(rotated);
-        assertThat(dao.find(familyId)).contains(rotated);
+        assertThat(dao.findByFamilyId(familyId)).contains(rotated);
     }
 
     @Test
@@ -52,7 +52,7 @@ class OidcSessionDaoTest {
 
         dao.delete(laptop.familyId());
 
-        assertThat(dao.find(laptop.familyId())).isEmpty();
-        assertThat(dao.find(phone.familyId())).contains(phone);
+        assertThat(dao.findByFamilyId(laptop.familyId())).isEmpty();
+        assertThat(dao.findByFamilyId(phone.familyId())).contains(phone);
     }
 }

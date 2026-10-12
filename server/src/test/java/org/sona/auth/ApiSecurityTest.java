@@ -48,22 +48,22 @@ class ApiSecurityTest {
         final var userId = uuidv7();
         final var token = tokens.accessToken(userId, "alice", UserRole.USER, SessionState.ACTIVE);
 
-        assertThat(me(token)).isEqualTo(new CurrentUserResponse(userId, "alice", UserRole.USER, SessionState.ACTIVE,
-                List.of(Permission.LIBRARY_READ)));
+        assertThat(currentUser(token)).isEqualTo(new CurrentUserResponse(userId, "alice", UserRole.USER,
+                SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
     }
 
     @Test
     void adminsHaveEveryPermission() {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.ACTIVE);
 
-        assertThat(me(token).permissions()).containsExactly(Permission.values());
+        assertThat(currentUser(token).permissions()).containsExactly(Permission.values());
     }
 
     @Test
     void aUserWhoMustChangeTheirPasswordCanSeeThatTheyMust() {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED);
 
-        final var me = me(token);
+        final var me = currentUser(token);
 
         assertThat(me.state()).isEqualTo(SessionState.PASSWORD_CHANGE_REQUIRED);
         assertThat(me.permissions()).isEmpty();
@@ -73,7 +73,7 @@ class ApiSecurityTest {
     void aUserWhoMustChangeTheirPasswordIsRefusedEverythingElse() {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED);
 
-        api.get("/api/library", token)
+        api.getWithToken("/api/library", token)
                 .expectStatus().isForbidden()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(103)
@@ -85,7 +85,7 @@ class ApiSecurityTest {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.ACTIVE);
 
         // Past authentication and the password check, so a missing endpoint isn't refused.
-        api.get("/api/library", token).expectStatus().isNotFound();
+        api.getWithToken("/api/library", token).expectStatus().isNotFound();
     }
 
     @Test
@@ -98,7 +98,7 @@ class ApiSecurityTest {
 
     @Test
     void requestsWithAnInvalidTokenAreRejected() {
-        api.get(ApiRoutes.CURRENT_USER, "not-a-jwt").expectStatus().isUnauthorized();
+        api.getWithToken(ApiRoutes.CURRENT_USER, "not-a-jwt").expectStatus().isUnauthorized();
     }
 
     @Test
@@ -107,11 +107,11 @@ class ApiSecurityTest {
         final var otherTokens = new TestTokens(new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(otherKey))));
         final var token = otherTokens.accessToken(uuidv7(), "alice", UserRole.USER, SessionState.ACTIVE);
 
-        api.get(ApiRoutes.CURRENT_USER, token).expectStatus().isUnauthorized();
+        api.getWithToken(ApiRoutes.CURRENT_USER, token).expectStatus().isUnauthorized();
     }
 
-    private CurrentUserResponse me(final String token) {
-        return api.get(ApiRoutes.CURRENT_USER, token)
+    private CurrentUserResponse currentUser(final String token) {
+        return api.getWithToken(ApiRoutes.CURRENT_USER, token)
                 .expectStatus().isOk()
                 .expectBody(CurrentUserResponse.class)
                 .returnResult().getResponseBody();

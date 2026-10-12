@@ -32,7 +32,7 @@ public final class FlacParser implements Parser {
     }
 
     @Override
-    public RawMetadata parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+    public RawMetadata parseMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
         final var flacMetadata = parseAllMetadata(inputStream);
         final var streamInfo = flacMetadata.metadataBlocks().getOrDefault(BlockType.STREAM_INFO, List.of()).stream()
                 .map(StreamInfo.class::cast)
@@ -50,11 +50,11 @@ public final class FlacParser implements Parser {
             for (final var field : comment.fields()) {
 
                 final var fieldName = field.name().toLowerCase();
-                final var flacTag = FlacTag.from(fieldName);
+                final var flacTag = FlacTag.fromFieldName(fieldName);
                 if (flacTag != null) {
-                    rawMetadata.add(flacTag.getTag(), flacTag.convert(field.content()));
+                    rawMetadata.addTag(flacTag.getTag(), flacTag.toTagValue(field.content()));
                 } else {
-                    rawMetadata.add(fieldName, field.content());
+                    rawMetadata.addUnknownTag(fieldName, field.content());
                 }
             }
         }

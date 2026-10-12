@@ -43,7 +43,7 @@ class DefaultUsersTest {
 
         final var admin = userDao.findByUsername("admin").orElseThrow();
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
-        final var password = passwordDao.find(admin.userId()).orElseThrow();
+        final var password = passwordDao.findByUserId(admin.userId()).orElseThrow();
         assertThat(password.state()).isEqualTo(PasswordState.CHANGE_REQUIRED);
         assertThat(encoder.matches("admin", password.passwordHash())).isTrue();
     }
@@ -51,7 +51,7 @@ class DefaultUsersTest {
     @Test
     void noAdminIsCreatedOnceUsersExist() {
         dsl.truncate(USERS).cascade().execute();
-        new TestUsers(userDao, passwordDao, encoder).create("alice", UserRole.USER);
+        new TestUsers(userDao, passwordDao, encoder).createUser("alice", UserRole.USER);
 
         new InitialAdminRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
@@ -69,7 +69,7 @@ class DefaultUsersTest {
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
         assertThat(user.role()).isEqualTo(UserRole.USER);
         assertThat(admin.state()).isEqualTo(AccountState.ACTIVE);
-        final var password = passwordDao.find(user.userId()).orElseThrow();
+        final var password = passwordDao.findByUserId(user.userId()).orElseThrow();
         assertThat(encoder.matches("user", password.passwordHash())).isTrue();
     }
 
@@ -77,7 +77,7 @@ class DefaultUsersTest {
     void theDevProfileResetsTheDevUsers() {
         dsl.truncate(USERS).cascade().execute();
         final var existing = new TestUsers(userDao, passwordDao, encoder)
-                .create("user", UserRole.ADMIN, AccountState.DISABLED);
+                .createUser("user", UserRole.ADMIN, AccountState.DISABLED);
 
         new DevUserRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 

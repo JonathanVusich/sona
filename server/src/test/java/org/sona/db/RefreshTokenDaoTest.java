@@ -35,26 +35,26 @@ class RefreshTokenDaoTest {
 
     @Test
     void revokeIfValidRevokesAValidToken() {
-        final var token = token(uuidv7(), "valid", OffsetDateTime.now().plusDays(1));
+        final var token = newToken(uuidv7(), "valid", OffsetDateTime.now().plusDays(1));
         dao.insert(token);
 
         final var revoked = dao.revokeIfValid("valid").orElseThrow();
 
         assertThat(revoked.refreshTokenId()).isEqualTo(token.refreshTokenId());
         assertThat(revoked.revokedAt()).isNotNull();
-        assertThat(dao.find("valid")).contains(revoked);
+        assertThat(dao.findByHash("valid")).contains(revoked);
     }
 
     @Test
     void revokeIfValidRefusesAnExpiredToken() {
-        dao.insert(token(uuidv7(), "expired", OffsetDateTime.now().minusMinutes(1)));
+        dao.insert(newToken(uuidv7(), "expired", OffsetDateTime.now().minusMinutes(1)));
 
         assertThat(dao.revokeIfValid("expired")).isEmpty();
     }
 
     @Test
     void revokeIfValidRefusesARevokedToken() {
-        dao.insert(token(uuidv7(), "used", OffsetDateTime.now().plusDays(1)));
+        dao.insert(newToken(uuidv7(), "used", OffsetDateTime.now().plusDays(1)));
         dao.revokeIfValid("used");
 
         assertThat(dao.revokeIfValid("used")).isEmpty();
@@ -63,9 +63,9 @@ class RefreshTokenDaoTest {
     @Test
     void revokeFamilyLeavesOtherFamiliesAlone() {
         final var family = uuidv7();
-        dao.insert(token(family, "first", OffsetDateTime.now().plusDays(1)));
-        dao.insert(token(family, "second", OffsetDateTime.now().plusDays(1)));
-        dao.insert(token(uuidv7(), "other", OffsetDateTime.now().plusDays(1)));
+        dao.insert(newToken(family, "first", OffsetDateTime.now().plusDays(1)));
+        dao.insert(newToken(family, "second", OffsetDateTime.now().plusDays(1)));
+        dao.insert(newToken(uuidv7(), "other", OffsetDateTime.now().plusDays(1)));
 
         dao.revokeFamily(family);
 
@@ -78,7 +78,7 @@ class RefreshTokenDaoTest {
     void revokeAllRevokesOnlyTheUsersTokens() {
         final var bob = new Users(uuidv7(), UserType.LOCAL, "bob", UserRole.USER, AccountState.ACTIVE);
         userDao.insert(bob);
-        dao.insert(token(uuidv7(), "alice's", OffsetDateTime.now().plusDays(1)));
+        dao.insert(newToken(uuidv7(), "alice's", OffsetDateTime.now().plusDays(1)));
         dao.insert(new RefreshToken(uuidv7(), bob.userId(), uuidv7(), "bob's", OffsetDateTime.now().plusDays(1), null));
 
         dao.revokeAll(alice.userId());
@@ -87,7 +87,7 @@ class RefreshTokenDaoTest {
         assertThat(dao.revokeIfValid("bob's")).isPresent();
     }
 
-    private RefreshToken token(final UUID familyId, final String tokenHash, final OffsetDateTime expiresAt) {
+    private RefreshToken newToken(final UUID familyId, final String tokenHash, final OffsetDateTime expiresAt) {
         return new RefreshToken(uuidv7(), alice.userId(), familyId, tokenHash, expiresAt, null);
     }
 }

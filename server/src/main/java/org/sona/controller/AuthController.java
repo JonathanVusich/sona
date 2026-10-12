@@ -34,37 +34,37 @@ public final class AuthController {
     @PostMapping(ApiRoutes.AUTH_TOKEN)
     public ResponseEntity<TokenResponse> login(@RequestBody final LoginRequest request) {
         // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
-        final var user = passwordChecker.authenticate(request.username(), request.password())
+        final var user = passwordChecker.checkLogin(request.username(), request.password())
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_CREDENTIALS));
-        final var tokens = tokenIssuer.issue(user);
-        return issued(tokens);
+        final var tokens = tokenIssuer.startSession(user);
+        return tokenResponse(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_REFRESH)
-    public ResponseEntity<TokenResponse> refresh(
+    public ResponseEntity<TokenResponse> refreshTokens(
             @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
         if (refreshToken == null) {
             throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        final var tokens = tokenIssuer.refresh(refreshToken)
+        final var tokens = tokenIssuer.refreshSession(refreshToken)
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REFRESH_TOKEN));
-        return issued(tokens);
+        return tokenResponse(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_LOGOUT)
     public ResponseEntity<Void> logout(
             @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
-        if (refreshToken == null || !tokenIssuer.revoke(refreshToken)) {
+        if (refreshToken == null || !tokenIssuer.endSession(refreshToken)) {
             throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        final var cookie = refreshCookies.clear();
+        final var cookie = refreshCookies.clearCookie();
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .build();
     }
 
-    private ResponseEntity<TokenResponse> issued(final Tokens tokens) {
-        final var cookie = refreshCookies.issue(tokens.refreshToken());
+    private ResponseEntity<TokenResponse> tokenResponse(final Tokens tokens) {
+        final var cookie = refreshCookies.issueCookie(tokens.refreshToken());
         final var body = new TokenResponse(tokens.accessToken(), TokenType.BEARER,
                 properties.accessTokenLifetime().toSeconds());
         return ResponseEntity.ok()

@@ -19,5 +19,5 @@ public interface AccountRegistrar {
      *
      * @return the user the registration token was issued for
      */
-    ProviderUser register(String registrationToken, String username);
+    ProviderUser registerUser(String registrationToken, String username);
 }

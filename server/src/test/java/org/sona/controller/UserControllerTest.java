@@ -42,26 +42,26 @@ class UserControllerTest {
 
     @Test
     void changingThePasswordActivatesTheAccount() {
-        users.create("root", UserRole.ADMIN, PasswordState.CHANGE_REQUIRED);
-        final var oldSession = api.session("root", "root");
+        users.createUser("root", UserRole.ADMIN, PasswordState.CHANGE_REQUIRED);
+        final var oldSession = api.startSession("root", "root");
 
         api.changePassword(oldSession.accessToken(), "root", "s3cret").expectStatus().isNoContent();
 
-        final var newSession = api.session("root", "s3cret");
+        final var newSession = api.startSession("root", "s3cret");
 
-        final var me = api.get(ApiRoutes.CURRENT_USER, newSession.accessToken())
+        final var me = api.getWithToken(ApiRoutes.CURRENT_USER, newSession.accessToken())
                 .expectBody(CurrentUserResponse.class)
                 .returnResult().getResponseBody();
         assertThat(me.state()).isEqualTo(SessionState.ACTIVE);
         assertThat(me.permissions()).hasSize(4);
         // Past the password check, so a missing endpoint is no longer refused.
-        api.get("/api/library", newSession.accessToken()).expectStatus().isNotFound();
+        api.getWithToken("/api/library", newSession.accessToken()).expectStatus().isNotFound();
     }
 
     @Test
     void changingThePasswordReplacesTheOldOne() {
-        users.create("alice", UserRole.USER);
-        final var session = api.session("alice", "alice");
+        users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
 
         api.changePassword(session.accessToken(), "alice", "s3cret").expectStatus().isNoContent();
 
@@ -71,20 +71,20 @@ class UserControllerTest {
 
     @Test
     void changingThePasswordEndsEverySession() {
-        users.create("alice", UserRole.USER);
-        final var session = api.session("alice", "alice");
-        final var otherSession = api.session("alice", "alice");
+        users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
+        final var otherSession = api.startSession("alice", "alice");
 
         api.changePassword(session.accessToken(), "alice", "s3cret").expectStatus().isNoContent();
 
-        api.refresh(session.refreshToken()).expectStatus().isUnauthorized();
-        api.refresh(otherSession.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(session.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(otherSession.refreshToken()).expectStatus().isUnauthorized();
     }
 
     @Test
     void changingThePasswordNeedsTheCurrentOne() {
-        users.create("alice", UserRole.USER);
-        final var session = api.session("alice", "alice");
+        users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
 
         api.changePassword(session.accessToken(), "wrong", "s3cret")
                 .expectStatus().isBadRequest()
@@ -93,8 +93,8 @@ class UserControllerTest {
 
     @Test
     void theNewPasswordMustDifferFromTheCurrentOne() {
-        users.create("alice", UserRole.USER);
-        final var session = api.session("alice", "alice");
+        users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
 
         api.changePassword(session.accessToken(), "alice", "alice")
                 .expectStatus().isBadRequest()

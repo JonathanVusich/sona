@@ -32,14 +32,14 @@ public class DefaultPasswordChecker implements PasswordChecker {
     }
 
     @Override
-    public Optional<Users> authenticate(final String username, final String password) {
+    public Optional<Users> checkLogin(final String username, final String password) {
         final var user = userDao.findByUsername(username).orElse(null);
         if (user == null) {
             encoder.matches(password, unknownUserHash);
             return Optional.empty();
         }
         // Users who sign in through an OIDC provider have no password, so they can't log in here.
-        final var stored = passwordDao.find(user.userId()).orElse(null);
+        final var stored = passwordDao.findByUserId(user.userId()).orElse(null);
         if (stored == null) {
             encoder.matches(password, unknownUserHash);
             return Optional.empty();
@@ -52,24 +52,26 @@ public class DefaultPasswordChecker implements PasswordChecker {
     }
 
     @Override
-    public PasswordChange change(final SignedInUser signedIn, final String currentPassword, final String newPassword) {
-        final var user = userDao.find(signedIn.userId()).orElseThrow();
+    public PasswordChange changePassword(final SignedInUser signedIn, final String currentPassword,
+                                         final String newPassword) {
+        final var user = userDao.findById(signedIn.userId()).orElseThrow();
         return switch (user.type()) {
-            case LOCAL -> change(user, currentPassword, newPassword);
+            case LOCAL -> changeLocalPassword(user, currentPassword, newPassword);
             case OIDC -> PasswordChange.MANAGED_BY_PROVIDER;
         };
     }
 
-    private PasswordChange change(final Users user, final String currentPassword, final String newPassword) {
-        final var password = passwordDao.find(user.userId()).orElseThrow();
+    private PasswordChange changeLocalPassword(final Users user, final String currentPassword,
+                                               final String newPassword) {
+        final var password = passwordDao.findByUserId(user.userId()).orElseThrow();
         if (!encoder.matches(currentPassword, password.passwordHash())) {
             return PasswordChange.INCORRECT_CURRENT_PASSWORD;
         }
         if (newPassword == null || newPassword.isBlank() || newPassword.equals(currentPassword)) {
             return PasswordChange.INVALID_NEW_PASSWORD;
         }
-        passwordDao.update(user.userId(), encoder.encode(newPassword));
-        tokenIssuer.revokeAll(user);
+        passwordDao.updateHash(user.userId(), encoder.encode(newPassword));
+        tokenIssuer.endAllSessions(user);
         return PasswordChange.CHANGED;
     }
 }

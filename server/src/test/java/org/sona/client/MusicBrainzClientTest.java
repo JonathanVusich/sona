@@ -34,13 +34,13 @@ class MusicBrainzClientTest {
             .options(wireMockConfig().dynamicPort().usingFilesUnderClasspath("wiremock"))
             .build();
 
-    private final MusicBrainzClient client = client(musicBrainz.baseUrl() + "/ws/2/");
+    private final MusicBrainzClient client = newClient(musicBrainz.baseUrl() + "/ws/2/");
 
     @Test
     void searchRecordings() {
         final var query = new RecordingQuery("A Whisper", "Coldplay", 9, -1);
         musicBrainz.stubFor(get(urlPathEqualTo(RECORDING_PATH))
-                .withQueryParam("query", equalTo(query.build()))
+                .withQueryParam("query", equalTo(query.toQueryString()))
                 .withQueryParam("fmt", equalTo("json"))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
@@ -112,7 +112,7 @@ class MusicBrainzClientTest {
     void sendQueryWithReservedCharactersIntact() {
         final var query = new RecordingQuery("Rock & Roll + {Live} 100%", "Simon & Garfunkel", -1, -1);
         musicBrainz.stubFor(get(urlPathEqualTo(RECORDING_PATH))
-                .withQueryParam("query", equalTo(query.build()))
+                .withQueryParam("query", equalTo(query.toQueryString()))
                 .willReturn(okJson("""
                         {"count": 0, "offset": 0, "recordings": []}
                         """)));
@@ -129,7 +129,7 @@ class MusicBrainzClientTest {
     }
 
     // Built without Spring, so the @RateLimiter aspect doesn't apply.
-    private static MusicBrainzClient client(final String url) {
+    private static MusicBrainzClient newClient(final String url) {
         final var config = new MusicBrainzConfig();
         final var mapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)

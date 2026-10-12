@@ -16,7 +16,7 @@ import java.util.List;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestAuthConfig {
 
-    @Bean(destroyMethod = "stop")
+    @Bean(destroyMethod = "stopServer")
     FakeOidcProvider oidcProvider() throws JOSEException {
         return new FakeOidcProvider();
     }

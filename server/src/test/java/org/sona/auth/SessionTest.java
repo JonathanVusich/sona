@@ -59,9 +59,9 @@ class SessionTest {
 
     @Test
     void refreshReturnsAnAccessTokenAndANewRefreshCookie() {
-        final var first = tokenIssuer.issue(alice);
+        final var first = tokenIssuer.startSession(alice);
 
-        final var result = api.refresh(first.refreshToken())
+        final var result = api.refreshSession(first.refreshToken())
                 .expectStatus().isOk()
                 .expectBody(TokenResponse.class)
                 .returnResult();
@@ -72,12 +72,12 @@ class SessionTest {
                 .startsWith("sona_refresh=")
                 .doesNotContain(first.refreshToken())
                 .contains("Path=/api/auth", "HttpOnly", "Secure", "SameSite=Strict");
-        api.get(ApiRoutes.CURRENT_USER, result.getResponseBody().accessToken()).expectStatus().isOk();
+        api.getWithToken(ApiRoutes.CURRENT_USER, result.getResponseBody().accessToken()).expectStatus().isOk();
     }
 
     @Test
     void aDisabledUserCannotRefreshTheirSession() {
-        final var session = tokenIssuer.issue(alice);
+        final var session = tokenIssuer.startSession(alice);
 
         dsl.update(USERS)
                 .set(USERS.STATE, AccountState.DISABLED)
@@ -85,46 +85,46 @@ class SessionTest {
                 .execute();
 
         // The access token is trusted until it expires, and the refresh is where the account is checked again.
-        api.refresh(session.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(session.refreshToken()).expectStatus().isUnauthorized();
     }
 
     @Test
     void reusingAReplacedRefreshTokenEndsTheSession() {
-        final var first = tokenIssuer.issue(alice);
-        final var second = ApiClient.session(api.refresh(first.refreshToken()));
+        final var first = tokenIssuer.startSession(alice);
+        final var second = ApiClient.readSession(api.refreshSession(first.refreshToken()));
 
-        api.refresh(first.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(first.refreshToken()).expectStatus().isUnauthorized();
 
-        api.refresh(second.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(second.refreshToken()).expectStatus().isUnauthorized();
     }
 
     @Test
     void reuseOnlyEndsTheSessionTheTokenBelongsTo() {
-        final var laptop = tokenIssuer.issue(alice);
-        final var phone = tokenIssuer.issue(alice);
-        ApiClient.session(api.refresh(laptop.refreshToken()));
+        final var laptop = tokenIssuer.startSession(alice);
+        final var phone = tokenIssuer.startSession(alice);
+        ApiClient.readSession(api.refreshSession(laptop.refreshToken()));
 
-        api.refresh(laptop.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(laptop.refreshToken()).expectStatus().isUnauthorized();
 
-        api.refresh(phone.refreshToken()).expectStatus().isOk();
+        api.refreshSession(phone.refreshToken()).expectStatus().isOk();
     }
 
     @Test
     void refreshWithAnUnknownTokenIsRejected() {
-        api.refresh("unknown")
+        api.refreshSession("unknown")
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.code").isEqualTo(102);
     }
 
     @Test
     void logoutEndsTheSession() {
-        final var session = tokenIssuer.issue(alice);
+        final var session = tokenIssuer.startSession(alice);
 
         api.logout(session.refreshToken())
                 .expectStatus().isNoContent()
                 .expectHeader().value(HttpHeaders.SET_COOKIE, cookie -> assertThat(cookie).contains("Max-Age=0"));
 
-        api.refresh(session.refreshToken()).expectStatus().isUnauthorized();
+        api.refreshSession(session.refreshToken()).expectStatus().isUnauthorized();
     }
 
     @Test
@@ -143,7 +143,7 @@ class SessionTest {
 
     @Test
     void logoutRejectsARefreshTokenThatWasAlreadyUsed() {
-        final var session = tokenIssuer.issue(alice);
+        final var session = tokenIssuer.startSession(alice);
         api.logout(session.refreshToken()).expectStatus().isNoContent();
 
         api.logout(session.refreshToken()).expectStatus().isUnauthorized();

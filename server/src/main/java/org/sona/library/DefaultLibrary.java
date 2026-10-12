@@ -61,7 +61,7 @@ public final class DefaultLibrary implements Library {
                 IngestState.PENDING
         );
 
-        trackToIngestDao.store(List.of(trackIngest));
+        trackToIngestDao.storeAll(List.of(trackIngest));
     }
 
     @Override

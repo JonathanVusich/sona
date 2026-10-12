@@ -7,7 +7,7 @@ public record RecordingQuery(
         int totalTracks
 ) {
 
-    public String build() {
+    public String toQueryString() {
         final var query = new StringBuilder();
 
         query.append("\"");

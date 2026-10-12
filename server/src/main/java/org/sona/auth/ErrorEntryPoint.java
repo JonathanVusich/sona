@@ -27,6 +27,6 @@ public final class ErrorEntryPoint implements AuthenticationEntryPoint {
     public void commence(final HttpServletRequest request, final HttpServletResponse response,
                          final AuthenticationException exception) throws IOException, ServletException {
         bearerEntryPoint.commence(request, response, exception);
-        writer.write(response, ErrorCode.NOT_SIGNED_IN);
+        writer.writeError(response, ErrorCode.NOT_SIGNED_IN);
     }
 }

@@ -19,7 +19,7 @@ public final class ErrorResponseWriter {
 
     private final JsonMapper mapper;
 
-    public void write(final HttpServletResponse response, final ErrorCode code) throws IOException {
+    public void writeError(final HttpServletResponse response, final ErrorCode code) throws IOException {
         response.setStatus(code.getStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         mapper.writeValue(response.getOutputStream(), new ErrorResponse(code));

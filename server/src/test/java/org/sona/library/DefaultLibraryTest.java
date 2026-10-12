@@ -80,13 +80,13 @@ class DefaultLibraryTest {
 
         library.importTrack(ingestTrack, path);
 
-        try (final var imported = library.readTrack(track(path, ingestTrack.trackIngestId()))) {
+        try (final var imported = library.readTrack(newTrack(path, ingestTrack.trackIngestId()))) {
             assertThat(imported.readAllBytes()).isEqualTo(bytes);
         }
         assertThatThrownBy(() -> library.readIngestTrack(ingestTrack)).isInstanceOf(NoSuchFileException.class);
     }
 
-    private static Track track(final String path, final UUID trackIngestId) {
+    private static Track newTrack(final String path, final UUID trackIngestId) {
         return new Track(TRACK_ID, "A Whisper", 10, AudioFormat.FLAC, path, null, null, trackIngestId);
     }
 }

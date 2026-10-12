@@ -25,22 +25,22 @@ public final class MusicBrainzResolver implements MetadataResolver {
 
     @Override
     public Optional<ResolvedTrack> resolveTrack(final TrackToIngest trackToIngest, final RawMetadata metadata) throws IOException, InterruptedException {
-        final int trackNumber = metadata.search(Tag.TRACK_NUMBER).stream()
+        final int trackNumber = metadata.findValues(Tag.TRACK_NUMBER).stream()
                 .findFirst()
                 .flatMap(this::toInt)
                 .orElse(-1);
 
-        final var trackName = metadata.search(Tag.TRACK_TITLE).stream()
+        final var trackName = metadata.findValues(Tag.TRACK_TITLE).stream()
                 .findFirst()
                 .flatMap(this::toStr)
                 .orElse(trackToIngest.originalFileName());
 
-        final var artist = metadata.search(Tag.TRACK_ARTIST).stream()
+        final var artist = metadata.findValues(Tag.TRACK_ARTIST).stream()
                 .findFirst()
                 .flatMap(this::toStr)
                 .orElse(null);
 
-        final var albumArtists = metadata.search(Tag.ALBUM_ARTIST).stream()
+        final var albumArtists = metadata.findValues(Tag.ALBUM_ARTIST).stream()
                 .findFirst()
                 .flatMap(this::toStr)
                 .stream()

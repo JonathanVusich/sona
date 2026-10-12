@@ -27,7 +27,7 @@ public class RefreshTokenDao {
                 .execute();
     }
 
-    public Optional<RefreshToken> find(String tokenHash) {
+    public Optional<RefreshToken> findByHash(String tokenHash) {
         return dsl.selectFrom(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
                 .fetchOptional(mapper::fromRecord);

@@ -47,19 +47,19 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private final AuthProperties properties;
 
     @Override
-    public Tokens issue(final Users user) {
-        return issue(user, uuidv7());
+    public Tokens startSession(final Users user) {
+        return issueTokens(user, uuidv7());
     }
 
     @Override
-    public Tokens issue(final Users user, final String providerRefreshToken) {
+    public Tokens startSession(final Users user, final String providerRefreshToken) {
         final var familyId = uuidv7();
         oidcSessionDao.upsert(new OidcSession(familyId, user.userId(), providerRefreshToken));
-        return issue(user, familyId);
+        return issueTokens(user, familyId);
     }
 
     @Override
-    public Optional<Tokens> refresh(final String refreshToken) {
+    public Optional<Tokens> refreshSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
         final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
         if (used == null) {
@@ -67,34 +67,34 @@ public class DefaultTokenIssuer implements TokenIssuer {
             return Optional.empty();
         }
         // Checked here because access tokens are trusted as they are until they expire.
-        final var user = userDao.find(used.userId())
+        final var user = userDao.findById(used.userId())
                 .filter(found -> found.state() == AccountState.ACTIVE)
                 .orElse(null);
         if (user == null || !stillAllowed(user, used.familyId())) {
-            endSession(used.familyId());
+            endFamily(used.familyId());
             return Optional.empty();
         }
-        return Optional.of(issue(user, used.familyId()));
+        return Optional.of(issueTokens(user, used.familyId()));
     }
 
     @Override
-    public boolean revoke(final String refreshToken) {
+    public boolean endSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
         final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
             return false;
         }
-        endSession(used.familyId());
+        endFamily(used.familyId());
         return true;
     }
 
     @Override
-    public void revokeAll(final Users user) {
+    public void endAllSessions(final Users user) {
         refreshTokenDao.revokeAll(user.userId());
     }
 
-    private Tokens issue(final Users user, final UUID familyId) {
+    private Tokens issueTokens(final Users user, final UUID familyId) {
         final var refreshToken = randomToken();
         final var expiresAt = Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
         refreshTokenDao.insert(new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
@@ -108,13 +108,13 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private boolean stillAllowed(final Users user, final UUID familyId) {
         return switch (user.type()) {
             case LOCAL -> true;
-            case OIDC -> oidcSessionDao.find(familyId)
-                    .map(providerClient::refresh)
+            case OIDC -> oidcSessionDao.findByFamilyId(familyId)
+                    .map(providerClient::refreshSession)
                     .orElse(false);
         };
     }
 
-    private void endSession(final UUID familyId) {
+    private void endFamily(final UUID familyId) {
         refreshTokenDao.revokeFamily(familyId);
         oidcSessionDao.delete(familyId);
     }
@@ -136,7 +136,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
 
     private SessionState sessionState(final Users user) {
         return switch (user.type()) {
-            case LOCAL -> sessionState(passwordDao.find(user.userId()).orElseThrow());
+            case LOCAL -> sessionState(passwordDao.findByUserId(user.userId()).orElseThrow());
             // The provider manages the password.
             case OIDC -> SessionState.ACTIVE;
         };
@@ -150,9 +150,9 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        refreshTokenDao.find(tokenHash)
+        refreshTokenDao.findByHash(tokenHash)
                 .filter(token -> token.revokedAt() != null)
-                .ifPresent(token -> endSession(token.familyId()));
+                .ifPresent(token -> endFamily(token.familyId()));
     }
 
     private static String randomToken() {

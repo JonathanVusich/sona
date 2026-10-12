@@ -25,14 +25,14 @@ public final class SonaJwtConverter implements Converter<Jwt, UserAuthentication
 
     @Override
     public UserAuthentication convert(final Jwt jwt) {
-        final var role = role(jwt.getClaimAsString(ROLE_CLAIM));
-        final var state = state(jwt.getClaimAsString(STATE_CLAIM));
+        final var role = parseRole(jwt.getClaimAsString(ROLE_CLAIM));
+        final var state = parseState(jwt.getClaimAsString(STATE_CLAIM));
         final var userId = UUID.fromString(jwt.getSubject());
         final var user = new SignedInUser(userId, jwt.getClaimAsString(USERNAME_CLAIM), role, state);
         return new UserAuthentication(user, jwt);
     }
 
-    private static UserRole role(final String claim) {
+    private static UserRole parseRole(final String claim) {
         return switch (claim) {
             case "ADMIN" -> UserRole.ADMIN;
             case "USER" -> UserRole.USER;
@@ -40,7 +40,7 @@ public final class SonaJwtConverter implements Converter<Jwt, UserAuthentication
         };
     }
 
-    private static SessionState state(final String claim) {
+    private static SessionState parseState(final String claim) {
         return switch (claim) {
             case "ACTIVE" -> SessionState.ACTIVE;
             case "PASSWORD_CHANGE_REQUIRED" -> SessionState.PASSWORD_CHANGE_REQUIRED;
