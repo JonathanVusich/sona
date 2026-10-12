@@ -9,7 +9,7 @@ create table if not exists release_group (
     type release_group_type,
     -- The group's earliest release anywhere. Like release.date, parts MusicBrainz doesn't know are the first.
     first_release_date date,
-    artist_id uuid references artist (artist_id),
+    artist_id uuid not null references artist (artist_id),
 
     -- Nullable in case it is not found in the MB database.
     musicbrainz_release_group_id uuid unique

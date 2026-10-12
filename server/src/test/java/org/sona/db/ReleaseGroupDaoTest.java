@@ -8,6 +8,7 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -23,7 +24,7 @@ class ReleaseGroupDaoTest {
 
     @Test
     void upsertInsertsNewReleaseGroup() {
-        final var releaseGroup = new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), null, uuidv7());
+        final var releaseGroup = new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), artistId(), uuidv7());
 
         assertThat(dao.upsert(releaseGroup)).isEqualTo(releaseGroup);
     }
@@ -31,11 +32,12 @@ class ReleaseGroupDaoTest {
     @Test
     void upsertOverwritesReleaseGroupWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new ReleaseGroup(uuidv7(), "Old Name", ReleaseGroupType.SINGLE, LocalDate.of(2002, 1, 1), null, musicbrainzId));
+        final var stored = dao.upsert(new ReleaseGroup(uuidv7(), "Old Name", ReleaseGroupType.SINGLE, LocalDate.of(2002, 1, 1), artistId(), musicbrainzId));
+        final var newArtistId = artistId();
 
-        final var refreshed = dao.upsert(new ReleaseGroup(uuidv7(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), null, musicbrainzId));
+        final var refreshed = dao.upsert(new ReleaseGroup(uuidv7(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, musicbrainzId));
 
-        assertThat(refreshed).isEqualTo(new ReleaseGroup(stored.releaseGroupId(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), null, musicbrainzId));
+        assertThat(refreshed).isEqualTo(new ReleaseGroup(stored.releaseGroupId(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, musicbrainzId));
     }
 
     @Test
@@ -47,11 +49,7 @@ class ReleaseGroupDaoTest {
                 .contains(new ReleaseGroupWithArtist(releaseGroup, artist));
     }
 
-    @Test
-    void loadWithArtistLeavesTheArtistNullWhenThereIsNone() {
-        final var releaseGroup = dao.upsert(new ReleaseGroup(uuidv7(), "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10), null, uuidv7()));
-
-        assertThat(dao.loadWithArtist(releaseGroup.releaseGroupId()))
-                .contains(new ReleaseGroupWithArtist(releaseGroup, null));
+    private UUID artistId() {
+        return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7())).artistId();
     }
 }

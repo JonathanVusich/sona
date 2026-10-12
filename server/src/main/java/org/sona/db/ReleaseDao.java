@@ -104,7 +104,7 @@ public class ReleaseDao {
     selectDetails() {
         return dsl.select(RELEASE, ARTIST, labels(), media())
                 .from(RELEASE)
-                .leftJoin(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID));
+                .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID));
     }
 
     private static Field<Result<LabelRecord>> labels() {

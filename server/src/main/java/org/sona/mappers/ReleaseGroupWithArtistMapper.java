@@ -11,7 +11,7 @@ import org.sona.model.tables.records.ReleaseGroupRecord;
 public interface ReleaseGroupWithArtistMapper {
 
     @Mapping(target = "releaseGroup", source = "releaseGroup")
-    @Mapping(target = "artist", source = "artist", qualifiedByName = "fromJoinedRecord")
+    @Mapping(target = "artist", source = "artist")
     ReleaseGroupWithArtist fromRecords(ReleaseGroupRecord releaseGroup, ArtistRecord artist);
 
     default ReleaseGroupWithArtist fromRecord(final Record2<ReleaseGroupRecord, ArtistRecord> record) {

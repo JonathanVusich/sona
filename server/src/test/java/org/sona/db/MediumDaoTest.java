@@ -2,6 +2,7 @@ package org.sona.db;
 
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
+import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
@@ -22,6 +23,8 @@ class MediumDaoTest {
     ReleaseDao releaseDao;
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    ArtistDao artistDao;
 
     @Test
     void upsertAllInsertsNewMedia() {
@@ -43,9 +46,10 @@ class MediumDaoTest {
     }
 
     private UUID releaseId() {
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(
-                new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, null, uuidv7()));
+                new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artist.artistId(), uuidv7()));
         return releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null,
-                releaseGroup.releaseGroupId(), null, uuidv7())).releaseId();
+                releaseGroup.releaseGroupId(), artist.artistId(), uuidv7())).releaseId();
     }
 }

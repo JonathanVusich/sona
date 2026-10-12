@@ -8,9 +8,9 @@ create table if not exists release (
     -- ISO 3166-1 code, or a MusicBrainz code like "XW" for worldwide.
     country text,
     release_group_id uuid not null references release_group (release_group_id),
+    artist_id uuid not null references artist (artist_id),
 
-    -- These fields are nullable in case they are not found in the MB database.
-    artist_id uuid references artist (artist_id),
+    -- Nullable in case it is not found in the MB database.
     musicbrainz_release_id uuid unique
 );
 

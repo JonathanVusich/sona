@@ -17,7 +17,7 @@ import java.util.List;
 public interface ReleaseDetailsMapper {
 
     @Mapping(target = "release", source = "release")
-    @Mapping(target = "artist", source = "artist", qualifiedByName = "fromJoinedRecord")
+    @Mapping(target = "artist", source = "artist")
     @Mapping(target = "labels", source = "labels")
     @Mapping(target = "media", source = "media")
     ReleaseDetails fromRecords(ReleaseRecord release, ArtistRecord artist, List<LabelRecord> labels,

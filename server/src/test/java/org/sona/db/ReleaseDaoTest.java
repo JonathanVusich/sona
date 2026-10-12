@@ -44,13 +44,13 @@ class ReleaseDaoTest {
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
         final var stored = dao.upsert(new Release(uuidv7(), "Old Name", null, LocalDate.of(2002, 1, 1), "GB",
-                releaseGroupId(), null, musicbrainzId));
+                releaseGroupId(), artistId(), musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
         final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
         assertThat(refreshed).isEqualTo(new Release(stored.releaseId(), "New Name", null, LocalDate.of(2002, 8, 26),
-                "XW", newReleaseGroupId, null, musicbrainzId));
+                "XW", newReleaseGroupId, refreshed.artistId(), musicbrainzId));
     }
 
     @Test
@@ -71,9 +71,10 @@ class ReleaseDaoTest {
     @Test
     void loadDetailsByReleaseGroupListsTheEarliestFirst() {
         final var releaseGroupId = releaseGroupId();
-        final var undated = dao.upsert(new Release(uuidv7(), "Promo", null, null, null, releaseGroupId, null, uuidv7()));
+        final var undated = dao.upsert(new Release(uuidv7(), "Promo", null, null, null, releaseGroupId, artistId(),
+                uuidv7()));
         final var reissue = dao.upsert(new Release(uuidv7(), "Reissue", null, LocalDate.of(2008, 1, 1), null,
-                releaseGroupId, null, uuidv7()));
+                releaseGroupId, artistId(), uuidv7()));
         final var original = dao.upsert(newRelease("Original", releaseGroupId, uuidv7()));
 
         assertThat(dao.loadDetailsByReleaseGroup(releaseGroupId))
@@ -88,11 +89,16 @@ class ReleaseDaoTest {
     }
 
     private UUID releaseGroupId() {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, null, uuidv7()))
-                .releaseGroupId();
+        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artistId(),
+                uuidv7())).releaseGroupId();
     }
 
-    private static Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
-        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", releaseGroupId, null, musicbrainzId);
+    private UUID artistId() {
+        return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7())).artistId();
+    }
+
+    private Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
+        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", releaseGroupId, artistId(),
+                musicbrainzId);
     }
 }

@@ -103,7 +103,7 @@ public class ReleaseGroupDao {
     private SelectOnConditionStep<Record2<ReleaseGroupRecord, ArtistRecord>> selectWithArtist() {
         return dsl.select(RELEASE_GROUP, ARTIST)
                 .from(RELEASE_GROUP)
-                .leftJoin(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID));
+                .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID));
     }
 
     private static Condition afterByName(final UUID after) {
