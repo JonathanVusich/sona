@@ -1,6 +1,5 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { describeError } from "../api/client";
 import { currentUser, logIn } from "../auth";
 
 export default function Login() {
@@ -13,13 +12,9 @@ export default function Login() {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
     setPending(true);
-    try {
-      await logIn({ username: username().trim(), password: password() });
-    } catch (failure) {
-      setError(describeError(failure));
-    } finally {
-      setPending(false);
-    }
+    const result = await logIn({ username: username().trim(), password: password() });
+    setPending(false);
+    setError(result.ok ? null : result.failure.reason);
   };
 
   return (

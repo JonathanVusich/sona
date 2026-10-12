@@ -1,6 +1,5 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { describeError } from "../api/client";
 import { changePassword, currentUser, logOut } from "../auth";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
@@ -19,13 +18,9 @@ export default function ChangePassword() {
       return;
     }
     setPending(true);
-    try {
-      await changePassword({ currentPassword: currentPassword(), newPassword: newPassword() });
-    } catch (failure) {
-      setError(describeError(failure));
-    } finally {
-      setPending(false);
-    }
+    const result = await changePassword({ currentPassword: currentPassword(), newPassword: newPassword() });
+    setPending(false);
+    setError(result.ok ? null : result.failure.reason);
   };
 
   return (

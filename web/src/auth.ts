@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import * as api from "./api/client";
-import { ClientError } from "./api/client";
+import type { ApiResult } from "./api/client";
 import type { ChangePasswordRequest, LoginRequest } from "./api/requests";
 import { ErrorCode, type CurrentUserResponse, type Permission, type TokenResponse } from "./api/responses";
 
@@ -17,6 +17,12 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   LIBRARY_WRITE: "write",
   LIBRARY_UPLOAD: "upload",
   USERS_MANAGE: "manage users",
+};
+
+const SUCCEEDED: ApiResult<void> = { ok: true, body: undefined };
+const NOT_SIGNED_IN: ApiResult<never> = {
+  ok: false,
+  failure: { code: ErrorCode.NOT_SIGNED_IN, reason: "Sign in to continue." },
 };
 
 const [session, setSession] = createSignal<Session | null>(null);
@@ -37,17 +43,19 @@ export async function restoreSession(): Promise<void> {
   await refreshSession();
 }
 
-export async function logIn(request: LoginRequest): Promise<void> {
-  await startSession(await api.login(request));
+export async function logIn(request: LoginRequest): Promise<ApiResult<void>> {
+  const tokens = await api.login(request);
+  if (!tokens.ok) {
+    return tokens;
+  }
+  const started = await startSession(tokens.body);
   otherTabs.postMessage("changed");
+  return started;
 }
 
 export async function logOut(): Promise<void> {
-  try {
-    await api.logout();
-  } catch {
-    // The session has already ended, or Sona can't be reached; either way this tab forgets it.
-  }
+  // If the session has already ended, or Sona can't be reached, this tab forgets it all the same.
+  await api.logout();
   endSession();
   otherTabs.postMessage("changed");
 }
@@ -55,10 +63,16 @@ export async function logOut(): Promise<void> {
 /**
  * Changes the password, which ends every session the user has, then logs in again with the new one.
  */
-export async function changePassword(request: ChangePasswordRequest): Promise<void> {
-  const username = requireSession().user.username;
-  await sendAsCurrentUser((accessToken) => api.changePassword(accessToken, request));
-  await logIn({ username, password: request.newPassword });
+export async function changePassword(request: ChangePasswordRequest): Promise<ApiResult<void>> {
+  const current = session();
+  if (current === null) {
+    return NOT_SIGNED_IN;
+  }
+  const changed = await sendAsCurrentUser((accessToken) => api.changePassword(accessToken, request));
+  if (!changed.ok) {
+    return changed;
+  }
+  return logIn({ username: current.user.username, password: request.newPassword });
 }
 
 export function hasPermission(permission: Permission): boolean {
@@ -68,15 +82,17 @@ export function hasPermission(permission: Permission): boolean {
 /**
  * Calls Sona as the current user. An expired access token is refreshed once and the call made again.
  */
-export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promise<T>): Promise<T> {
-  try {
-    return await call(requireSession().accessToken);
-  } catch (error) {
-    if (error instanceof ClientError && error.code === ErrorCode.NOT_SIGNED_IN && (await refreshSession())) {
-      return await call(requireSession().accessToken);
-    }
-    throw error;
+export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
+  const result = await sendWithSession(call);
+  if (result.ok || result.failure.code !== ErrorCode.NOT_SIGNED_IN || !(await refreshSession())) {
+    return result;
   }
+  return sendWithSession(call);
+}
+
+async function sendWithSession<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
+  const current = session();
+  return current === null ? NOT_SIGNED_IN : call(current.accessToken);
 }
 
 /**
@@ -86,11 +102,9 @@ export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promis
  */
 async function refreshSession(): Promise<boolean> {
   pendingRefresh ??= refreshSessionLocked();
-  try {
-    return await pendingRefresh;
-  } finally {
-    pendingRefresh = null;
-  }
+  const refreshed = await pendingRefresh;
+  pendingRefresh = null;
+  return refreshed;
 }
 
 /**
@@ -103,36 +117,32 @@ async function refreshSessionLocked(): Promise<boolean> {
     return false;
   }
   return await navigator.locks.request("sona-refresh", async () => {
-    try {
-      await startSession(await api.refreshTokens());
-      return true;
-    } catch (error) {
-      if (error instanceof ClientError && error.code === ErrorCode.INVALID_REFRESH_TOKEN) {
+    const tokens = await api.refreshTokens();
+    if (!tokens.ok) {
+      if (tokens.failure.code === ErrorCode.INVALID_REFRESH_TOKEN) {
         endSession();
       }
       return false;
     }
+    const started = await startSession(tokens.body);
+    return started.ok;
   });
 }
 
-async function startSession(tokens: TokenResponse): Promise<void> {
+async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
   const user = await api.fetchCurrentUser(tokens.accessToken);
-  setSession({ accessToken: tokens.accessToken, user });
+  if (!user.ok) {
+    return user;
+  }
+  setSession({ accessToken: tokens.accessToken, user: user.body });
   clearTimeout(refreshTimer);
   // A minute early, or halfway through for tokens that last less than two minutes.
   const refreshIn = Math.max(tokens.expiresIn - 60, tokens.expiresIn / 2);
   refreshTimer = setTimeout(refreshSession, refreshIn * 1000);
+  return SUCCEEDED;
 }
 
 function endSession() {
   clearTimeout(refreshTimer);
   setSession(null);
-}
-
-function requireSession(): Session {
-  const current = session();
-  if (current === null) {
-    throw new ClientError(401, { code: ErrorCode.NOT_SIGNED_IN, reason: "Sign in to continue." });
-  }
-  return current;
 }
