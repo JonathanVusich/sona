@@ -60,8 +60,9 @@ class ReleaseDaoTest {
                 LocalDate.of(2002, 8, 26), "GB", releaseGroupId(), artist.artistId(), uuidv7()));
         final var parlophone = storeLabel(release, "Parlophone");
         final var capitol = storeLabel(release, "Capitol");
-        final var disc2 = mediumDao.upsert(new Medium(uuidv7(), release.releaseId(), 2, "DVD"));
-        final var disc1 = mediumDao.upsert(new Medium(uuidv7(), release.releaseId(), 1, "CD"));
+        final var disc2 = new Medium(uuidv7(), release.releaseId(), 2, "DVD");
+        final var disc1 = new Medium(uuidv7(), release.releaseId(), 1, "CD");
+        mediumDao.upsertAll(List.of(disc2, disc1));
 
         assertThat(dao.loadDetails(release.releaseId())).contains(
                 new ReleaseDetails(release, artist, List.of(capitol, parlophone), List.of(disc1, disc2)));
@@ -81,8 +82,8 @@ class ReleaseDaoTest {
     }
 
     private Label storeLabel(final Release release, final String name) {
-        final var label = labelDao.upsert(new Label(uuidv7(), name, uuidv7()));
-        releaseLabelDao.upsert(new ReleaseLabel(release.releaseId(), label.labelId()));
+        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), name, uuidv7()))).getFirst();
+        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
         return label;
     }
 
