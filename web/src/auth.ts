@@ -63,7 +63,7 @@ export async function logIn(request: LoginRequest): Promise<ApiResult<void>> {
 
 export async function logOut(): Promise<void> {
   // If the session has already ended, or Sona can't be reached, this tab forgets it all the same.
-  await api.logout();
+  await logOutLocked();
   endSession();
   otherTabs.postMessage(SessionEvent.CHANGED);
 }
@@ -135,6 +135,18 @@ async function refreshSessionLocked(): Promise<boolean> {
     const started = await startSession(tokens.body);
     return started.ok;
   });
+}
+
+/**
+ * Ends the session at Sona once no tab is refreshing it, so it sends the newest refresh cookie rather than one another
+ * tab is replacing.
+ */
+async function logOutLocked(): Promise<ApiResult<void>> {
+  // Without a secure context there is no refresh cookie to end the session with.
+  if (!window.isSecureContext) {
+    return NOT_SIGNED_IN;
+  }
+  return await navigator.locks.request(REFRESH_LOCK, () => api.logout());
 }
 
 async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
