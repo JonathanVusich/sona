@@ -2,7 +2,6 @@ package org.sona.metadata.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.client.MusicBrainzClient;
-import org.sona.client.model.Artist;
 import org.sona.client.model.Recording;
 import org.sona.client.model.query.RecordingQuery;
 import org.sona.metadata.RawMetadata;
@@ -27,22 +26,22 @@ public final class MusicBrainzResolver implements MetadataResolver {
     public Optional<ResolvedTrack> resolveTrack(final TrackToIngest trackToIngest, final RawMetadata metadata) throws IOException, InterruptedException {
         final int trackNumber = metadata.findValues(Tag.TRACK_NUMBER).stream()
                 .findFirst()
-                .flatMap(this::toInt)
+                .flatMap(TagValue::asInt)
                 .orElse(-1);
 
         final var trackName = metadata.findValues(Tag.TRACK_TITLE).stream()
                 .findFirst()
-                .flatMap(this::toStr)
+                .flatMap(TagValue::asString)
                 .orElse(trackToIngest.originalFileName());
 
         final var artist = metadata.findValues(Tag.TRACK_ARTIST).stream()
                 .findFirst()
-                .flatMap(this::toStr)
+                .flatMap(TagValue::asString)
                 .orElse(null);
 
         final var albumArtists = metadata.findValues(Tag.ALBUM_ARTIST).stream()
                 .findFirst()
-                .flatMap(this::toStr)
+                .flatMap(TagValue::asString)
                 .stream()
                 .flatMap(this::semicolonSplit) // Picard groups multiple artists into a single value tag.
                 .toList();
@@ -101,35 +100,17 @@ public final class MusicBrainzResolver implements MetadataResolver {
         return new ResolvedTrack(
                 recording.id(),
                 recording.title(),
-                resolvedArtist(artist),
+                new ResolvedArtist(artist),
                 release.id(),
                 release.title(),
-                resolvedArtist(releaseArtist),
+                new ResolvedArtist(releaseArtist),
                 release.releaseGroup().id(),
                 release.releaseGroup().title()
         );
     }
 
-    private static ResolvedArtist resolvedArtist(final Artist artist) {
-        return new ResolvedArtist(artist.id(), artist.name());
-    }
-
-    private Optional<String> toStr(final TagValue tagValue) {
-        return switch (tagValue) {
-            case TagValue.Str(String val) -> Optional.of(val);
-            default -> Optional.empty();
-        };
-    }
-
     private Stream<String> semicolonSplit(final String tagValue) {
         return Arrays.stream(tagValue.split(";"))
                 .map(String::strip);
-    }
-
-    private Optional<Integer> toInt(final TagValue tagValue) {
-        return switch (tagValue) {
-            case TagValue.Int(int val) -> Optional.of(val);
-            default -> Optional.empty();
-        };
     }
 }

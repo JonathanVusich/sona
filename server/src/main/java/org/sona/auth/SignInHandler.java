@@ -5,9 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.config.properties.AuthProperties;
-import org.sona.config.properties.OidcProvider;
 import org.sona.controller.response.ErrorCode;
-import org.sona.model.enums.UserRole;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -24,8 +22,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -60,7 +56,15 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     @Override
     public void onAuthenticationSuccess(final HttpServletRequest request, final HttpServletResponse response,
                                         final Authentication authentication) throws IOException {
-        final var token = (OAuth2AuthenticationToken) authentication;
+        switch (authentication) {
+            case OAuth2AuthenticationToken token when token.getPrincipal() instanceof OidcUser oidcUser ->
+                    signIn(request, response, token, oidcUser);
+            default -> throw new IllegalStateException("OAuth2 login finished without an OIDC user");
+        }
+    }
+
+    private void signIn(final HttpServletRequest request, final HttpServletResponse response,
+                        final OAuth2AuthenticationToken token, final OidcUser oidcUser) throws IOException {
         final var providerId = token.getAuthorizedClientRegistrationId();
         // Read from the sign-in session, so before it ends.
         final OAuth2AuthorizedClient client = authorizedClients.loadAuthorizedClient(providerId, token, request);
@@ -72,7 +76,7 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
             response.sendRedirect(errorRedirect(ErrorCode.SIGN_IN_FAILED));
             return;
         }
-        final var user = providerUser(providerId, (OidcUser) token.getPrincipal());
+        final var user = providerUser(providerId, oidcUser);
         switch (accountRegistrar.signIn(user, refreshToken.getTokenValue())) {
             case OidcSignIn.SignedIn signedIn -> {
                 final var cookie = refreshCookies.issueCookie(signedIn.tokens().refreshToken());
@@ -126,18 +130,8 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
 
     private ProviderUser providerUser(final String providerId, final OidcUser oidcUser) {
         final var provider = discoveryClient.findProvider(providerId).orElseThrow();
-        final var role = providerRole(provider, oidcUser);
+        final var role = provider.userRole(oidcUser);
         return new ProviderUser(providerId, provider.issuerUri(), oidcUser.getSubject(), role);
-    }
-
-    private static UserRole providerRole(final OidcProvider provider, final OidcUser user) {
-        final var values = Objects.requireNonNullElse(user.getClaimAsStringList(provider.roleClaim()),
-                List.<String>of());
-        final var admin = values.stream().anyMatch(provider.adminValues()::contains);
-        if (admin) {
-            return UserRole.ADMIN;
-        }
-        return UserRole.USER;
     }
 
     private String registerRedirect(final OidcSignIn.RegistrationRequired required) {
