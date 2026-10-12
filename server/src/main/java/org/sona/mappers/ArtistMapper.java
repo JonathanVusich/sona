@@ -9,4 +9,14 @@ public interface ArtistMapper {
 
     ArtistRecord toRecord(Artist artist);
     Artist fromRecord(ArtistRecord artist);
+
+    /**
+     * @return the artist, or null when a left join found none, which gives a record of nulls rather than null
+     */
+    default Artist fromJoinedRecord(final ArtistRecord artist) {
+        if (artist.getArtistId() == null) {
+            return null;
+        }
+        return fromRecord(artist);
+    }
 }

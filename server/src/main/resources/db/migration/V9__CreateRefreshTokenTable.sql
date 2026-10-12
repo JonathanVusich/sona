@@ -12,3 +12,4 @@ create table if not exists refresh_token (
 );
 
 create index if not exists refresh_token_family_id_idx on refresh_token (family_id);
+create index if not exists refresh_token_user_id_idx on refresh_token (user_id);

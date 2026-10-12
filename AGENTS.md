@@ -122,7 +122,9 @@ Test notes:
   + `TestcontainersConfig` (throwaway `postgres:18`, migrated by Flyway on startup) + `TestLibraryConfig`
   (in-memory Jimfs library folders, MusicBrainz pointed at a WireMock server) + `TestAuthConfig` (users can sign in
   through a `FakeOidcProvider`, a WireMock OIDC provider that signs ID tokens and answers token requests). Tests
-  commit, and `TruncateTablesExtension` empties every table afterwards. Needs Docker.
+  commit, and `TruncateTablesExtension` empties every table afterwards. `TestQueryPlanConfig` EXPLAINs every jOOQ
+  query with sequential scans off, and `IndexedQueryListener` fails the test if any table of Sona's is scanned in
+  full, so a query without an index fails the first test that runs it. Needs Docker.
 - HTTP tests call the real port through `ApiClient` (a Spring `RestTestClient`), so they pass through the security
   filters. `TestTokens` signs access tokens as Sona does, and `TestUsers` creates local users whose password is their
   username.
@@ -195,6 +197,7 @@ Match the surrounding code. The conventions below are consistent across the code
 - Map between jOOQ records and pojos with MapStruct (`@Mapper(componentModel = "spring")`), and build API responses
   from pojos with MapStruct too. DAOs return their table's pojos, not per-caller column picks (`Records.mapping`,
   `fetchInto`).
+- Every query is served by an index (the scale target is 500k+ tracks); the integration tests enforce it.
 - Migrations are lowercase SQL, `create table if not exists`, `uuid` primary keys named `<table>_id`, one table per
   migration.
 
