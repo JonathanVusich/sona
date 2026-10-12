@@ -1,6 +1,6 @@
 import { A, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
-import { ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
 import Cover from "../components/Cover";
 import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
@@ -86,7 +86,7 @@ export default function ReleaseDetail() {
             </Show>
             <Show when={moreByArtist().length > 0}>
               <Section title={`More by ${artist()?.name ?? "this artist"}`}>
-                <ReleaseGroupGrid groups={moreByArtist()} layout="row" subtitle="year" />
+                <ReleaseGroupGrid groups={moreByArtist()} layout={CardLayout.ROW} subtitle={CardSubtitle.YEAR} />
               </Section>
             </Show>
           </PageLayout>

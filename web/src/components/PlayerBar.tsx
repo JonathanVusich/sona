@@ -3,9 +3,10 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { formatTime } from "../format";
 import { contextOf } from "../library";
 import * as player from "../player";
+import { RepeatMode } from "../player";
 import Cover from "./Cover";
 import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, VolumeIcon } from "./Icons";
-import Slider from "./Slider";
+import Slider, { SliderSize } from "./Slider";
 
 export default function PlayerBar() {
   // While the scrub thumb is held, show where it is instead of the playback position.
@@ -36,7 +37,7 @@ export default function PlayerBar() {
       {/* Runs along the top edge of the bar; the hit area reaches above it so the thumb is easy to grab. */}
       <div class="player-scrub">
         <Slider
-          size="large"
+          size={SliderSize.LARGE}
           label="Seek"
           value={shownPosition()}
           max={duration()}
@@ -98,12 +99,12 @@ export default function PlayerBar() {
         </button>
         <button
           class="icon-button toggle optional"
-          classList={{ on: player.repeat() !== "off" }}
+          classList={{ on: player.repeat() !== RepeatMode.OFF }}
           aria-label={`Repeat: ${player.repeat()}`}
-          aria-pressed={player.repeat() !== "off"}
+          aria-pressed={player.repeat() !== RepeatMode.OFF}
           onClick={() => player.cycleRepeat()}
         >
-          <RepeatIcon size={18} one={player.repeat() === "one"} />
+          <RepeatIcon size={18} one={player.repeat() === RepeatMode.ONE} />
         </button>
       </div>
 
@@ -115,7 +116,7 @@ export default function PlayerBar() {
           <VolumeIcon size={18} muted={shownVolume() === 0} />
         </button>
         <Slider
-          size="small"
+          size={SliderSize.SMALL}
           label="Volume"
           value={shownVolume()}
           max={1}

@@ -3,7 +3,13 @@ import { markPlayed, type Track } from "./library";
 
 // Playback state. The clock is simulated until the backend streams audio.
 
-export type RepeatMode = "off" | "all" | "one";
+export const RepeatMode = {
+  OFF: "off",
+  ALL: "all",
+  ONE: "one",
+} as const;
+
+export type RepeatMode = (typeof RepeatMode)[keyof typeof RepeatMode];
 
 const [queue, setQueue] = createSignal<Track[]>([]);
 // Play order as indexes into the queue; shuffled when shuffle is on.
@@ -15,7 +21,7 @@ const [position, setPosition] = createSignal(0);
 const [volume, setVolumeLevel] = createSignal(0.8);
 const [muted, setMuted] = createSignal(false);
 const [shuffle, setShuffle] = createSignal(false);
-const [repeat, setRepeat] = createSignal<RepeatMode>("off");
+const [repeat, setRepeat] = createSignal<RepeatMode>(RepeatMode.OFF);
 
 export { playing, position, volume, muted, shuffle, repeat };
 
@@ -56,7 +62,7 @@ export function next() {
 
 export function previous() {
   // Like most players: restart the track unless it has only just begun.
-  if (position() > 3 || (cursor() === 0 && repeat() === "off")) {
+  if (position() > 3 || (cursor() === 0 && repeat() === RepeatMode.OFF)) {
     setPosition(0);
     return;
   }
@@ -89,7 +95,18 @@ export function toggleShuffle() {
 }
 
 export function cycleRepeat() {
-  setRepeat((mode) => (mode === "off" ? "all" : mode === "all" ? "one" : "off"));
+  setRepeat(nextRepeatMode);
+}
+
+function nextRepeatMode(mode: RepeatMode): RepeatMode {
+  switch (mode) {
+    case RepeatMode.OFF:
+      return RepeatMode.ALL;
+    case RepeatMode.ALL:
+      return RepeatMode.ONE;
+    case RepeatMode.ONE:
+      return RepeatMode.OFF;
+  }
 }
 
 export function setVolume(level: number) {
@@ -122,12 +139,12 @@ function startTrack() {
 }
 
 function advance(trackEnded: boolean) {
-  if (trackEnded && repeat() === "one") {
+  if (trackEnded && repeat() === RepeatMode.ONE) {
     setPosition(0);
   } else if (cursor() + 1 < order().length) {
     setCursor(cursor() + 1);
     startTrack();
-  } else if (repeat() !== "off") {
+  } else if (repeat() !== RepeatMode.OFF) {
     setCursor(0);
     startTrack();
   } else {

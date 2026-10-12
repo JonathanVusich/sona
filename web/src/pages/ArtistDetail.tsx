@@ -1,6 +1,6 @@
 import { useParams } from "@solidjs/router";
 import { For, Show } from "solid-js";
-import { ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
 import { ArtistAvatar } from "../components/Cover";
 import { ShuffleIcon } from "../components/Icons";
 import PageLayout from "../components/PageLayout";
@@ -59,7 +59,7 @@ export default function ArtistDetail() {
                 return (
                   <Show when={ofType().length > 0}>
                     <Section title={title}>
-                      <ReleaseGroupGrid groups={ofType()} layout="grid" subtitle="year" />
+                      <ReleaseGroupGrid groups={ofType()} layout={CardLayout.GRID} subtitle={CardSubtitle.YEAR} />
                     </Section>
                   </Show>
                 );

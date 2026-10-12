@@ -1,8 +1,13 @@
 import { readSetting, writeSetting } from "./storage";
 
-export type Theme = "system" | "light" | "dark";
+export const Theme = {
+  SYSTEM: "system",
+  LIGHT: "light",
+  DARK: "dark",
+} as const;
 
-const THEMES: readonly Theme[] = ["system", "light", "dark"];
+export type Theme = (typeof Theme)[keyof typeof Theme];
+
 const STORAGE_KEY = "sona.theme";
 
 export function loadTheme(): Theme {
@@ -10,14 +15,14 @@ export function loadTheme(): Theme {
 }
 
 /**
- * @returns the theme the value names, or "system" when it names none
+ * @returns the theme the value names, or the system's when it names none
  */
 export function parseTheme(value: string | null): Theme {
-  return THEMES.find((theme) => theme === value) ?? "system";
+  return Object.values(Theme).find((theme) => theme === value) ?? Theme.SYSTEM;
 }
 
 export function applyTheme(theme: Theme) {
-  if (theme === "system") {
+  if (theme === Theme.SYSTEM) {
     delete document.documentElement.dataset.theme;
   } else {
     document.documentElement.dataset.theme = theme;

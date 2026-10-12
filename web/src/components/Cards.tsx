@@ -1,28 +1,53 @@
 import { A } from "@solidjs/router";
 import { For } from "solid-js";
 import { plural } from "../format";
-import { artistById, canonicalRelease, groupsOf, groupYear, tracksOfRelease, type Artist, type ReleaseGroup } from "../library";
+import {
+  artistById,
+  canonicalRelease,
+  groupsOf,
+  groupYear,
+  ReleaseGroupType,
+  tracksOfRelease,
+  type Artist,
+  type ReleaseGroup,
+} from "../library";
 import { playTracks } from "../player";
 import Cover, { ArtistAvatar } from "./Cover";
 import { PlayIcon } from "./Icons";
 
-// Release groups as cards. The subtitle names the artist, or the year and type when the artist is already known.
-export function ReleaseGroupGrid(props: { groups: ReleaseGroup[]; layout: "grid" | "row"; subtitle: "artist" | "year" }) {
+// How cards are laid out, as the class that lays them out.
+export const CardLayout = {
+  GRID: "card-grid",
+  ROW: "card-row",
+} as const;
+
+export type CardLayout = (typeof CardLayout)[keyof typeof CardLayout];
+
+// What a card's subtitle names: the artist, or the year and type when the artist is already known.
+export const CardSubtitle = {
+  ARTIST: "artist",
+  YEAR: "year",
+} as const;
+
+export type CardSubtitle = (typeof CardSubtitle)[keyof typeof CardSubtitle];
+
+// Release groups as cards.
+export function ReleaseGroupGrid(props: { groups: ReleaseGroup[]; layout: CardLayout; subtitle: CardSubtitle }) {
   return (
-    <div class={props.layout === "row" ? "card-row" : "card-grid"}>
+    <div class={props.layout}>
       <For each={props.groups}>{(group) => <ReleaseGroupCard group={group} subtitle={props.subtitle} />}</For>
     </div>
   );
 }
 
-function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: "artist" | "year" }) {
+function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: CardSubtitle }) {
   const subtitle = () => {
-    if (props.subtitle === "artist") {
+    if (props.subtitle === CardSubtitle.ARTIST) {
       const artist = artistById(props.group.artistId)?.name ?? "";
-      return props.group.type === "Album" ? artist : `${artist} · ${props.group.type}`;
+      return props.group.type === ReleaseGroupType.ALBUM ? artist : `${artist} · ${props.group.type}`;
     }
     const year = groupYear(props.group.id);
-    return props.group.type === "Album" ? String(year ?? "") : [year, props.group.type].filter(Boolean).join(" · ");
+    return props.group.type === ReleaseGroupType.ALBUM ? String(year ?? "") : [year, props.group.type].filter(Boolean).join(" · ");
   };
   const play = () => {
     const release = canonicalRelease(props.group.id);

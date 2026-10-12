@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import { currentUser, PERMISSION_LABELS } from "../auth";
 import PageLayout from "../components/PageLayout";
 import { PageHeader } from "../components/Section";
-import { applyTheme, loadTheme, parseTheme, type Theme } from "../theme";
+import { applyTheme, loadTheme, parseTheme, Theme } from "../theme";
 
 export default function Settings() {
   const [theme, setTheme] = createSignal<Theme>(loadTheme());
@@ -31,9 +31,9 @@ export default function Settings() {
         <label class="settings-row">
           <span>Theme</span>
           <select class="settings-value" value={theme()} onChange={(e) => changeTheme(parseTheme(e.currentTarget.value))}>
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value={Theme.SYSTEM}>System</option>
+            <option value={Theme.LIGHT}>Light</option>
+            <option value={Theme.DARK}>Dark</option>
           </select>
         </label>
       </div>

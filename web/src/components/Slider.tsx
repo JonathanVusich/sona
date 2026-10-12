@@ -1,5 +1,13 @@
 import { createSignal } from "solid-js";
 
+// How big a slider is drawn, as the class that sizes it.
+export const SliderSize = {
+  LARGE: "slider-large",
+  SMALL: "slider-small",
+} as const;
+
+export type SliderSize = (typeof SliderSize)[keyof typeof SliderSize];
+
 // Pointer-driven slider. The parent owns the value: onInput fires while dragging, onCommit on release or key press.
 export default function Slider(props: {
   value: number;
@@ -7,7 +15,7 @@ export default function Slider(props: {
   step: number;
   label: string;
   valueText: string;
-  size: "large" | "small";
+  size: SliderSize;
   disabled?: boolean;
   onInput: (value: number) => void;
   onCommit: (value: number) => void;
@@ -71,7 +79,7 @@ export default function Slider(props: {
   return (
     <div
       ref={element}
-      class={`slider slider-${props.size}`}
+      class={`slider ${props.size}`}
       classList={{ dragging: dragging(), disabled: props.disabled === true }}
       role="slider"
       tabindex={props.disabled ? -1 : 0}

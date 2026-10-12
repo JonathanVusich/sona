@@ -1,5 +1,6 @@
 import { A } from "@solidjs/router";
 import { Show } from "solid-js";
+import { Permission } from "../api/responses";
 import { currentUser, hasPermission, logOut } from "../auth";
 import { stop } from "../player";
 import { GearIcon } from "./Icons";
@@ -18,7 +19,7 @@ export default function SettingsMenu() {
         <span>{currentUser()?.username}</span>
         <span class="badge">{currentUser()?.role.toLowerCase()}</span>
       </div>
-      <Show when={hasPermission("LIBRARY_WRITE")}>
+      <Show when={hasPermission(Permission.LIBRARY_WRITE)}>
         <A href="/admin" class="menu-item" role="menuitem">
           Manage library
         </A>

@@ -3,6 +3,7 @@ import { createSignal, For, Show } from "solid-js";
 import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
+import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { importFiles } from "../../library";
 
@@ -43,7 +44,7 @@ export default function Upload() {
   };
 
   return (
-    <Show when={hasPermission("LIBRARY_UPLOAD")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission(Permission.LIBRARY_UPLOAD)} fallback={<Navigate href="/" />}>
       <PageLayout header={<PageHeader title="Upload music" />}>
         <div
           class="dropzone"

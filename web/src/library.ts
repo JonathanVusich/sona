@@ -4,7 +4,14 @@ import type { PickedFile } from "./audioFiles";
 // Mocked music library held in memory; it resets on reload. Modelled on MusicBrainz: an artist has release groups
 // (the album as an idea), a release group has releases (concrete editions), and a release has tracks.
 
-export type ReleaseGroupType = "Album" | "EP" | "Single";
+// MusicBrainz's primary release group types, which are also what the cards show.
+export const ReleaseGroupType = {
+  ALBUM: "Album",
+  EP: "EP",
+  SINGLE: "Single",
+} as const;
+
+export type ReleaseGroupType = (typeof ReleaseGroupType)[keyof typeof ReleaseGroupType];
 
 export interface Artist {
   id: string;
@@ -74,7 +81,7 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Saltwater",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 1,
         songs: ["Harbor Lights", "Copper Sky", "Undertow", "Breakwater", "Fog Signal", "Salt and Iron", "Low Tide Waltz", "Lighthouse Keeper"],
         releases: [
@@ -85,21 +92,21 @@ const SEED: SeedArtist[] = [
       },
       {
         title: "Harbor Lights",
-        type: "Single",
+        type: ReleaseGroupType.SINGLE,
         playedHoursAgo: null,
         songs: ["Harbor Lights", "Harbor Lights (Radio Edit)"],
         releases: [{ year: 2021, format: "Digital", label: "Harbour Records", country: "GB" }],
       },
       {
         title: "Tidepool",
-        type: "EP",
+        type: ReleaseGroupType.EP,
         playedHoursAgo: null,
         songs: ["Tidepool", "Anemone", "Rockpool", "Brine"],
         releases: [{ year: 2019, format: "Digital", label: "Harbour Records", country: "GB" }],
       },
       {
         title: "Driftwood",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 400,
         songs: ["Driftwood", "Shoreline", "Gulls", "Pier Lights", "Tidal", "Old Boats"],
         releases: [{ year: 2017, format: "CD", label: "Harbour Records", country: "GB" }],
@@ -112,7 +119,7 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Night Garden",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 5,
         songs: ["Paper Moons", "Small Hours", "Nightjar", "Moth Light", "Evening Primrose", "Lantern", "Dew"],
         releases: [
@@ -122,14 +129,14 @@ const SEED: SeedArtist[] = [
       },
       {
         title: "Daybreak",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
         songs: ["Daybreak", "Glasshouse", "Morning Tide", "Slow Sun", "Linen", "Awake"],
         releases: [{ year: 2023, format: "Digital", label: "Lumen", country: "SE" }],
       },
       {
         title: "Moth Light",
-        type: "Single",
+        type: ReleaseGroupType.SINGLE,
         playedHoursAgo: null,
         songs: ["Moth Light"],
         releases: [{ year: 2019, format: "Digital", label: "Lumen", country: "SE" }],
@@ -142,7 +149,7 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Signal",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 26,
         songs: ["Static Bloom", "Satellite Hymn", "Carrier Wave", "Interference", "Callsign", "Dead Air", "Handshake", "Relay", "Clear Channel"],
         releases: [
@@ -152,7 +159,7 @@ const SEED: SeedArtist[] = [
       },
       {
         title: "Interference",
-        type: "EP",
+        type: ReleaseGroupType.EP,
         playedHoursAgo: null,
         songs: ["Interference", "Noise Floor", "Feedback Loop", "Low Pass"],
         releases: [{ year: 2021, format: "Digital", label: "Static House", country: "US" }],
@@ -165,14 +172,14 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Field Notes",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 70,
         songs: ["Northbound", "Wildfire Season", "Birch", "Trail Marker", "Cold Creek", "Meridian"],
         releases: [{ year: 2018, format: "Digital", label: "Pine & Paper", country: "CA" }],
       },
       {
         title: "Second Growth",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
         songs: ["Second Growth", "Seedling", "Canopy", "Understory", "Clearcut", "Old Growth", "Rings"],
         releases: [{ year: 2022, format: "Digital", label: "Pine & Paper", country: "CA" }],
@@ -185,14 +192,14 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Canyon",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
         songs: ["Glass Canyon", "Red Rock", "Mesa at Dusk", "Switchback", "Dry Riverbed", "Overlook", "Sandstone"],
         releases: [{ year: 2022, format: "Digital", label: "Mesa Sound", country: "US" }],
       },
       {
         title: "Red Rock",
-        type: "Single",
+        type: ReleaseGroupType.SINGLE,
         playedHoursAgo: null,
         songs: ["Red Rock"],
         releases: [{ year: 2022, format: "Digital", label: "Mesa Sound", country: "US" }],
@@ -205,7 +212,7 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Overpass",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
         songs: ["Afterglow Drive", "Sodium Lights", "Exit 14", "Merge", "Midnight Lane", "Tunnel Vision", "Home Stretch", "Rearview"],
         releases: [{ year: 2020, format: "Digital", label: "Kōsoku", country: "JP" }],
@@ -218,14 +225,14 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Transmissions",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
         songs: ["Quiet Engines", "Low Orbit", "Telemetry", "Ground Control", "Re-entry", "Splashdown"],
         releases: [{ year: 2024, format: "Digital", label: "Funkhaus", country: "DE" }],
       },
       {
         title: "Telemetry",
-        type: "Single",
+        type: ReleaseGroupType.SINGLE,
         playedHoursAgo: null,
         songs: ["Telemetry", "Telemetry (Extended)"],
         releases: [{ year: 2024, format: "Digital", label: "Funkhaus", country: "DE" }],
@@ -238,7 +245,7 @@ const SEED: SeedArtist[] = [
     groups: [
       {
         title: "Winter Rooms",
-        type: "Album",
+        type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 150,
         songs: ["First Frost", "Window Seat", "Radiator Song", "Snowblind", "Thaw", "Woolen", "Kettle", "Long Night"],
         releases: [
@@ -248,7 +255,7 @@ const SEED: SeedArtist[] = [
       },
       {
         title: "Thaw",
-        type: "Single",
+        type: ReleaseGroupType.SINGLE,
         playedHoursAgo: null,
         songs: ["Thaw"],
         releases: [{ year: 2016, format: "Digital", label: "Fjell", country: "NO" }],
@@ -363,7 +370,7 @@ export function contextOf(track: Track) {
 export const artistsByName = () => [...artists()].sort((a, b) => collator.compare(a.name, b.name));
 
 // Artist pages list albums apart from singles and EPs.
-export const isAlbum = (group: ReleaseGroup) => group.type === "Album";
+export const isAlbum = (group: ReleaseGroup) => group.type === ReleaseGroupType.ALBUM;
 
 export const groupsByArtist = (include: (group: ReleaseGroup) => boolean) =>
   groups()
@@ -447,7 +454,7 @@ function importRelease(files: PickedFile[]) {
     id: crypto.randomUUID(),
     artistId: artist.id,
     title,
-    type: "Album" as const,
+    type: ReleaseGroupType.ALBUM,
     addedAt: Date.now(),
     lastPlayedAt: null,
   };

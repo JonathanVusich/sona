@@ -1,5 +1,6 @@
 import { Navigate, Route, Router, type RouteSectionProps } from "@solidjs/router";
 import { Show } from "solid-js";
+import { SessionState } from "./api/responses";
 import { currentUser } from "./auth";
 import PlayerBar from "./components/PlayerBar";
 import PlaylistDialog from "./components/PlaylistDialog";
@@ -23,7 +24,7 @@ function ListeningLayout(props: RouteSectionProps) {
   return (
     <Show when={currentUser()} fallback={<Navigate href="/login" />}>
       {(user) => (
-        <Show when={user().state === "ACTIVE"} fallback={<Navigate href="/change-password" />}>
+        <Show when={user().state === SessionState.ACTIVE} fallback={<Navigate href="/change-password" />}>
           <div class="app">
             <TopBar />
             <main class="page">{props.children}</main>

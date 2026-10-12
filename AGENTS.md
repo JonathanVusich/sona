@@ -174,6 +174,17 @@ Match the surrounding code. The conventions below are consistent across the code
 - Test classes and methods are package-private; method names describe behaviour (`readAndStoreIngestTrack`).
 - Put tests that need Spring/DB/network behind `@IntegrationTest`; keep parser tests as plain unit tests.
 
+**Frontend (`web/`)**
+- Name API types, constants and functions after their backend counterparts: `ApiRoutes`, `ErrorCode`,
+  `*Request` / `*Response` types in `web/src/api/`, verb-noun functions (`refreshSession`, `hasPermission`).
+- Every closed set of values is an enum, written as a const object with a type of the same name, and code uses its
+  members, never the raw strings:
+  `export const Theme = { SYSTEM: "system", ... } as const;` then
+  `export type Theme = (typeof Theme)[keyof typeof Theme];`. No string-literal union types.
+- No casts (`as T`) or non-null assertions (`!`); narrow instead.
+- async/await throughout, with no `.then` chains or `void` calls. Only the shared API client (`api/client.ts`) and
+  storage helper (`storage.ts`) use `try`/`catch`; API calls return an `ApiResult` that callers branch on.
+
 **Dependencies and parsers**
 - **Ask before adding any new dependency.** Latest JDK and Spring release candidates are acceptable.
 - Audio parsers and writers are **hand-written on purpose**. Don't swap in jaudiotagger or similar.

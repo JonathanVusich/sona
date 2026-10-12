@@ -4,6 +4,7 @@ import Cover from "../../components/Cover";
 import Dialog, { ConfirmDialog } from "../../components/Dialog";
 import PageLayout from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
+import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { plural } from "../../format";
 import {
@@ -49,7 +50,7 @@ export default function Library() {
   };
 
   return (
-    <Show when={hasPermission("LIBRARY_WRITE")} fallback={<Navigate href="/" />}>
+    <Show when={hasPermission(Permission.LIBRARY_WRITE)} fallback={<Navigate href="/" />}>
       <PageLayout
         header={
           <PageHeader
@@ -61,7 +62,7 @@ export default function Library() {
               plural(trackCount(), "track"),
             ].join(" · ")}
             action={
-              <Show when={hasPermission("LIBRARY_UPLOAD")}>
+              <Show when={hasPermission(Permission.LIBRARY_UPLOAD)}>
                 <A href="/admin/upload" class="button primary">
                   Upload
                 </A>
