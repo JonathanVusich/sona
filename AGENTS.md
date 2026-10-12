@@ -105,7 +105,8 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:compileJava
 ./gradlew :server:test                               # integration tests start their own Postgres via Testcontainers
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
-./gradlew :server:e2eTest                            # builds web/, then drives it in Chromium against a test server
+./gradlew :server:e2eTest                            # builds web/, then drives it in Firefox against a test server
+./gradlew :server:e2eTest -Pe2eBrowser=webkit        # or chromium; CI runs all three
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
 ```
@@ -131,14 +132,17 @@ Test notes:
 - **Audio fixtures:** prefer `FlacBuilder` (`flac().tag("TITLE", "…").build()`) to generate tiny synthetic FLACs
   in-test. `FlacSample` exposes real-world files trimmed to their metadata blocks, with the audio frames removed.
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
-- **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in Chromium with
-  [Playwright for Java](https://playwright.dev/java/), as a user would. `@E2ETest` is an `@IntegrationTest` that also
-  serves `web/dist` from the server's origin (`TestFrontendConfig`) and gives each test method a fresh browser
-  profile: take a `Page`, or a `BrowserContext` for several tabs that share cookies. Access tokens last ten seconds,
-  so token refreshes happen during tests. Seed data with `TestUsers` and the DAOs, then do everything else through the
+- **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in a real browser with
+  [Playwright for Java](https://playwright.dev/java/), as a user would: Firefox locally, and Chromium, Firefox and
+  WebKit on CI (`-Pe2eBrowser=<name>`). `@E2ETest` is an `@IntegrationTest` that also serves `web/dist` from the
+  server's origin (`TestFrontendConfig`) over HTTPS with a self-signed localhost certificate (WebKit won't keep the
+  `Secure` refresh cookie over plain HTTP), and gives each test method a fresh browser profile: take a `Page`, or a
+  `BrowserContext` for several tabs that share cookies. Access tokens last ten seconds, so token refreshes happen
+  during tests. Don't create a user named `admin`: the server creates one at startup. Seed data with `TestUsers` and the DAOs, then do everything else through the
   page. Drive pages through page objects (`LoginPage`, `SettingsMenu`, …), find elements by role and label, and use
   Playwright's `assertThat`, which waits. They're tagged `e2e` and only run in `:server:e2eTest`, which builds `web/`
-  (run `npm ci` in `web/` first) and installs Chromium. A failing test's trace is saved to `server/build/e2e-traces`;
+  (run `npm ci` in `web/` first) and installs the browser into `~/.gradle/ms-playwright` (Windows can't run
+  Playwright's Firefox from its default folder under `AppData`). A failing test's trace is saved to `server/build/e2e-traces`;
   open it with `npx playwright show-trace <file>`.
 - GitHub Actions (`.github/workflows/ci.yml`) generates the jOOQ classes against a Postgres service, builds and tests
   every module, type-checks and builds `web/`, and runs the E2E tests on every PR and push to `main`.

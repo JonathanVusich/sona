@@ -17,9 +17,13 @@ public final class SettingsMenu {
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Settings")).click();
     }
 
+    /**
+     * Logs out and waits for the login page, so that navigating straight afterwards can't cancel the logout request.
+     */
     public void logOut() {
         openMenu();
         menuItem("Log out").click();
+        page.waitForURL("**/login");
     }
 
     public Locator header() {

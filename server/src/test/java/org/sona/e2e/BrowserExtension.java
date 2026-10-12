@@ -28,7 +28,10 @@ public final class BrowserExtension implements BeforeEachCallback, AfterEachCall
                 .browser();
         final var port = SpringExtension.getApplicationContext(context).getEnvironment()
                 .getRequiredProperty("local.server.port");
-        final var options = new Browser.NewContextOptions().setBaseURL("http://localhost:" + port);
+        // The test certificate is self-signed.
+        final var options = new Browser.NewContextOptions()
+                .setBaseURL("https://localhost:" + port)
+                .setIgnoreHTTPSErrors(true);
         final var browserContext = browser.newContext(options);
         browserContext.tracing().start(new Tracing.StartOptions().setScreenshots(true).setSnapshots(true));
         context.getStore(NAMESPACE).put(BrowserContext.class, browserContext);

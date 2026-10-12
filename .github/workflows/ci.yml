@@ -67,8 +67,12 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # The E2E tests start Sona against a Testcontainers Postgres and drive the built web frontend in Chromium. jOOQ
-    # still generates its classes from this Postgres service, as in the server job.
+    # The E2E tests start Sona against a Testcontainers Postgres and drive the built web frontend in each browser engine.
+    # jOOQ still generates its classes from this Postgres service, as in the server job.
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     services:
       postgres:
         image: postgres:18
@@ -101,15 +105,15 @@ jobs:
         working-directory: web
       - name: Generate jOOQ classes
         run: gradle :server:flywayMigrate :server:jooqCodegen
-      - name: Install Chromium and its system libraries
-        run: gradle :server:installBrowsers --args="install --with-deps chromium"
+      - name: Install ${{ matrix.browser }} and its system libraries
+        run: gradle :server:installBrowsers -Pe2eBrowser=${{ matrix.browser }} --args="install --with-deps ${{ matrix.browser }}"
       - name: Run E2E tests
-        run: gradle :server:e2eTest
+        run: gradle :server:e2eTest -Pe2eBrowser=${{ matrix.browser }}
       - name: Upload test reports and traces
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-reports
+          name: e2e-reports-${{ matrix.browser }}
           path: |
             server/build/reports/tests/e2eTest/
             server/build/e2e-traces/
