@@ -2,21 +2,15 @@ package org.sona.db;
 
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
-import org.sona.model.enums.AudioFormat;
-import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
@@ -28,10 +22,6 @@ class ReleaseDaoTest {
     ReleaseGroupDao releaseGroupDao;
     @Autowired
     ArtistDao artistDao;
-    @Autowired
-    TrackDao trackDao;
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
 
     @Test
     void upsertInsertsNewRelease() {
@@ -54,33 +44,12 @@ class ReleaseDaoTest {
     }
 
     @Test
-    void upsertStoresReleasesWithoutMusicBrainzIds() {
-        final var first = dao.upsert(newRelease("Bootleg", releaseGroupId(), null));
-        final var second = dao.upsert(newRelease("Bootleg", releaseGroupId(), null));
+    void upsertInsertsEachReleaseWithoutAMusicBrainzId() {
+        final var first = newRelease("Bootleg", releaseGroupId(), null);
+        final var second = newRelease("Bootleg", releaseGroupId(), null);
 
-        assertThat(dao.loadByIds(List.of(first.releaseId(), second.releaseId())))
-                .containsExactlyInAnyOrder(first, second);
-    }
-
-    @Test
-    void trackCountCountsTheReleasesTracks() {
-        final var release = dao.upsert(newRelease("A Rush of Blood to the Head", releaseGroupId(), uuidv7()));
-        final var other = dao.upsert(newRelease("Parachutes", releaseGroupId(), uuidv7()));
-
-        storeTrack(release, 1);
-        storeTrack(release, 2);
-        storeTrack(other, 1);
-
-        assertThat(dao.loadByIds(List.of(release.releaseId(), other.releaseId())))
-                .extracting(Release::releaseId, Release::trackCount)
-                .containsExactlyInAnyOrder(tuple(release.releaseId(), 2), tuple(other.releaseId(), 1));
-    }
-
-    private void storeTrack(final Release release, final int trackNumber) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
-        trackToIngestDao.storeAll(List.of(ingest));
-        trackDao.insert(new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", 1, trackNumber,
-                release.artistId(), release.releaseId(), ingest.trackIngestId()));
+        assertThat(dao.upsert(first)).isEqualTo(first);
+        assertThat(dao.upsert(second)).isEqualTo(second);
     }
 
     private UUID releaseGroupId() {

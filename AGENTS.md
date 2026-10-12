@@ -154,7 +154,9 @@ Test notes:
 
 ## Adding a feature
 
-1. Check [docs/VISION.md](docs/VISION.md); ask about anything it doesn't settle.
+1. Check [docs/VISION.md](docs/VISION.md); ask about anything it doesn't settle. Agree each page's data with the
+   maintainer before writing its queries: add no DAO method without an approved use case, and don't infer one from
+   the mocked pages in `web/`.
 2. Build the backend with unit and `@IntegrationTest` tests, and the frontend against the real API.
 3. **Every feature a user can see or do ships with E2E tests in the same PR**: an `@E2ETest` class (or new methods in
    the class for that area) covering the main flow and the errors a user can hit. Add a page object for any new page.
@@ -199,6 +201,10 @@ Match the surrounding code. The conventions below are consistent across the code
   `fetchInto`).
 - Each DAO reads and writes one type: its table's pojo, or one composite record read with joins, which gets its own
   DAO (`ReleaseDetailsDao`).
+- Each page has one endpoint, which reads everything the page shows in one query: joins for single rows, `multiset`
+  for lists (`ReleaseDetailsDao.load`). Don't chain lookups by ID and stitch the results together in Java.
+- Model relationships on the MusicBrainz database when in doubt (a track has its own artist, a release its media),
+  keeping only the subset Sona needs.
 - Counts derived from other tables are columns kept up to date by a trigger (`release.track_count`), not counted
   per query.
 - Every query is served by an index (the scale target is 500k+ tracks); the integration tests enforce it.

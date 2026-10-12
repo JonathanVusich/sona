@@ -7,7 +7,6 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,15 +44,5 @@ public class ReleaseGroupDao {
         return dsl.selectFrom(RELEASE_GROUP)
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
                 .fetchOptional(mapper::fromRecord);
-    }
-
-    /**
-     * @return the artist's release groups, the most recently first released first
-     */
-    public List<ReleaseGroup> loadByArtist(final UUID artistId) {
-        return dsl.selectFrom(RELEASE_GROUP)
-                .where(RELEASE_GROUP.ARTIST_ID.eq(artistId))
-                .orderBy(RELEASE_GROUP.FIRST_RELEASE_DATE.desc().nullsLast(), RELEASE_GROUP.RELEASE_GROUP_ID)
-                .fetch(mapper::fromRecord);
     }
 }

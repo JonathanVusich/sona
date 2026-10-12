@@ -7,8 +7,6 @@ import org.sona.model.tables.pojos.Track;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.UUID;
 
 import static org.sona.model.Tables.TRACK;
@@ -29,15 +27,5 @@ public class TrackDao {
         return dsl.selectFrom(TRACK)
                 .where(TRACK.TRACK_INGEST_ID.eq(trackIngestId))
                 .fetchSingle(mapper::fromRecord);
-    }
-
-    /**
-     * @return the releases' tracks, release by release, each in disc and track order
-     */
-    public List<Track> loadByReleases(final Collection<UUID> releaseIds) {
-        return dsl.selectFrom(TRACK)
-                .where(TRACK.RELEASE_ID.in(releaseIds))
-                .orderBy(TRACK.RELEASE_ID, TRACK.DISC_NUMBER, TRACK.TRACK_NUMBER)
-                .fetch(mapper::fromRecord);
     }
 }

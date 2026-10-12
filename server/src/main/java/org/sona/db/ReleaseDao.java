@@ -7,8 +7,6 @@ import org.sona.model.tables.pojos.Release;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,23 +45,5 @@ public class ReleaseDao {
         return dsl.selectFrom(RELEASE)
                 .where(RELEASE.MUSICBRAINZ_RELEASE_ID.eq(musicbrainzReleaseId))
                 .fetchOptional(mapper::fromRecord);
-    }
-
-    public List<Release> loadByIds(final Collection<UUID> releaseIds) {
-        return dsl.selectFrom(RELEASE)
-                .where(RELEASE.RELEASE_ID.in(releaseIds))
-                .fetch(mapper::fromRecord);
-    }
-
-    /**
-     * @return the ID of each release group's earliest release, which stands for the group
-     */
-    public List<UUID> loadMainReleaseIds(final Collection<UUID> releaseGroupIds) {
-        return dsl.select(RELEASE.RELEASE_ID)
-                .distinctOn(RELEASE.RELEASE_GROUP_ID)
-                .from(RELEASE)
-                .where(RELEASE.RELEASE_GROUP_ID.in(releaseGroupIds))
-                .orderBy(RELEASE.RELEASE_GROUP_ID, RELEASE.DATE.asc().nullsLast(), RELEASE.RELEASE_ID)
-                .fetch(RELEASE.RELEASE_ID);
     }
 }

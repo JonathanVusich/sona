@@ -8,7 +8,9 @@ import org.sona.model.tables.pojos.Release;
 import java.util.List;
 
 /**
- * A release, read in one query with its artist, its labels by name and its media in order.
+ * A release, read in one query with its artist, its labels by name, its media in order and its tracks in disc and
+ * track order, each with its own artist.
  */
-public record ReleaseDetails(Release release, Artist artist, List<Label> labels, List<Medium> media) {
+public record ReleaseDetails(Release release, Artist artist, List<Label> labels, List<Medium> media,
+                             List<TrackWithArtist> tracks) {
 }
