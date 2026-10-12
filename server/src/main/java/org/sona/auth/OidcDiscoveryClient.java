@@ -32,11 +32,11 @@ public final class OidcDiscoveryClient implements ClientRegistrationRepository {
         this.providersById = providers.stream().collect(toUnmodifiableMap(OidcProvider::id, Function.identity()));
     }
 
-    public List<OidcProvider> providers() {
+    public List<OidcProvider> listProviders() {
         return providers;
     }
 
-    public Optional<OidcProvider> provider(final String registrationId) {
+    public Optional<OidcProvider> findProvider(final String registrationId) {
         return Optional.ofNullable(providersById.get(registrationId));
     }
 
@@ -56,10 +56,10 @@ public final class OidcDiscoveryClient implements ClientRegistrationRepository {
         if (provider == null) {
             return null;
         }
-        return discovered.computeIfAbsent(registrationId, _ -> discover(provider));
+        return discovered.computeIfAbsent(registrationId, _ -> discoverRegistration(provider));
     }
 
-    private static ClientRegistration discover(final OidcProvider provider) {
+    private static ClientRegistration discoverRegistration(final OidcProvider provider) {
         // PKCE is off by default for confidential clients like Sona, and recommended for every client.
         final var settings = ClientRegistration.ClientSettings.builder().requireProofKey(true).build();
         return ClientRegistrations.fromIssuerLocation(provider.issuerUri())

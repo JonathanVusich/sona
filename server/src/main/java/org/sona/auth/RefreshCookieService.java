@@ -20,18 +20,18 @@ public final class RefreshCookieService {
 
     private final AuthProperties properties;
 
-    public ResponseCookie issue(final String refreshToken) {
-        return cookie(refreshToken, properties.refreshTokenLifetime());
+    public ResponseCookie issueCookie(final String refreshToken) {
+        return buildCookie(refreshToken, properties.refreshTokenLifetime());
     }
 
     /**
      * @return a cookie that deletes the refresh cookie
      */
-    public ResponseCookie clear() {
-        return cookie("", Duration.ZERO);
+    public ResponseCookie clearCookie() {
+        return buildCookie("", Duration.ZERO);
     }
 
-    private static ResponseCookie cookie(final String value, final Duration maxAge) {
+    private static ResponseCookie buildCookie(final String value, final Duration maxAge) {
         return ResponseCookie.from(NAME, value)
                 .httpOnly(true)
                 .secure(true)

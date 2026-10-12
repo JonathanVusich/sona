@@ -22,15 +22,15 @@ public final class RawMetadata {
         return duration;
     }
 
-    public void add(Tag tag, TagValue value) {
+    public void addTag(Tag tag, TagValue value) {
         definedTags.computeIfAbsent(tag, _ -> new LinkedHashSet<>()).add(value);
     }
 
-    public void add(String tag, String value) {
+    public void addUnknownTag(String tag, String value) {
         unknownTags.computeIfAbsent(tag, _ -> new LinkedHashSet<>()).add(new TagValue.Str(value));
     }
 
-    public Set<TagValue> search(Tag tag) {
+    public Set<TagValue> findValues(Tag tag) {
         return definedTags.getOrDefault(tag, Set.of());
     }
 

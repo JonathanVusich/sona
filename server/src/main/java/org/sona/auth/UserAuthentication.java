@@ -49,7 +49,7 @@ public final class UserAuthentication extends AbstractAuthenticationToken {
 
     private static Set<Permission> permissions(final SignedInUser user) {
         return switch (user.state()) {
-            case ACTIVE -> Permission.granted(user.role());
+            case ACTIVE -> Permission.grantedPermissions(user.role());
             // Until they change their password, the user may only do that.
             case PASSWORD_CHANGE_REQUIRED -> Set.of();
         };

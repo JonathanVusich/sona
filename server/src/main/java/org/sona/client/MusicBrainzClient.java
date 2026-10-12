@@ -35,6 +35,6 @@ public class MusicBrainzClient {
                 .path(EntityType.RECORDING.getPath())
                 .queryParam("query", "{query}")
                 .queryParam("fmt", "json")
-                .build(query.build());
+                .build(query.toQueryString());
     }
 }

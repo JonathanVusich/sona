@@ -24,7 +24,7 @@ public class OidcSessionDao {
     private final DSLContext dsl;
     private final OidcSessionMapper mapper;
 
-    public Optional<OidcSession> find(UUID familyId) {
+    public Optional<OidcSession> findByFamilyId(UUID familyId) {
         return dsl.selectFrom(OIDC_SESSION)
                 .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
                 .fetchOptional(mapper::fromRecord);

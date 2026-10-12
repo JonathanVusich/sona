@@ -25,7 +25,7 @@ public class UserDao {
     private final DSLContext dsl;
     private final UsersMapper mapper;
 
-    public Optional<Users> find(UUID userId) {
+    public Optional<Users> findById(UUID userId) {
         return dsl.selectFrom(USERS)
                 .where(USERS.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);
@@ -37,7 +37,7 @@ public class UserDao {
                 .fetchOptional(mapper::fromRecord);
     }
 
-    public boolean exists(String username) {
+    public boolean existsByUsername(String username) {
         return dsl.fetchExists(USERS, USERS.USERNAME.eq(username));
     }
 

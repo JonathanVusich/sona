@@ -57,13 +57,13 @@ class DefaultIngestionEngineTest {
 
     @Test
     void importMatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
-        final var flac = flacFile(whisper());
+        final var flac = flacFile(whisperMetadata());
         // Upper-case extension on purpose: extension matching is case-insensitive.
-        final var ingest = store(flac, "09 A Whisper.FLAC");
+        final var ingest = storeIngest(flac, "09 A Whisper.FLAC");
 
         engine.processTrack(ingest);
 
-        assertThat(load(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
 
         final var track = loadTrack(ingest);
         assertThat(track.name()).isEqualTo("A Whisper");
@@ -98,8 +98,8 @@ class DefaultIngestionEngineTest {
 
     @Test
     void importTracksFromOneReleaseIntoOneFolder() throws IOException, InvalidFormatException, InterruptedException {
-        final var first = store(flacFile(whisper()), "09 A Whisper.flac");
-        final var second = store(flacFile(whisper()), "09 A Whisper (copy).flac");
+        final var first = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+        final var second = storeIngest(flacFile(whisperMetadata()), "09 A Whisper (copy).flac");
         engine.processTrack(first);
         engine.processTrack(second);
 
@@ -110,11 +110,12 @@ class DefaultIngestionEngineTest {
 
     @Test
     void requireInputForUnmatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
-        final var ingest = store(flacFile(metadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall")), "unknown.flac");
+        final var flac = flacFile(newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall"));
+        final var ingest = storeIngest(flac, "unknown.flac");
 
         engine.processTrack(ingest);
 
-        assertThat(load(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         // The file stays in the ingest area until the user supplies metadata.
         try (final var stillThere = library.readIngestTrack(ingest)) {
             assertThat(stillThere.readAllBytes()).isNotEmpty();
@@ -130,45 +131,45 @@ class DefaultIngestionEngineTest {
                 .resolve(releaseGroup.releaseGroupId() + "[A Rush of Blood to the Head]");
         Files.createDirectories(blocker.getParent());
         Files.createFile(blocker);
-        final var ingest = store(flacFile(whisper()), "09 A Whisper.flac");
+        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
 
         assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(IOException.class);
-        final var failed = load(ingest);
+        final var failed = reloadIngest(ingest);
         assertThat(failed.state()).isEqualTo(IngestState.MOVE_FAILED);
 
         Files.delete(blocker);
         engine.processTrack(failed);
 
-        assertThat(load(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
         try (final var imported = library.readTrack(loadTrack(ingest))) {
-            assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisper()));
+            assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisperMetadata()));
         }
     }
 
     @Test
     void rejectUnsupportedFormat() throws IOException {
-        final var ingest = store(flacFile(new RawMetadata(Duration.ofSeconds(10))), "song.mp3");
+        final var ingest = storeIngest(flacFile(new RawMetadata(Duration.ofSeconds(10))), "song.mp3");
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("Extension mp3 is not supported!");
-        assertThat(load(ingest).state()).isEqualTo(IngestState.FAILED);
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 
-    private static RawMetadata whisper() {
-        final var metadata = metadata("A Whisper", "Coldplay");
-        metadata.add(Tag.TRACK_NUMBER, new TagValue.Int(9));
+    private static RawMetadata whisperMetadata() {
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
         return metadata;
     }
 
-    private static RawMetadata metadata(final String title, final String artist) {
+    private static RawMetadata newMetadata(final String title, final String artist) {
         final var metadata = new RawMetadata(Duration.ofSeconds(10));
-        metadata.add(Tag.TRACK_TITLE, new TagValue.Str(title));
-        metadata.add(Tag.TRACK_ARTIST, new TagValue.Str(artist));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
         return metadata;
     }
 
-    private TrackToIngest store(final byte[] flac, final String fileName) throws IOException {
+    private TrackToIngest storeIngest(final byte[] flac, final String fileName) throws IOException {
         final var groupId = uuidv7();
         library.storeIngestTrack(groupId, fileName, new ByteArrayInputStream(flac));
         final var ingests = trackToIngestDao.loadByGroup(groupId);
@@ -176,8 +177,8 @@ class DefaultIngestionEngineTest {
         return ingests.getFirst();
     }
 
-    private TrackToIngest load(final TrackToIngest ingest) {
-        return trackToIngestDao.load(ingest.trackIngestId());
+    private TrackToIngest reloadIngest(final TrackToIngest ingest) {
+        return trackToIngestDao.loadById(ingest.trackIngestId());
     }
 
     private Track loadTrack(final TrackToIngest ingest) {

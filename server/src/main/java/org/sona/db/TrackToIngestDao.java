@@ -20,7 +20,7 @@ public class TrackToIngestDao {
     private final DSLContext dsl;
     private final TrackToIngestMapper mapper;
 
-    public void store(List<TrackToIngest> tracks) {
+    public void storeAll(List<TrackToIngest> tracks) {
         final var records = tracks.stream()
                 .map(mapper::toRecord).toList();
 
@@ -34,14 +34,14 @@ public class TrackToIngestDao {
                 .fetch(mapper::fromRecord);
     }
 
-    public TrackToIngest load(UUID trackToIngestId) {
+    public TrackToIngest loadById(UUID trackToIngestId) {
         final var record = dsl.selectFrom(Tables.TRACK_TO_INGEST)
                 .where(Tables.TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
                 .fetchOne();
         return mapper.fromRecord(record);
     }
 
-    public List<TrackToIngest> pending() {
+    public List<TrackToIngest> loadPending() {
         return dsl.selectFrom(Tables.TRACK_TO_INGEST)
                 .where(Tables.TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
                 .fetch(mapper::fromRecord);

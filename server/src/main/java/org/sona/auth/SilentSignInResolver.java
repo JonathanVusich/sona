@@ -12,14 +12,14 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
  * asked not to show anything: it signs the user straight back in if they have a session there, and otherwise answers
  * {@code login_required} (OpenID Connect Core section 3.1.2.1).
  */
-public final class SilentSignInRequestResolver implements OAuth2AuthorizationRequestResolver {
+public final class SilentSignInResolver implements OAuth2AuthorizationRequestResolver {
 
     private static final String PROMPT = "prompt";
     private static final String NONE = "none";
 
     private final OAuth2AuthorizationRequestResolver delegate;
 
-    public SilentSignInRequestResolver(final ClientRegistrationRepository registrations) {
+    public SilentSignInResolver(final ClientRegistrationRepository registrations) {
         delegate = new DefaultOAuth2AuthorizationRequestResolver(registrations, ApiRoutes.OIDC_AUTHORIZE);
     }
 

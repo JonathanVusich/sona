@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public final class ApiExceptionHandler {
 
     @ExceptionHandler(ClientException.class)
-    public ResponseEntity<ErrorResponse> refused(final ClientException exception) {
+    public ResponseEntity<ErrorResponse> handleClientException(final ClientException exception) {
         final var code = exception.code();
         return ResponseEntity.status(code.getStatus()).body(new ErrorResponse(code));
     }

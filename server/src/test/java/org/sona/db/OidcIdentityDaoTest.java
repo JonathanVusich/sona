@@ -25,23 +25,23 @@ class OidcIdentityDaoTest {
 
     @Test
     void insertAndFind() {
-        final var alice = user("alice");
+        final var alice = newUser("alice");
         final var identity = new OidcIdentity(alice.userId(), "https://id.example", "alice-id");
 
         dao.insert(identity);
 
-        assertThat(dao.find(alice.userId())).contains(identity);
+        assertThat(dao.findByUserId(alice.userId())).contains(identity);
     }
 
     @Test
     void anIdentityBelongsToOneUser() {
-        dao.insert(new OidcIdentity(user("alice").userId(), "https://id.example", "alice-id"));
-        final var copy = new OidcIdentity(user("bob").userId(), "https://id.example", "alice-id");
+        dao.insert(new OidcIdentity(newUser("alice").userId(), "https://id.example", "alice-id"));
+        final var copy = new OidcIdentity(newUser("bob").userId(), "https://id.example", "alice-id");
 
         assertThatThrownBy(() -> dao.insert(copy)).isInstanceOf(DuplicateKeyException.class);
     }
 
-    private Users user(final String username) {
+    private Users newUser(final String username) {
         final var user = new Users(uuidv7(), UserType.OIDC, username, UserRole.USER, AccountState.ACTIVE);
         userDao.insert(user);
         return user;

@@ -31,11 +31,11 @@ public class DevUserRunner implements ApplicationRunner {
 
     @Override
     public void run(final ApplicationArguments args) {
-        reset("admin", UserRole.ADMIN);
-        reset("user", UserRole.USER);
+        resetUser("admin", UserRole.ADMIN);
+        resetUser("user", UserRole.USER);
     }
 
-    private void reset(final String name, final UserRole role) {
+    private void resetUser(final String name, final UserRole role) {
         final var user = userDao.upsert(new Users(uuidv7(), UserType.LOCAL, name, role, AccountState.ACTIVE));
         passwordDao.upsert(new Password(user.userId(), encoder.encode(name), PasswordState.VALID));
     }

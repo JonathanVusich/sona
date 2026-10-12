@@ -30,12 +30,12 @@ class MusicBrainzResolverTest {
             .options(wireMockConfig().dynamicPort().usingFilesUnderClasspath("wiremock"))
             .build();
 
-    private final MusicBrainzResolver resolver = new MusicBrainzResolver(client(musicBrainz.baseUrl() + "/ws/2/"));
+    private final MusicBrainzResolver resolver = new MusicBrainzResolver(newClient(musicBrainz.baseUrl() + "/ws/2/"));
 
     @Test
     void resolveTaggedTrack() throws IOException, InterruptedException {
-        final var metadata = metadata("A Whisper", "Coldplay");
-        metadata.add(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
 
         final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata);
 
@@ -54,19 +54,19 @@ class MusicBrainzResolverTest {
 
     @Test
     void returnEmptyWhenNothingMatches() throws IOException, InterruptedException {
-        final var metadata = metadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
+        final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
         assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata)).isEmpty();
     }
 
-    private static RawMetadata metadata(final String title, final String artist) {
+    private static RawMetadata newMetadata(final String title, final String artist) {
         final var metadata = new RawMetadata(Duration.ofSeconds(10));
-        metadata.add(Tag.TRACK_TITLE, new TagValue.Str(title));
-        metadata.add(Tag.TRACK_ARTIST, new TagValue.Str(artist));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
         return metadata;
     }
 
-    private static MusicBrainzClient client(final String url) {
+    private static MusicBrainzClient newClient(final String url) {
         final var config = new MusicBrainzConfig();
         final var mapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)

@@ -18,7 +18,7 @@ public final class JwksController {
     private final RSAKey signingKey;
 
     @GetMapping(ApiRoutes.JWKS)
-    public Map<String, Object> jwks() {
+    public Map<String, Object> publicKeys() {
         return new JWKSet(signingKey.toPublicJWK()).toJSONObject();
     }
 }

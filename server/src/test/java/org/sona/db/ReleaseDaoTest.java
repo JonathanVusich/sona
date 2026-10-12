@@ -21,7 +21,7 @@ class ReleaseDaoTest {
 
     @Test
     void upsertInsertsNewRelease() {
-        final var release = release("A Rush of Blood to the Head", releaseGroupId(), uuidv7());
+        final var release = newRelease("A Rush of Blood to the Head", releaseGroupId(), uuidv7());
 
         assertThat(dao.upsert(release)).isEqualTo(release);
     }
@@ -29,10 +29,10 @@ class ReleaseDaoTest {
     @Test
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(release("Old Name", releaseGroupId(), musicbrainzId));
+        final var stored = dao.upsert(newRelease("Old Name", releaseGroupId(), musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
-        final var refreshed = dao.upsert(release("New Name", newReleaseGroupId, musicbrainzId));
+        final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
         assertThat(refreshed).isEqualTo(
                 new Release(stored.releaseId(), "New Name", null, newReleaseGroupId, null, musicbrainzId));
@@ -43,7 +43,7 @@ class ReleaseDaoTest {
                 .releaseGroupId();
     }
 
-    private static Release release(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
+    private static Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
         return new Release(uuidv7(), name, null, releaseGroupId, null, musicbrainzId);
     }
 }

@@ -8,7 +8,7 @@ import java.io.InputStream;
 
 public interface Parser {
 
-    RawMetadata parse(InputStream inputStream) throws IOException, InvalidFormatException;
+    RawMetadata parseMetadata(InputStream inputStream) throws IOException, InvalidFormatException;
 
     Format format();
 }

@@ -23,19 +23,19 @@ public final class TestUsers {
     private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
 
-    public Users create(final String username, final UserRole role) {
-        return create(username, role, AccountState.ACTIVE, PasswordState.VALID);
+    public Users createUser(final String username, final UserRole role) {
+        return createUser(username, role, AccountState.ACTIVE, PasswordState.VALID);
     }
 
-    public Users create(final String username, final UserRole role, final AccountState state) {
-        return create(username, role, state, PasswordState.VALID);
+    public Users createUser(final String username, final UserRole role, final AccountState state) {
+        return createUser(username, role, state, PasswordState.VALID);
     }
 
-    public Users create(final String username, final UserRole role, final PasswordState passwordState) {
-        return create(username, role, AccountState.ACTIVE, passwordState);
+    public Users createUser(final String username, final UserRole role, final PasswordState passwordState) {
+        return createUser(username, role, AccountState.ACTIVE, passwordState);
     }
 
-    private Users create(final String username, final UserRole role, final AccountState state,
+    private Users createUser(final String username, final UserRole role, final AccountState state,
                          final PasswordState passwordState) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, role, state);
         userDao.insert(user);

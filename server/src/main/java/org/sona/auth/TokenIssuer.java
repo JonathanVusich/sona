@@ -11,7 +11,7 @@ public interface TokenIssuer {
      *
      * @return an access token and the first refresh token of the session
      */
-    Tokens issue(Users user);
+    Tokens startSession(Users user);
 
     /**
      * Starts a new session for a user who signed in through an OIDC provider. The provider's refresh token is kept, so
@@ -19,7 +19,7 @@ public interface TokenIssuer {
      *
      * @return an access token and the first refresh token of the session
      */
-    Tokens issue(Users user, String providerRefreshToken);
+    Tokens startSession(Users user, String providerRefreshToken);
 
     /**
      * Replaces the refresh token with a new one. Using a refresh token that was already replaced means it was copied,
@@ -28,7 +28,7 @@ public interface TokenIssuer {
      * @return new tokens, or empty if the refresh token is unknown, expired or revoked, or its user is disabled in
      * Sona or, for a user from an OIDC provider, refused by the provider
      */
-    Optional<Tokens> refresh(String refreshToken);
+    Optional<Tokens> refreshSession(String refreshToken);
 
     /**
      * Ends the session the refresh token belongs to. Using a refresh token that was already replaced means it was
@@ -36,10 +36,10 @@ public interface TokenIssuer {
      *
      * @return whether the refresh token was valid: known, unexpired and not yet revoked
      */
-    boolean revoke(String refreshToken);
+    boolean endSession(String refreshToken);
 
     /**
      * Ends every session the user has.
      */
-    void revokeAll(Users user);
+    void endAllSessions(Users user);
 }

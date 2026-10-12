@@ -69,19 +69,19 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
         if (refreshToken == null) {
             log.warn("{} returned no refresh token, so Sona can't check sessions with it. Ask for offline_access.",
                     providerId);
-            response.sendRedirect(error(ErrorCode.SIGN_IN_FAILED));
+            response.sendRedirect(errorRedirect(ErrorCode.SIGN_IN_FAILED));
             return;
         }
         final var user = providerUser(providerId, (OidcUser) token.getPrincipal());
         switch (accountRegistrar.signIn(user, refreshToken.getTokenValue())) {
             case OidcSignIn.SignedIn signedIn -> {
-                final var cookie = refreshCookies.issue(signedIn.tokens().refreshToken());
+                final var cookie = refreshCookies.issueCookie(signedIn.tokens().refreshToken());
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
                 response.addHeader(HttpHeaders.SET_COOKIE, lastProviderCookie(providerId).toString());
-                response.sendRedirect(frontend().toUriString());
+                response.sendRedirect(frontendUri().toUriString());
             }
-            case OidcSignIn.RegistrationRequired required -> response.sendRedirect(register(required));
-            case OidcSignIn.Disabled _ -> response.sendRedirect(error(ErrorCode.ACCOUNT_DISABLED));
+            case OidcSignIn.RegistrationRequired required -> response.sendRedirect(registerRedirect(required));
+            case OidcSignIn.Disabled _ -> response.sendRedirect(errorRedirect(ErrorCode.ACCOUNT_DISABLED));
         }
     }
 
@@ -89,10 +89,10 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     public void onAuthenticationFailure(final HttpServletRequest request, final HttpServletResponse response,
                                         final AuthenticationException exception) throws IOException {
         endSignInSession(request);
-        response.sendRedirect(error(failure(exception)));
+        response.sendRedirect(errorRedirect(failureCode(exception)));
     }
 
-    private static ErrorCode failure(final AuthenticationException exception) {
+    private static ErrorCode failureCode(final AuthenticationException exception) {
         return switch (exception) {
             // A silent sign-in found no session at the provider, so the user picks how to sign in instead.
             case OAuth2AuthenticationException oauth when USER_NEEDED.contains(oauth.getError().getErrorCode()) ->
@@ -125,11 +125,12 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     }
 
     private ProviderUser providerUser(final String providerId, final OidcUser oidcUser) {
-        final var provider = discoveryClient.provider(providerId).orElseThrow();
-        return new ProviderUser(providerId, provider.issuerUri(), oidcUser.getSubject(), role(provider, oidcUser));
+        final var provider = discoveryClient.findProvider(providerId).orElseThrow();
+        final var role = providerRole(provider, oidcUser);
+        return new ProviderUser(providerId, provider.issuerUri(), oidcUser.getSubject(), role);
     }
 
-    private static UserRole role(final OidcProvider provider, final OidcUser user) {
+    private static UserRole providerRole(final OidcProvider provider, final OidcUser user) {
         final var values = Objects.requireNonNullElse(user.getClaimAsStringList(provider.roleClaim()),
                 List.<String>of());
         final var admin = values.stream().anyMatch(provider.adminValues()::contains);
@@ -139,19 +140,19 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
         return UserRole.USER;
     }
 
-    private String register(final OidcSignIn.RegistrationRequired required) {
+    private String registerRedirect(final OidcSignIn.RegistrationRequired required) {
         // In the fragment, so the token never reaches a server or its logs.
-        return frontend()
+        return frontendUri()
                 .pathSegment("register")
                 .fragment("registration_token=" + required.registrationToken())
                 .toUriString();
     }
 
-    private String error(final ErrorCode code) {
-        return frontend().fragment("error=" + code.getCode()).toUriString();
+    private String errorRedirect(final ErrorCode code) {
+        return frontendUri().fragment("error=" + code.getCode()).toUriString();
     }
 
-    private UriComponentsBuilder frontend() {
+    private UriComponentsBuilder frontendUri() {
         return UriComponentsBuilder.fromUriString(properties.frontendUrl());
     }
 }

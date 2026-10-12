@@ -25,7 +25,7 @@ public class PasswordDao {
     private final DSLContext dsl;
     private final PasswordMapper mapper;
 
-    public Optional<Password> find(UUID userId) {
+    public Optional<Password> findByUserId(UUID userId) {
         return dsl.selectFrom(PASSWORD)
                 .where(PASSWORD.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);
@@ -47,7 +47,7 @@ public class PasswordDao {
     /**
      * Sets a new password hash, which also ends a required password change.
      */
-    public void update(UUID userId, String passwordHash) {
+    public void updateHash(UUID userId, String passwordHash) {
         dsl.update(PASSWORD)
                 .set(PASSWORD.PASSWORD_HASH, passwordHash)
                 .set(PASSWORD.STATE, PasswordState.VALID)

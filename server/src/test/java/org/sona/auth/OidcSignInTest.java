@@ -92,7 +92,7 @@ class OidcSignInTest {
                 .expectStatus().isFound()
                 .expectBody().isEmpty();
 
-        assertThat(location(signIn)).isEqualTo("/#error=108");
+        assertThat(redirectLocation(signIn)).isEqualTo("/#error=108");
     }
 
     @Test
@@ -101,25 +101,25 @@ class OidcSignInTest {
 
         final var signIn = signIn("alice-id", List.of());
 
-        assertThat(cookie(signIn, SignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
+        assertThat(findCookie(signIn, SignInHandler.LAST_PROVIDER_COOKIE)).contains(FakeOidcProvider.ID);
     }
 
     @Test
     void aNewUserIsSentToRegister() {
         final var signIn = signIn("alice-id", List.of());
 
-        assertThat(location(signIn)).startsWith("/register#registration_token=");
+        assertThat(redirectLocation(signIn)).startsWith("/register#registration_token=");
         assertThat(refreshCookie(signIn)).isEmpty();
-        assertThat(userDao.find(userId("alice-id"))).isEmpty();
+        assertThat(userDao.findById(userId("alice-id"))).isEmpty();
     }
 
     @Test
     void aRegisteredUserIsSignedIn() {
         existingUser("alice-id", "alice");
 
-        final var session = session("alice-id", List.of());
+        final var session = providerSession("alice-id", List.of());
 
-        final var me = me(session.accessToken());
+        final var me = currentUser(session.accessToken());
         assertThat(me.userId()).isEqualTo(userId("alice-id"));
         assertThat(me.username()).isEqualTo("alice");
         assertThat(me.role()).isEqualTo(UserRole.USER);
@@ -130,12 +130,12 @@ class OidcSignInTest {
     void theRoleFollowsTheProviderGroupsAtEachSignIn() {
         existingUser("root-id", "root");
 
-        final var asAdmin = session("root-id", List.of(FakeOidcProvider.ADMIN_GROUP));
-        assertThat(me(asAdmin.accessToken()).role()).isEqualTo(UserRole.ADMIN);
+        final var asAdmin = providerSession("root-id", List.of(FakeOidcProvider.ADMIN_GROUP));
+        assertThat(currentUser(asAdmin.accessToken()).role()).isEqualTo(UserRole.ADMIN);
 
-        final var asUser = session("root-id", List.of("staff"));
-        assertThat(me(asUser.accessToken()).role()).isEqualTo(UserRole.USER);
-        assertThat(userDao.find(userId("root-id")).orElseThrow().role()).isEqualTo(UserRole.USER);
+        final var asUser = providerSession("root-id", List.of("staff"));
+        assertThat(currentUser(asUser.accessToken()).role()).isEqualTo(UserRole.USER);
+        assertThat(userDao.findById(userId("root-id")).orElseThrow().role()).isEqualTo(UserRole.USER);
     }
 
     @Test
@@ -146,7 +146,7 @@ class OidcSignInTest {
                 .where(USERS.USER_ID.eq(userId("alice-id")))
                 .execute();
 
-        assertThat(location(signIn("alice-id", List.of()))).isEqualTo("/#error=105");
+        assertThat(redirectLocation(signIn("alice-id", List.of()))).isEqualTo("/#error=105");
     }
 
     @Test
@@ -157,21 +157,21 @@ class OidcSignInTest {
                 .expectStatus().isFound()
                 .expectBody().isEmpty();
 
-        assertThat(location(signIn)).isEqualTo("/#error=106");
+        assertThat(redirectLocation(signIn)).isEqualTo("/#error=106");
     }
 
     @Test
     void registeringCreatesTheAccount() {
-        final var registered = api.register(registrationToken("alice-id"), "alice")
+        final var registered = api.registerUser(registrationToken("alice-id"), "alice")
                 .expectStatus().isCreated()
                 .expectBody().isEmpty();
 
         assertThat(registered.getResponseHeaders().getLocation())
                 .hasToString(ApiRoutes.OIDC_AUTHORIZE + "/" + FakeOidcProvider.ID);
-        final var me = me(session("alice-id", List.of()).accessToken());
+        final var me = currentUser(providerSession("alice-id", List.of()).accessToken());
         assertThat(me.username()).isEqualTo("alice");
-        assertThat(userDao.find(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
-        assertThat(oidcIdentityDao.find(userId("alice-id")))
+        assertThat(userDao.findById(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
+        assertThat(oidcIdentityDao.findByUserId(userId("alice-id")))
                 .contains(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id"));
     }
 
@@ -179,14 +179,14 @@ class OidcSignInTest {
     void aTakenUsernameIsRefused() {
         existingUser("other-id", "bob");
 
-        api.register(registrationToken("bob-id"), "bob")
+        api.registerUser(registrationToken("bob-id"), "bob")
                 .expectStatus().isEqualTo(409)
                 .expectBody().jsonPath("$.code").isEqualTo(203);
     }
 
     @Test
     void aBlankUsernameIsRefused() {
-        api.register(registrationToken("alice-id"), " ")
+        api.registerUser(registrationToken("alice-id"), " ")
                 .expectStatus().isBadRequest()
                 .expectBody().jsonPath("$.code").isEqualTo(204);
     }
@@ -194,29 +194,29 @@ class OidcSignInTest {
     @Test
     void registeringTwiceIsRefused() {
         final var token = registrationToken("alice-id");
-        api.register(token, "alice").expectStatus().isCreated();
+        api.registerUser(token, "alice").expectStatus().isCreated();
 
-        api.register(token, "alice2")
+        api.registerUser(token, "alice2")
                 .expectStatus().isEqualTo(409)
                 .expectBody().jsonPath("$.code").isEqualTo(205);
     }
 
     @Test
     void anInvalidRegistrationTokenIsRefused() {
-        api.register("not-a-token", "alice")
+        api.registerUser("not-a-token", "alice")
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.code").isEqualTo(107);
     }
 
     @Test
     void aRegistrationTokenIsNotAnAccessToken() {
-        api.get(ApiRoutes.CURRENT_USER, registrationToken("alice-id")).expectStatus().isUnauthorized();
+        api.getWithToken(ApiRoutes.CURRENT_USER, registrationToken("alice-id")).expectStatus().isUnauthorized();
     }
 
     @Test
     void aProviderUserHasNoPasswordToChange() {
         existingUser("alice-id", "alice");
-        final var session = session("alice-id", List.of());
+        final var session = providerSession("alice-id", List.of());
 
         api.changePassword(session.accessToken(), "old", "new")
                 .expectStatus().isBadRequest()
@@ -242,7 +242,7 @@ class OidcSignInTest {
                 .expectStatus().isFound()
                 .expectBody().isEmpty();
 
-        assertThat(location(signIn)).isEqualTo("/#error=106");
+        assertThat(redirectLocation(signIn)).isEqualTo("/#error=106");
     }
 
     @Test
@@ -252,12 +252,12 @@ class OidcSignInTest {
         provider.acceptRefresh("alice-refresh-1", "alice-refresh-2");
         provider.acceptRefresh("alice-refresh-2", "alice-refresh-3");
 
-        final var first = ApiClient.session(api.refresh(cookie));
-        ApiClient.session(api.refresh(first.refreshToken()));
+        final var first = ApiClient.readSession(api.refreshSession(cookie));
+        ApiClient.readSession(api.refreshSession(first.refreshToken()));
 
         // The provider rotated its refresh token, and Sona used the new one.
-        assertThat(provider.refreshes("alice-refresh-1")).isEqualTo(1);
-        assertThat(provider.refreshes("alice-refresh-2")).isEqualTo(1);
+        assertThat(provider.refreshCount("alice-refresh-1")).isEqualTo(1);
+        assertThat(provider.refreshCount("alice-refresh-2")).isEqualTo(1);
     }
 
     @Test
@@ -266,7 +266,7 @@ class OidcSignInTest {
         final var cookie = signedInCookie("alice-id", List.of(), "alice-refresh");
         provider.rejectRefresh("alice-refresh");
 
-        api.refresh(cookie)
+        api.refreshSession(cookie)
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.code").isEqualTo(102);
     }
@@ -301,7 +301,7 @@ class OidcSignInTest {
      */
     private String registrationToken(final String subject) {
         final var signIn = signIn(subject, List.of());
-        final var fragment = UriComponentsBuilder.fromUriString(location(signIn)).build().getFragment();
+        final var fragment = UriComponentsBuilder.fromUriString(redirectLocation(signIn)).build().getFragment();
         return fragment.substring("registration_token=".length());
     }
 
@@ -314,7 +314,7 @@ class OidcSignInTest {
                 .expectBody().isEmpty();
         final var parameters = authorizeParameters(start);
         final var setCookie = start.getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
-        return new StartedSignIn(decode(parameters.getFirst("state")), decode(parameters.getFirst("nonce")),
+        return new StartedSignIn(urlDecode(parameters.getFirst("state")), urlDecode(parameters.getFirst("nonce")),
                 HttpCookie.parse(setCookie).getFirst());
     }
 
@@ -355,11 +355,11 @@ class OidcSignInTest {
     /**
      * @return the session the frontend gets by refreshing after a sign-in, which the provider accepts
      */
-    private ApiClient.Session session(final String subject, final List<String> groups) {
+    private ApiClient.Session providerSession(final String subject, final List<String> groups) {
         final var providerRefreshToken = "refresh-" + uuidv7();
         final var cookie = signedInCookie(subject, groups, providerRefreshToken);
         provider.acceptRefresh(providerRefreshToken, providerRefreshToken + "-next");
-        return ApiClient.session(api.refresh(cookie));
+        return ApiClient.readSession(api.refreshSession(cookie));
     }
 
     /**
@@ -368,15 +368,15 @@ class OidcSignInTest {
     private String signedInCookie(final String subject, final List<String> groups,
                                   final String providerRefreshToken) {
         final var signIn = signIn(subject, groups, providerRefreshToken);
-        assertThat(location(signIn)).isEqualTo("/");
+        assertThat(redirectLocation(signIn)).isEqualTo("/");
         return refreshCookie(signIn).orElseThrow();
     }
 
     private static Optional<String> refreshCookie(final EntityExchangeResult<Void> result) {
-        return cookie(result, RefreshCookieService.NAME);
+        return findCookie(result, RefreshCookieService.NAME);
     }
 
-    private static Optional<String> cookie(final EntityExchangeResult<Void> result, final String name) {
+    private static Optional<String> findCookie(final EntityExchangeResult<Void> result, final String name) {
         final var setCookies = Objects.requireNonNullElse(result.getResponseHeaders().get(HttpHeaders.SET_COOKIE),
                 List.<String>of());
         return setCookies.stream()
@@ -386,8 +386,8 @@ class OidcSignInTest {
                 .findFirst();
     }
 
-    private CurrentUserResponse me(final String accessToken) {
-        return api.get(ApiRoutes.CURRENT_USER, accessToken)
+    private CurrentUserResponse currentUser(final String accessToken) {
+        return api.getWithToken(ApiRoutes.CURRENT_USER, accessToken)
                 .expectStatus().isOk()
                 .expectBody(CurrentUserResponse.class)
                 .returnResult().getResponseBody();
@@ -400,12 +400,12 @@ class OidcSignInTest {
     /**
      * @return where the response sends the browser, without Sona's origin, which the server adds
      */
-    private String location(final EntityExchangeResult<Void> result) {
+    private String redirectLocation(final EntityExchangeResult<Void> result) {
         final var origin = "http://localhost:" + port;
         return result.getResponseHeaders().getLocation().toString().replaceFirst("^" + origin, "");
     }
 
-    private static String decode(final String value) {
+    private static String urlDecode(final String value) {
         return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 }

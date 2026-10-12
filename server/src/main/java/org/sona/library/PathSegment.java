@@ -19,11 +19,11 @@ public record PathSegment(
         name = UNSAFE_CHARACTERS.matcher(name).replaceAll("_");
     }
 
-    public Path path() {
+    public Path toPath() {
         return Path.of(toString());
     }
 
-    public static PathSegment parse(String path) {
+    public static PathSegment parseSegment(String path) {
         final var uuid = UUID.fromString(path.substring(0, UUID_LENGTH));
         final var name = path.substring(UUID_LENGTH + 1, path.length() - 1);
         return new PathSegment(uuid, name);

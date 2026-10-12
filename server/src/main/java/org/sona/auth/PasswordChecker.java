@@ -11,12 +11,12 @@ public interface PasswordChecker {
      *
      * @return the user, or empty if the username is unknown, the password is wrong or the account is disabled
      */
-    Optional<Users> authenticate(String username, String password);
+    Optional<Users> checkLogin(String username, String password);
 
     /**
      * Changes the user's password, which ends a required password change and every session the user has.
      *
      * @return whether the password changed, or why not
      */
-    PasswordChange change(SignedInUser user, String currentPassword, String newPassword);
+    PasswordChange changePassword(SignedInUser user, String currentPassword, String newPassword);
 }

@@ -24,27 +24,27 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
 
     @Override
     public OidcSignIn signIn(final ProviderUser providerUser, final String providerRefreshToken) {
-        final var user = userDao.find(providerUser.userId()).orElse(null);
+        final var user = userDao.findById(providerUser.userId()).orElse(null);
         if (user == null) {
-            return new OidcSignIn.RegistrationRequired(registrationTokens.issue(providerUser));
+            return new OidcSignIn.RegistrationRequired(registrationTokens.issueToken(providerUser));
         }
         return switch (user.state()) {
             case ACTIVE -> {
                 final var current = followProviderRole(user, providerUser.role());
-                yield new OidcSignIn.SignedIn(tokenIssuer.issue(current, providerRefreshToken));
+                yield new OidcSignIn.SignedIn(tokenIssuer.startSession(current, providerRefreshToken));
             }
             case DISABLED -> new OidcSignIn.Disabled();
         };
     }
 
     @Override
-    public ProviderUser register(final String registrationToken, final String username) {
-        final var user = registrationTokens.read(registrationToken)
+    public ProviderUser registerUser(final String registrationToken, final String username) {
+        final var user = registrationTokens.readToken(registrationToken)
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REGISTRATION_TOKEN));
         if (username == null || username.isBlank()) {
             throw new ClientException(ErrorCode.INVALID_USERNAME);
         }
-        if (userDao.find(user.userId()).isPresent()) {
+        if (userDao.findById(user.userId()).isPresent()) {
             throw new ClientException(ErrorCode.ALREADY_REGISTERED);
         }
         final var account = new Users(user.userId(), UserType.OIDC, username, user.role(), AccountState.ACTIVE);

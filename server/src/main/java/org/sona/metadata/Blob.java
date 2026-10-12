@@ -10,7 +10,7 @@ public final class Blob {
         this.bytes = bytes;
     }
 
-    public static Blob of(final byte[] bytes) {
+    public static Blob copyOf(final byte[] bytes) {
         return new Blob(Arrays.copyOf(bytes, bytes.length));
     }
 }

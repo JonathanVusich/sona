@@ -13,5 +13,5 @@ public interface ProviderClient {
      * @return whether the provider still accepts the session, which it doesn't once it has disabled the user or ended
      * their session there
      */
-    boolean refresh(OidcSession session);
+    boolean refreshSession(OidcSession session);
 }

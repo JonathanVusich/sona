@@ -26,7 +26,7 @@ public final class UserController {
      * Answered from the access token alone, which carries everything here.
      */
     @GetMapping(ApiRoutes.CURRENT_USER)
-    public CurrentUserResponse me(final UserAuthentication authentication) {
+    public CurrentUserResponse currentUser(final UserAuthentication authentication) {
         final var user = authentication.user();
         final var permissions = authentication.permissions().stream().sorted().toList();
         return new CurrentUserResponse(user.userId(), user.username(), user.role(), user.state(), permissions);
@@ -38,7 +38,7 @@ public final class UserController {
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
     public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
                                                @RequestBody final ChangePasswordRequest request) {
-        final var change = passwordChecker.change(authentication.user(), request.currentPassword(),
+        final var change = passwordChecker.changePassword(authentication.user(), request.currentPassword(),
                 request.newPassword());
         return switch (change) {
             case CHANGED -> ResponseEntity.noContent().build();

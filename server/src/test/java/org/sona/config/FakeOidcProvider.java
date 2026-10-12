@@ -119,14 +119,14 @@ public final class FakeOidcProvider {
     /**
      * @return how many times Sona has used the refresh token
      */
-    public int refreshes(final String refreshToken) {
+    public int refreshCount(final String refreshToken) {
         final var requests = postRequestedFor(urlPathEqualTo(TOKEN_PATH))
                 .withRequestBody(containing("grant_type=refresh_token"))
                 .withRequestBody(containing("refresh_token=" + refreshToken));
         return server.findAll(requests).size();
     }
 
-    public void stop() {
+    public void stopServer() {
         server.stop();
     }
 

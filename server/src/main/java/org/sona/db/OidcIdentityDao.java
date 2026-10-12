@@ -23,7 +23,7 @@ public class OidcIdentityDao {
     private final DSLContext dsl;
     private final OidcIdentityMapper mapper;
 
-    public Optional<OidcIdentity> find(UUID userId) {
+    public Optional<OidcIdentity> findByUserId(UUID userId) {
         return dsl.selectFrom(OIDC_IDENTITY)
                 .where(OIDC_IDENTITY.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);

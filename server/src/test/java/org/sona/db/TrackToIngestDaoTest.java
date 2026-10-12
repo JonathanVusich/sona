@@ -21,9 +21,9 @@ class TrackToIngestDaoTest {
     void storeAndLoad() {
         final var trackToIngest = new TrackToIngest(uuidv7(), uuidv7(), "filename", IngestState.PENDING);
 
-        dao.store(List.of(trackToIngest));
+        dao.storeAll(List.of(trackToIngest));
 
-        assertThat(dao.load(trackToIngest.trackIngestId())).isEqualTo(trackToIngest);
+        assertThat(dao.loadById(trackToIngest.trackIngestId())).isEqualTo(trackToIngest);
     }
 
     @Test
@@ -33,7 +33,7 @@ class TrackToIngestDaoTest {
         final var second = new TrackToIngest(uuidv7(), group, "second.flac", IngestState.PENDING);
         final var otherGroup = new TrackToIngest(uuidv7(), uuidv7(), "other.flac", IngestState.PENDING);
 
-        dao.store(List.of(first, second, otherGroup));
+        dao.storeAll(List.of(first, second, otherGroup));
 
         assertThat(dao.loadByGroup(group)).containsExactlyInAnyOrder(first, second);
     }
@@ -41,12 +41,12 @@ class TrackToIngestDaoTest {
     @Test
     void updateStateRemovesFromPending() {
         final var trackToIngest = new TrackToIngest(uuidv7(), uuidv7(), "filename", IngestState.PENDING);
-        dao.store(List.of(trackToIngest));
-        assertThat(dao.pending()).contains(trackToIngest);
+        dao.storeAll(List.of(trackToIngest));
+        assertThat(dao.loadPending()).contains(trackToIngest);
 
         dao.updateState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
 
-        assertThat(dao.load(trackToIngest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
-        assertThat(dao.pending()).doesNotContain(trackToIngest);
+        assertThat(dao.loadById(trackToIngest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(dao.loadPending()).doesNotContain(trackToIngest);
     }
 }
