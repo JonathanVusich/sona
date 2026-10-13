@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
 
 /**
  * Why Sona refused a request. Clients branch on the number, which never changes once released; the reason is for
- * people. Numbers are grouped by area: 1xx signing in and sessions, 2xx the user's own account.
+ * people. Numbers are grouped by area: 1xx signing in and sessions, 2xx the user's own account, 3xx the
+ * library, 4xx requests Sona can't read.
  */
 @Getter
 @RequiredArgsConstructor
@@ -30,7 +31,11 @@ public enum ErrorCode {
             "You sign in through your identity provider, so change your password there."),
     USERNAME_TAKEN(203, HttpStatus.CONFLICT, "That username is taken."),
     INVALID_USERNAME(204, HttpStatus.BAD_REQUEST, "The username must not be empty."),
-    ALREADY_REGISTERED(205, HttpStatus.CONFLICT, "You already have an account.");
+    ALREADY_REGISTERED(205, HttpStatus.CONFLICT, "You already have an account."),
+
+    RELEASE_NOT_FOUND(300, HttpStatus.NOT_FOUND, "This release isn't in the library."),
+
+    INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter Sona can't read.");
 
     @JsonValue
     private final int code;
