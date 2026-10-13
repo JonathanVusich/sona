@@ -24,7 +24,7 @@ public class OidcSessionDao {
     private final DSLContext dsl;
     private final OidcSessionMapper mapper;
 
-    public Optional<OidcSession> findByFamilyId(UUID familyId) {
+    public Optional<OidcSession> loadByFamilyId(final UUID familyId) {
         return dsl.selectFrom(OIDC_SESSION)
                 .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
                 .fetchOptional(mapper::fromRecord);
@@ -33,7 +33,7 @@ public class OidcSessionDao {
     /**
      * Inserts the session, or replaces the provider's refresh token of the stored one, which providers may rotate.
      */
-    public void upsert(OidcSession session) {
+    public void upsert(final OidcSession session) {
         dsl.insertInto(OIDC_SESSION)
                 .set(mapper.toRecord(session))
                 .onConflict(OIDC_SESSION.FAMILY_ID)
@@ -42,7 +42,7 @@ public class OidcSessionDao {
                 .execute();
     }
 
-    public void delete(UUID familyId) {
+    public void delete(final UUID familyId) {
         dsl.deleteFrom(OIDC_SESSION)
                 .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
                 .execute();

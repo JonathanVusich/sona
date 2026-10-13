@@ -23,13 +23,13 @@ public class RefreshTokenDao {
     private final DSLContext dsl;
     private final RefreshTokenMapper mapper;
 
-    public void insert(RefreshToken token) {
+    public void insert(final RefreshToken token) {
         dsl.insertInto(REFRESH_TOKEN)
                 .set(mapper.toRecord(token))
                 .execute();
     }
 
-    public Optional<RefreshToken> findByHash(String tokenHash) {
+    public Optional<RefreshToken> loadByHash(final String tokenHash) {
         return dsl.selectFrom(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
                 .fetchOptional(mapper::fromRecord);
@@ -41,7 +41,7 @@ public class RefreshTokenDao {
      *
      * @return the token, now revoked, or empty if it was unknown, expired or already revoked
      */
-    public Optional<RefreshToken> revokeIfValid(String tokenHash) {
+    public Optional<RefreshToken> revokeIfValid(final String tokenHash) {
         return dsl.update(REFRESH_TOKEN)
                 .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
@@ -57,7 +57,8 @@ public class RefreshTokenDao {
      *
      * @return the family's valid token, now revoked, or empty if this token was replaced earlier or its family has ended
      */
-    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(String tokenHash, OffsetDateTime replacedAfter) {
+    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(final String tokenHash,
+                                                                      final OffsetDateTime replacedAfter) {
         final var family = select(REFRESH_TOKEN.FAMILY_ID)
                 .from(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
@@ -71,7 +72,7 @@ public class RefreshTokenDao {
                 .fetchOptional(mapper::fromRecord);
     }
 
-    public void revokeFamily(UUID familyId) {
+    public void revokeFamily(final UUID familyId) {
         dsl.update(REFRESH_TOKEN)
                 .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
                 .where(REFRESH_TOKEN.FAMILY_ID.eq(familyId))
@@ -79,7 +80,7 @@ public class RefreshTokenDao {
                 .execute();
     }
 
-    public void revokeAll(UUID userId) {
+    public void revokeAll(final UUID userId) {
         dsl.update(REFRESH_TOKEN)
                 .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
                 .where(REFRESH_TOKEN.USER_ID.eq(userId))

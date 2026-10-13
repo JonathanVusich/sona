@@ -41,9 +41,9 @@ class DefaultUsersTest {
 
         new InitialAdminRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
-        final var admin = userDao.findByUsername("admin").orElseThrow();
+        final var admin = userDao.loadByUsername("admin").orElseThrow();
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
-        final var password = passwordDao.findByUserId(admin.userId()).orElseThrow();
+        final var password = passwordDao.loadByUserId(admin.userId()).orElseThrow();
         assertThat(password.state()).isEqualTo(PasswordState.CHANGE_REQUIRED);
         assertThat(encoder.matches("admin", password.passwordHash())).isTrue();
     }
@@ -55,7 +55,7 @@ class DefaultUsersTest {
 
         new InitialAdminRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
-        assertThat(userDao.findByUsername("admin")).isEmpty();
+        assertThat(userDao.loadByUsername("admin")).isEmpty();
     }
 
     @Test
@@ -64,12 +64,12 @@ class DefaultUsersTest {
 
         new DevUserRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
-        final var admin = userDao.findByUsername("admin").orElseThrow();
-        final var user = userDao.findByUsername("user").orElseThrow();
+        final var admin = userDao.loadByUsername("admin").orElseThrow();
+        final var user = userDao.loadByUsername("user").orElseThrow();
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
         assertThat(user.role()).isEqualTo(UserRole.USER);
         assertThat(admin.state()).isEqualTo(AccountState.ACTIVE);
-        final var password = passwordDao.findByUserId(user.userId()).orElseThrow();
+        final var password = passwordDao.loadByUserId(user.userId()).orElseThrow();
         assertThat(encoder.matches("user", password.passwordHash())).isTrue();
     }
 
@@ -81,7 +81,7 @@ class DefaultUsersTest {
 
         new DevUserRunner(userDao, passwordDao, encoder).run(new DefaultApplicationArguments());
 
-        final var user = userDao.findByUsername("user").orElseThrow();
+        final var user = userDao.loadByUsername("user").orElseThrow();
         assertThat(user.userId()).isEqualTo(existing.userId());
         assertThat(user.role()).isEqualTo(UserRole.USER);
         assertThat(user.state()).isEqualTo(AccountState.ACTIVE);

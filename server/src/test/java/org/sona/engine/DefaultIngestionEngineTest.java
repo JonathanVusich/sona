@@ -241,11 +241,7 @@ class DefaultIngestionEngineTest {
     }
 
     private TrackToIngest storeIngest(final byte[] flac, final String fileName) throws IOException {
-        final var groupId = uuidv7();
-        library.storeIngestTrack(groupId, fileName, new ByteArrayInputStream(flac));
-        final var ingests = trackToIngestDao.loadByGroup(groupId);
-        assertThat(ingests).hasSize(1);
-        return ingests.getFirst();
+        return library.storeIngestTrack(uuidv7(), fileName, new ByteArrayInputStream(flac));
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {

@@ -110,7 +110,7 @@ class OidcSignInTest {
 
         assertThat(redirectLocation(signIn)).startsWith("/register#registration_token=");
         assertThat(refreshCookie(signIn)).isEmpty();
-        assertThat(userDao.findById(userId("alice-id"))).isEmpty();
+        assertThat(userDao.loadById(userId("alice-id"))).isEmpty();
     }
 
     @Test
@@ -135,7 +135,7 @@ class OidcSignInTest {
 
         final var asUser = providerSession("root-id", List.of("staff"));
         assertThat(currentUser(asUser.accessToken()).role()).isEqualTo(UserRole.USER);
-        assertThat(userDao.findById(userId("root-id")).orElseThrow().role()).isEqualTo(UserRole.USER);
+        assertThat(userDao.loadById(userId("root-id")).orElseThrow().role()).isEqualTo(UserRole.USER);
     }
 
     @Test
@@ -170,8 +170,8 @@ class OidcSignInTest {
                 .hasToString(ApiRoutes.OIDC_AUTHORIZE + "/" + FakeOidcProvider.ID);
         final var me = currentUser(providerSession("alice-id", List.of()).accessToken());
         assertThat(me.username()).isEqualTo("alice");
-        assertThat(userDao.findById(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
-        assertThat(oidcIdentityDao.findByUserId(userId("alice-id")))
+        assertThat(userDao.loadById(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
+        assertThat(oidcIdentityDao.loadByUserId(userId("alice-id")))
                 .contains(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id"));
     }
 

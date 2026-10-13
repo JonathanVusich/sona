@@ -12,7 +12,10 @@ import java.util.UUID;
 
 public interface Library {
 
-    void storeIngestTrack(UUID ingestGroup, String filename, InputStream inputStream) throws IOException;
+    /**
+     * @return the stored ingest, waiting to be processed
+     */
+    TrackToIngest storeIngestTrack(UUID ingestGroup, String filename, InputStream inputStream) throws IOException;
 
     InputStream readIngestTrack(TrackToIngest trackIngest) throws IOException;
 

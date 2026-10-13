@@ -213,8 +213,12 @@ Match the surrounding code. The conventions below are consistent across the code
   `fetchInto`).
 - Each DAO reads and writes one type: its table's pojo, or one composite record read with joins, which gets its own
   DAO (`ReleaseDetailsDao`).
+- DAO methods share one set of verbs: `load…` for reads (`loadById`, `loadByMusicBrainzId`; never `find…`),
+  `insert`, `upsert` / `upsertAll`, `update…` and `delete`. A read that may find nothing returns `Optional`, and one
+  whose row must exist returns the pojo. Every DAO method has a caller in `main`: delete one when its last caller goes,
+  along with any index that only it used.
 - Each page has one endpoint, which reads everything the page shows in one query: joins for single rows, `multiset`
-  for lists (`ReleaseDetailsDao.load`). Don't chain lookups by ID and stitch the results together in Java.
+  for lists (`ReleaseDetailsDao.loadById`). Don't chain lookups by ID and stitch the results together in Java.
 - Mappers never see jOOQ's generic `Record<N>` or `Result` types. The DAO converts each `multiset` to pojos as it's
   read (`.convertFrom(rows -> rows.map(...))`, calling the mapper for that level) and passes the mapper table records,
   pojos and lists.

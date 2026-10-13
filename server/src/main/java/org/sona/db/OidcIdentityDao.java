@@ -23,13 +23,13 @@ public class OidcIdentityDao {
     private final DSLContext dsl;
     private final OidcIdentityMapper mapper;
 
-    public Optional<OidcIdentity> findByUserId(UUID userId) {
+    public Optional<OidcIdentity> loadByUserId(final UUID userId) {
         return dsl.selectFrom(OIDC_IDENTITY)
                 .where(OIDC_IDENTITY.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);
     }
 
-    public void insert(OidcIdentity identity) {
+    public void insert(final OidcIdentity identity) {
         dsl.insertInto(OIDC_IDENTITY)
                 .set(mapper.toRecord(identity))
                 .execute();

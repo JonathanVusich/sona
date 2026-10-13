@@ -10,6 +10,7 @@ import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayInputStream;
@@ -57,11 +58,10 @@ class DefaultLibraryTest {
         final var groupId = uuidv7();
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
 
-        library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
+        final var ingestTrack = library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
 
-        final var ingestTrack = trackToIngestDao.loadByGroup(groupId).getFirst();
-        assertThat(ingestTrack.originalFileName()).isEqualTo("track.flac");
-        assertThat(ingestTrack.state()).isEqualTo(IngestState.PENDING);
+        assertThat(trackToIngestDao.loadById(ingestTrack.trackIngestId()))
+                .isEqualTo(new TrackToIngest(ingestTrack.trackIngestId(), groupId, "track.flac", IngestState.PENDING));
 
         try (final var stored = library.readIngestTrack(ingestTrack)) {
             assertThat(stored.readAllBytes()).isEqualTo(bytes);
@@ -80,8 +80,7 @@ class DefaultLibraryTest {
     void importTrackMovesFileIntoLibrary() throws IOException {
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
         final var groupId = uuidv7();
-        library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
-        final var ingestTrack = trackToIngestDao.loadByGroup(groupId).getFirst();
+        final var ingestTrack = library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
         final var path = library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", Format.FLAC);
 
         library.importTrack(ingestTrack, path);

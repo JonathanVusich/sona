@@ -25,9 +25,8 @@ class UserDaoTest {
 
         dao.insert(user);
 
-        assertThat(dao.findById(user.userId())).contains(user);
-        assertThat(dao.findByUsername("alice")).contains(user);
-        assertThat(dao.existsByUsername("alice")).isTrue();
+        assertThat(dao.loadById(user.userId())).contains(user);
+        assertThat(dao.loadByUsername("alice")).contains(user);
     }
 
     @Test
@@ -39,12 +38,12 @@ class UserDaoTest {
     }
 
     @Test
-    void isEmptyUntilAUserIsInserted() {
-        assertThat(dao.isEmpty()).isTrue();
+    void hasNoUsersUntilOneIsInserted() {
+        assertThat(dao.hasNoUsers()).isTrue();
 
         dao.insert(newUser("alice", UserRole.USER, AccountState.ACTIVE));
 
-        assertThat(dao.isEmpty()).isFalse();
+        assertThat(dao.hasNoUsers()).isFalse();
     }
 
     @Test
@@ -64,7 +63,7 @@ class UserDaoTest {
 
         dao.updateRole(user.userId(), UserRole.ADMIN);
 
-        assertThat(dao.findById(user.userId()))
+        assertThat(dao.loadById(user.userId()))
                 .contains(new Users(user.userId(), UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE));
     }
 

@@ -16,7 +16,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
 import java.util.UUID;
 
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -39,7 +38,7 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
-    public void storeIngestTrack(final UUID ingestGroup,
+    public TrackToIngest storeIngestTrack(final UUID ingestGroup,
                                  final String filename,
                                  final InputStream inputStream) throws IOException  {
         final UUID ingestTrackId = uuidv7();
@@ -61,7 +60,8 @@ public final class DefaultLibrary implements Library {
                 IngestState.PENDING
         );
 
-        trackToIngestDao.storeAll(List.of(trackIngest));
+        trackToIngestDao.insert(trackIngest);
+        return trackIngest;
     }
 
     @Override

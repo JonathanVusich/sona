@@ -19,11 +19,13 @@ public class TrackDao {
     private final DSLContext dsl;
     private final TrackMapper mapper;
 
-    public void insert(Track track) {
-        dsl.executeInsert(mapper.toRecord(track));
+    public void insert(final Track track) {
+        dsl.insertInto(TRACK)
+                .set(mapper.toRecord(track))
+                .execute();
     }
 
-    public Track loadByIngest(UUID trackIngestId) {
+    public Track loadByIngest(final UUID trackIngestId) {
         return dsl.selectFrom(TRACK)
                 .where(TRACK.TRACK_INGEST_ID.eq(trackIngestId))
                 .fetchSingle(mapper::fromRecord);

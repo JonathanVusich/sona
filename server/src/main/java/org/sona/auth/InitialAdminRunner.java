@@ -32,7 +32,7 @@ public class InitialAdminRunner implements ApplicationRunner {
 
     @Override
     public void run(final ApplicationArguments args) {
-        if (userDao.isEmpty()) {
+        if (userDao.hasNoUsers()) {
             final var admin = new Users(uuidv7(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE);
             userDao.insert(admin);
             passwordDao.upsert(new Password(admin.userId(), encoder.encode("admin"), PasswordState.CHANGE_REQUIRED));

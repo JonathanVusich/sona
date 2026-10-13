@@ -51,7 +51,7 @@ class ReleaseDetailsDaoTest {
         final var disc2 = storeMedium(release, 2);
         final var disc1 = storeMedium(release, 1);
 
-        assertThat(dao.load(release.releaseId())).contains(new ReleaseDetails(release, artist,
+        assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(release, artist,
                 List.of(capitol, parlophone),
                 List.of(new MediumWithTracks(disc1, List.of()), new MediumWithTracks(disc2, List.of()))));
     }
@@ -68,7 +68,7 @@ class ReleaseDetailsDaoTest {
         final var second = storeTrack(disc1, coldplay, 2);
         final var first = storeTrack(disc1, keane, 1);
 
-        final var details = dao.load(release.releaseId()).orElseThrow();
+        final var details = dao.loadById(release.releaseId()).orElseThrow();
 
         assertThat(details.artist()).isEqualTo(releaseArtist);
         assertThat(details.media()).containsExactly(
@@ -87,12 +87,12 @@ class ReleaseDetailsDaoTest {
         storeTrack(disc2, artist, 1);
         storeTrack(storeMedium(storeRelease(artist), 1), artist, 1);
 
-        assertThat(dao.load(release.releaseId()).orElseThrow().release().trackCount()).isEqualTo(2);
+        assertThat(dao.loadById(release.releaseId()).orElseThrow().release().trackCount()).isEqualTo(2);
     }
 
     @Test
     void loadFindsNoUnknownRelease() {
-        assertThat(dao.load(uuidv7())).isEmpty();
+        assertThat(dao.loadById(uuidv7())).isEmpty();
     }
 
     private Artist storeArtist(final String name) {
@@ -118,7 +118,7 @@ class ReleaseDetailsDaoTest {
 
     private Track storeTrack(final Medium medium, final Artist artist, final int position) {
         final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
-        trackToIngestDao.storeAll(List.of(ingest));
+        trackToIngestDao.insert(ingest);
         final var track = new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", medium.mediumId(),
                 position, artist.artistId(), ingest.trackIngestId());
         trackDao.insert(track);

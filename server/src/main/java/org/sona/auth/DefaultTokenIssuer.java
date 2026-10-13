@@ -80,7 +80,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
             return Optional.empty();
         }
         // Checked here because access tokens are trusted as they are until they expire.
-        final var user = userDao.findById(used.userId())
+        final var user = userDao.loadById(used.userId())
                 .filter(found -> found.state() == AccountState.ACTIVE)
                 .orElse(null);
         if (user == null || !stillAllowed(user, used.familyId())) {
@@ -121,7 +121,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private boolean stillAllowed(final Users user, final UUID familyId) {
         return switch (user.type()) {
             case LOCAL -> true;
-            case OIDC -> oidcSessionDao.findByFamilyId(familyId)
+            case OIDC -> oidcSessionDao.loadByFamilyId(familyId)
                     .map(providerClient::refreshSession)
                     .orElse(false);
         };
@@ -149,7 +149,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
 
     private SessionState sessionState(final Users user) {
         return switch (user.type()) {
-            case LOCAL -> sessionState(passwordDao.findByUserId(user.userId()).orElseThrow());
+            case LOCAL -> sessionState(passwordDao.loadByUserId(user.userId()).orElseThrow());
             // The provider manages the password.
             case OIDC -> SessionState.ACTIVE;
         };
@@ -163,7 +163,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        refreshTokenDao.findByHash(tokenHash)
+        refreshTokenDao.loadByHash(tokenHash)
                 .filter(token -> token.revokedAt() != null)
                 .ifPresent(token -> endFamily(token.familyId()));
     }

@@ -26,7 +26,7 @@ public class ReleaseDao {
      *
      * @return the stored release, which keeps its original ID if it already existed
      */
-    public Release upsert(Release release) {
+    public Release upsert(final Release release) {
         final var record = dsl.insertInto(RELEASE)
                 .set(mapper.toRecord(release))
                 .onConflict(RELEASE.MUSICBRAINZ_RELEASE_ID)

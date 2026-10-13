@@ -39,7 +39,7 @@ public class ReleaseDetailsDao {
     private final MediumWithTracksMapper mediumMapper;
     private final TrackWithArtistMapper trackMapper;
 
-    public Optional<ReleaseDetails> load(final UUID releaseId) {
+    public Optional<ReleaseDetails> loadById(final UUID releaseId) {
         return dsl.select(RELEASE, ARTIST, labels(), media())
                 .from(RELEASE)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))

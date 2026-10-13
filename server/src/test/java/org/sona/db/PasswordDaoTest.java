@@ -37,10 +37,10 @@ class PasswordDaoTest {
         final var second = new Password(alice.userId(), "{noop}second", PasswordState.CHANGE_REQUIRED);
 
         dao.upsert(first);
-        assertThat(dao.findByUserId(alice.userId())).contains(first);
+        assertThat(dao.loadByUserId(alice.userId())).contains(first);
 
         dao.upsert(second);
-        assertThat(dao.findByUserId(alice.userId())).contains(second);
+        assertThat(dao.loadByUserId(alice.userId())).contains(second);
     }
 
     @Test
@@ -49,12 +49,12 @@ class PasswordDaoTest {
 
         dao.updateHash(alice.userId(), "{noop}new");
 
-        assertThat(dao.findByUserId(alice.userId()))
+        assertThat(dao.loadByUserId(alice.userId()))
                 .contains(new Password(alice.userId(), "{noop}new", PasswordState.VALID));
     }
 
     @Test
     void aUserWithoutAPasswordHasNone() {
-        assertThat(dao.findByUserId(alice.userId())).isEmpty();
+        assertThat(dao.loadByUserId(alice.userId())).isEmpty();
     }
 }
