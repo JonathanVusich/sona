@@ -3,9 +3,13 @@ package org.sona.db;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.sona.mappers.ArtistMapper;
 import org.sona.mappers.LabelMapper;
+import org.sona.mappers.MediumMapper;
 import org.sona.mappers.MediumWithTracksMapper;
 import org.sona.mappers.ReleaseDetailsMapper;
+import org.sona.mappers.ReleaseMapper;
+import org.sona.mappers.TrackMapper;
 import org.sona.mappers.TrackWithArtistMapper;
 import org.sona.model.tables.pojos.Label;
 import org.springframework.stereotype.Component;
@@ -26,7 +30,8 @@ import static org.sona.model.Tables.RELEASE_LABEL;
 import static org.sona.model.Tables.TRACK;
 
 /**
- * Each multiset is mapped to pojos as it's read, so the mappers take plain records and lists.
+ * Every table the query reads is converted to its pojo by its table's mapper as it's read, so the composite mappers
+ * build their results from pojos only.
  */
 @Component
 @RequiredArgsConstructor
@@ -34,18 +39,23 @@ import static org.sona.model.Tables.TRACK;
 public class ReleaseDetailsDao {
 
     private final DSLContext dsl;
-    private final ReleaseDetailsMapper mapper;
+    private final ReleaseMapper releaseMapper;
+    private final ArtistMapper artistMapper;
     private final LabelMapper labelMapper;
-    private final MediumWithTracksMapper mediumMapper;
-    private final TrackWithArtistMapper trackMapper;
+    private final MediumMapper mediumMapper;
+    private final TrackMapper trackMapper;
+    private final ReleaseDetailsMapper detailsMapper;
+    private final MediumWithTracksMapper mediumWithTracksMapper;
+    private final TrackWithArtistMapper trackWithArtistMapper;
 
     public Optional<ReleaseDetails> loadById(final UUID releaseId) {
-        return dsl.select(RELEASE, ARTIST, labels(), media())
+        return dsl.select(RELEASE.convertFrom(releaseMapper::fromRecord),
+                        ARTIST.convertFrom(artistMapper::fromRecord), labels(), media())
                 .from(RELEASE)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
-                .fetchOptional(release -> mapper.fromRecords(release.value1(), release.value2(), release.value3(),
-                        release.value4()));
+                .fetchOptional(release -> detailsMapper.fromPojos(release.value1(), release.value2(),
+                        release.value3(), release.value4()));
     }
 
     private Field<List<Label>> labels() {
@@ -57,22 +67,24 @@ public class ReleaseDetailsDao {
     }
 
     private Field<List<MediumWithTracks>> media() {
-        return multiset(select(MEDIUM, tracks())
+        return multiset(select(MEDIUM.convertFrom(mediumMapper::fromRecord), tracks())
                 .from(MEDIUM)
                 .where(MEDIUM.RELEASE_ID.eq(RELEASE.RELEASE_ID))
                 .orderBy(MEDIUM.POSITION))
-                .convertFrom(media -> media.map(medium -> mediumMapper.fromRecords(medium.value1(),
+                .convertFrom(media -> media.map(medium -> mediumWithTracksMapper.fromPojos(medium.value1(),
                         medium.value2())));
     }
 
     private Field<List<TrackWithArtist>> tracks() {
         // Aliased apart from the release's artist, which the outer query joins as ARTIST.
         final var trackArtist = ARTIST.as("track_artist");
-        return multiset(select(TRACK, trackArtist)
+        return multiset(select(TRACK.convertFrom(trackMapper::fromRecord),
+                        trackArtist.convertFrom(artistMapper::fromRecord))
                 .from(TRACK)
                 .join(trackArtist).on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
                 .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
                 .orderBy(TRACK.POSITION))
-                .convertFrom(tracks -> tracks.map(track -> trackMapper.fromRecords(track.value1(), track.value2())));
+                .convertFrom(tracks -> tracks.map(track -> trackWithArtistMapper.fromPojos(track.value1(),
+                        track.value2())));
     }
 }

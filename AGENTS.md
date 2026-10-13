@@ -219,9 +219,10 @@ Match the surrounding code. The conventions below are consistent across the code
   along with any index that only it used.
 - Each page has one endpoint, which reads everything the page shows in one query: joins for single rows, `multiset`
   for lists (`ReleaseDetailsDao.loadById`). Don't chain lookups by ID and stitch the results together in Java.
-- Mappers never see jOOQ's generic `Record<N>` or `Result` types. The DAO converts each `multiset` to pojos as it's
-  read (`.convertFrom(rows -> rows.map(...))`, calling the mapper for that level) and passes the mapper table records,
-  pojos and lists.
+- Only a table's own mapper sees its jOOQ records. A composite read converts every table it selects to its pojo as
+  it's read (`RELEASE.convertFrom(releaseMapper::fromRecord)`, and `multiset(...).convertFrom(rows -> rows.map(...))`
+  for lists), and its composite mappers build their results from pojos only (`fromPojos(Medium medium,
+  List<TrackWithArtist> tracks)`).
 - Ingestion loads each row a track needs, or resolves it from MusicBrainz and upserts it when it isn't stored, the same
   way for every kind of row (release, medium, artist).
 - Model relationships on the MusicBrainz database when in doubt (a track is on a medium of a release, and has its
