@@ -48,11 +48,18 @@ IngestionEngine.processTrack ◄────────────────
    2. Parser.parseMetadata(InputStream) ──► RawMetadata = tags + duration (metadata/)
    3. MetadataResolver.resolveTrack ──► MusicBrainz search (client/) ──► ResolvedTrack (MBIDs + titles)
         └─ no match ──► state = INPUT_REQUIRED, file stays in the ingest area
-   4. Library.libraryPath ──► <release group id>[name]/<release id>[name]/<track id>[title].<ext>
+   4. store the rows the track references: each is loaded, or resolved from MusicBrainz and upserted if it
+        isn't stored (release with its group, labels and media; the track's medium; the track's artist)
+   5. Library.libraryPath ──► <release group id>[name]/<release id>[name]/<track id>[title].<ext>
         (Sona's own UUIDv7 database IDs, not MBIDs, which a track may not have)
-   5. one transaction: insert `track` row, state = COMPLETED, Library.importTrack moves the file
-      into <mediaFolder> (moved last, so a failed move rolls back the DB changes)
+   6. insert the `track` row, then Library.importTrack moves the file into <mediaFolder>, state = COMPLETED
+        └─ move fails ──► state = MOVE_FAILED, and processing it again retries only the move
 ```
+
+Each row commits on its own, and the upserts are idempotent, so processing an ingest again after a failure reuses
+what was stored. A release's media are stored after the release and its labels, so a stored release without the
+track's medium is one whose ingest stopped part-way: the engine looks the release up again and stores its labels and
+media.
 
 | Package | Responsibility |
 |---|---|
@@ -64,8 +71,8 @@ IngestionEngine.processTrack ◄────────────────
 | `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). |
 | `library` | `Library` / `DefaultLibrary`: owns the filesystem layout for the ingest staging area and the media library. Library paths are stored in the DB relative to the media folder, '/'-separated. `PathSegment` formats sanitised `uuid[name]` names. |
 | `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserService`). `TokenIssuer` / `DefaultTokenIssuer` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookieService`); the database is checked again on each refresh. `PasswordChecker` checks local users' passwords at login and changes them. `InitialAdminRunner` (every profile except `dev`) and `DevUserRunner` (`dev`) create the default accounts. Each user is `LOCAL` or `OIDC` (`users.type`); `OidcDiscoveryClient` holds Sona's client registrations at the configured OIDC providers, discovered from each issuer on first use. OIDC users sign in with Spring's OAuth2 login (authorization code flow with PKCE) at `/api/auth/oidc/authorize/<id>`, and `SignInHandler` finishes the callback through `AccountRegistrar`: a known user gets a session, and a new one is sent to the frontend's `register` page with a `RegistrationTokenService` token to choose a username (`POST /api/auth/register`). With `?prompt=none` (`SilentSignInResolver`) the provider signs a user who still has a session there straight back in, or answers that they must sign in (code 108); the provider last used is remembered in a cookie the frontend reads. An OIDC user's Sona ID is a UUIDv5 of their issuer and subject, so it is known without a lookup. The provider's refresh token is kept per session (`oidc_session`), and `ProviderClient` checks it with the provider on every refresh, so a user the provider disables loses access then. |
-| `db` | DAOs over jOOQ (`TrackToIngestDao`, `TrackDao`, `UserDao`, `PasswordDao`, `OidcIdentityDao`, `OidcSessionDao`, `RefreshTokenDao`). Return lists, not open `fetchStream()` cursors. |
-| `mappers` | MapStruct mappers between jOOQ records and pojos. |
+| `db` | DAOs over jOOQ, one per table (`ArtistDao`, `ReleaseDao`, `MediumDao`, `TrackDao`, `UserDao`, …), plus one per composite read (`ReleaseDetailsDao`, which reads the release page). Return lists, not open `fetchStream()` cursors. |
+| `mappers` | MapStruct mappers between jOOQ records and pojos, one per table and one per composite result (`ReleaseDetailsMapper`, `MediumWithTracksMapper`, `TrackWithArtistMapper`). |
 | `config` | Spring `@Configuration` classes (the MusicBrainz `RestClient` and URI builder, `SecurityConfig`, the per-start `SigningKeyConfig`, and `WebFrontendConfig`, which serves the web frontend bundled into the boot jar under `static/`, answering every non-API path it has no file for with `index.html`) and `config.properties` (`@ConfigurationProperties` records, found by `@ConfigurationPropertiesScan`). |
 | `org.sona.model` | **Generated by jOOQ** (`Tables`, `tables.*`, `tables.pojos.*`, `enums.*`). Don't put hand-written classes here. Note `client.model.Track` (a MusicBrainz track) is unrelated to `model.tables.pojos.Track` (a DB row). |
 | `controller` | REST controllers: `AuthController`, `OidcController`, `UserController`, `JwksController` (Sona's public signing key), and a stub `MetadataController`. Route paths are constants in `ApiRoutes`. Every client error has an `ErrorResponse` body: a three-digit `code` from `ErrorCode`, which clients branch on and which never changes once released, and a `reason` for people. Controllers throw `ClientException(ErrorCode)` and `ApiExceptionHandler` answers it; the security filters write theirs through `ErrorResponseWriter`. |
@@ -208,6 +215,11 @@ Match the surrounding code. The conventions below are consistent across the code
   DAO (`ReleaseDetailsDao`).
 - Each page has one endpoint, which reads everything the page shows in one query: joins for single rows, `multiset`
   for lists (`ReleaseDetailsDao.load`). Don't chain lookups by ID and stitch the results together in Java.
+- Mappers never see jOOQ's generic `Record<N>` or `Result` types. The DAO converts each `multiset` to pojos as it's
+  read (`.convertFrom(rows -> rows.map(...))`, calling the mapper for that level) and passes the mapper table records,
+  pojos and lists.
+- Ingestion loads each row a track needs, or resolves it from MusicBrainz and upserts it when it isn't stored, the same
+  way for every kind of row (release, medium, artist).
 - Model relationships on the MusicBrainz database when in doubt (a track is on a medium of a release, and has its
   own artist), keeping only the subset Sona needs.
 - Counts derived from other tables are columns kept up to date by a trigger (`release.track_count`), not counted

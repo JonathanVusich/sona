@@ -151,7 +151,8 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void storeTheMediaOfAReleaseStoredWithoutThem() throws IOException, InvalidFormatException, InterruptedException {
+    void finishStoringAReleaseStoredWithoutItsLabelsAndMedia()
+            throws IOException, InvalidFormatException, InterruptedException {
         final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
                 UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
@@ -168,6 +169,12 @@ class DefaultIngestionEngineTest {
                 .fetchSingleInto(Medium.class);
         assertThat(medium).extracting(Medium::releaseId, Medium::position, Medium::format)
                 .containsExactly(release.releaseId(), 1, "Digital Media");
+        final var labelNames = dsl.select(LABEL.NAME)
+                .from(RELEASE_LABEL)
+                .join(LABEL).on(LABEL.LABEL_ID.eq(RELEASE_LABEL.LABEL_ID))
+                .where(RELEASE_LABEL.RELEASE_ID.eq(release.releaseId()))
+                .fetch(LABEL.NAME);
+        assertThat(labelNames).containsExactly("Parlophone");
     }
 
     @Test

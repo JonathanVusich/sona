@@ -162,7 +162,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
         final var releaseGroup = releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
         final var medium = mediumDao.loadByPosition(release.releaseId(), resolved.discNumber())
-                .orElseGet(() -> storeMedium(release, resolved));
+                .orElseGet(() -> completeRelease(release, resolved));
         final var artistId = resolved.artist().artistId();
         final var artist = artistDao.loadByMusicBrainzId(artistId)
                 .orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
@@ -179,11 +179,17 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final var releaseArtist = upsertArtist(resolved.artist());
         final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
                 resolved.country(), 0, releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
-        // TODO: If ingestion stops after the release is stored, its labels are never stored, because a stored release
-        //  isn't looked up again. (Its media are, by storeMedium.)
-        storeLabels(release, resolved.labels());
-        storeMedia(release, resolved.media());
+        storeReleaseParts(release, resolved);
         return release;
+    }
+
+    /**
+     * Stores the release's labels and then its media. The media go last: a stored release without them is one whose
+     * ingest stopped part-way, which {@link #completeRelease} finishes.
+     */
+    private List<Medium> storeReleaseParts(final Release release, final ResolvedRelease resolved) {
+        storeLabels(release, resolved.labels());
+        return storeMedia(release, resolved.media());
     }
 
     private void storeLabels(final Release release, final List<ResolvedLabel> resolvedLabels) {
@@ -196,10 +202,13 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     /**
-     * Stores the release's media from MusicBrainz, for a release stored without them, and returns the track's.
+     * Finishes storing a release whose ingest stopped before its media were stored, so its labels may be missing too:
+     * looks it up again and stores its labels and media. Both upserts are idempotent.
+     *
+     * @return the track's medium
      */
-    private Medium storeMedium(final Release release, final ResolvedTrack resolved) {
-        final var media = storeMedia(release, resolver.resolveRelease(resolved.releaseId()).media());
+    private Medium completeRelease(final Release release, final ResolvedTrack resolved) {
+        final var media = storeReleaseParts(release, resolver.resolveRelease(resolved.releaseId()));
         return media.stream()
                 .filter(medium -> medium.position() == resolved.discNumber())
                 .findFirst()
