@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.ArtistDao;
+import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
@@ -62,6 +63,8 @@ class DefaultIngestionEngineTest {
     private TrackDao trackDao;
     @Autowired
     private ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    private ReleaseDao releaseDao;
     @Autowired
     private ArtistDao artistDao;
     @Autowired
@@ -148,7 +151,27 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void requireInputForUnmatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
+    void storeTheMediaOfAReleaseStoredWithoutThem() throws IOException, InvalidFormatException, InterruptedException {
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
+                UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
+                null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+        final var release = releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null, 0,
+                releaseGroup.releaseGroupId(), artist.artistId(),
+                UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")));
+        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+
+        engine.processTrack(ingest);
+
+        final var medium = dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.MEDIUM_ID.eq(loadTrack(ingest).mediumId()))
+                .fetchSingleInto(Medium.class);
+        assertThat(medium).extracting(Medium::releaseId, Medium::position, Medium::format)
+                .containsExactly(release.releaseId(), 1, "Digital Media");
+    }
+
+    @Test
+    void requireInputForUnmatchedTrack()throws IOException, InvalidFormatException, InterruptedException {
         final var flac = flacFile(newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall"));
         final var ingest = storeIngest(flac, "unknown.flac");
 

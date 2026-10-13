@@ -162,8 +162,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
         final var releaseGroup = releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
         final var medium = mediumDao.loadByPosition(release.releaseId(), resolved.discNumber())
-                .orElseThrow(() -> new IllegalStateException("Release %s has no medium %d"
-                        .formatted(release.releaseId(), resolved.discNumber())));
+                .orElseGet(() -> storeMedium(release, resolved));
         final var artistId = resolved.artist().artistId();
         final var artist = artistDao.loadByMusicBrainzId(artistId)
                 .orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
@@ -180,8 +179,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final var releaseArtist = upsertArtist(resolved.artist());
         final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
                 resolved.country(), 0, releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
-        // TODO: If ingestion stops after the release is stored, its labels and media are never stored, because a
-        //  stored release isn't looked up again.
+        // TODO: If ingestion stops after the release is stored, its labels are never stored, because a stored release
+        //  isn't looked up again. (Its media are, by storeMedium.)
         storeLabels(release, resolved.labels());
         storeMedia(release, resolved.media());
         return release;
@@ -196,8 +195,20 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 .toList());
     }
 
-    private void storeMedia(final Release release, final List<ResolvedMedium> media) {
-        mediumDao.upsertAll(media.stream()
+    /**
+     * Stores the release's media from MusicBrainz, for a release stored without them, and returns the track's.
+     */
+    private Medium storeMedium(final Release release, final ResolvedTrack resolved) {
+        final var media = storeMedia(release, resolver.resolveRelease(resolved.releaseId()).media());
+        return media.stream()
+                .filter(medium -> medium.position() == resolved.discNumber())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Release %s has no medium %d"
+                        .formatted(release.releaseId(), resolved.discNumber())));
+    }
+
+    private List<Medium> storeMedia(final Release release, final List<ResolvedMedium> media) {
+        return mediumDao.upsertAll(media.stream()
                 .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
                 .toList());
     }
