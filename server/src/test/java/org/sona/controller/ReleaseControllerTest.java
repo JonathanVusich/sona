@@ -16,12 +16,19 @@ import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseLabelDao;
-import org.sona.db.TestLibrary;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Label;
+import org.sona.model.tables.pojos.Medium;
+import org.sona.model.tables.pojos.Release;
+import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -58,28 +65,29 @@ class ReleaseControllerTest {
     int port;
 
     ApiClient api;
-    TestLibrary library;
     String token;
 
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        library = new TestLibrary(artistDao, releaseGroupDao, releaseDao, labelDao, releaseLabelDao, mediumDao,
-                trackDao, trackToIngestDao);
         token = new TestTokens(encoder).accessToken(uuidv7(), "alice", UserRole.USER, SessionState.ACTIVE);
     }
 
     @Test
     void aReleaseComesWithItsArtistLabelsAndMediaEachWithItsTracks() {
-        final var various = library.storeArtist("Various Artists");
-        final var coldplay = library.storeArtist("Coldplay");
-        final var keane = library.storeArtist("Keane");
-        final var release = library.storeRelease(various, "Britpop");
-        final var parlophone = library.storeLabel(release, "Parlophone");
-        final var disc1 = library.storeMedium(release, 1);
-        final var disc2 = library.storeMedium(release, 2);
-        final var yellow = library.storeTrack(disc1, coldplay, 1, "Yellow");
-        final var somewhereOnlyWeKnow = library.storeTrack(disc2, keane, 1, "Somewhere Only We Know");
+        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, uuidv7()));
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Britpop", null, null,
+                various.artistId(), uuidv7()));
+        final var release = releaseDao.upsert(new Release(uuidv7(), "Britpop", null, LocalDate.of(2002, 8, 26), "GB",
+                0, releaseGroup.releaseGroupId(), various.artistId(), uuidv7()));
+        final var parlophone = labelDao.upsertAll(List.of(new Label(uuidv7(), "Parlophone", uuidv7()))).getFirst();
+        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), parlophone.labelId())));
+        final var disc1 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var disc2 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD"))).getFirst();
+        final var yellow = insertTrack(disc1, coldplay, "Yellow");
+        final var somewhereOnlyWeKnow = insertTrack(disc2, keane, "Somewhere Only We Know");
 
         final var response = api.getWithToken(ApiRoutes.RELEASES + "/" + release.releaseId(), token)
                 .expectStatus().isOk()
@@ -109,6 +117,15 @@ class ReleaseControllerTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(400)
                 .jsonPath("$.reason").isEqualTo("The request has a parameter Sona can't read.");
+    }
+
+    private Track insertTrack(final Medium medium, final Artist artist, final String name) {
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
+        trackToIngestDao.insert(ingest);
+        final var track = new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
+                artist.artistId(), ingest.trackIngestId());
+        trackDao.insert(track);
+        return track;
     }
 
     private static ArtistResponse artist(final Artist artist) {
