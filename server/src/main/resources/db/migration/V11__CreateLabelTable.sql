@@ -3,5 +3,6 @@ create table if not exists label (
 
     name text not null,
 
+    -- Null when the label isn't in MusicBrainz.
     musicbrainz_label_id uuid unique
 );

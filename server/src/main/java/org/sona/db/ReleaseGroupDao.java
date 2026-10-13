@@ -26,7 +26,7 @@ public class ReleaseGroupDao {
      *
      * @return the stored release group, which keeps its original ID if it already existed
      */
-    public ReleaseGroup upsert(ReleaseGroup releaseGroup) {
+    public ReleaseGroup upsert(final ReleaseGroup releaseGroup) {
         final var record = dsl.insertInto(RELEASE_GROUP)
                 .set(mapper.toRecord(releaseGroup))
                 .onConflict(RELEASE_GROUP.MUSICBRAINZ_RELEASE_GROUP_ID)

@@ -4,9 +4,10 @@ create table if not exists artist (
     name text not null,
     -- ISO 3166-1 code of the artist's area, when MusicBrainz knows it.
     country text,
+    -- Null when there's no image of the artist.
     thumbnail_path text,
 
-    -- These fields are nullable in case they are not found in the MB database.
+    -- Null when the artist isn't in MusicBrainz.
     musicbrainz_artist_id uuid unique
 );
 

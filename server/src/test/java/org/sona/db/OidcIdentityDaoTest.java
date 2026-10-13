@@ -30,7 +30,7 @@ class OidcIdentityDaoTest {
 
         dao.insert(identity);
 
-        assertThat(dao.findByUserId(alice.userId())).contains(identity);
+        assertThat(dao.loadByUserId(alice.userId())).contains(identity);
     }
 
     @Test

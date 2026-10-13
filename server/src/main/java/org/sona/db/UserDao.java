@@ -25,27 +25,23 @@ public class UserDao {
     private final DSLContext dsl;
     private final UsersMapper mapper;
 
-    public Optional<Users> findById(UUID userId) {
+    public Optional<Users> loadById(final UUID userId) {
         return dsl.selectFrom(USERS)
                 .where(USERS.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);
     }
 
-    public Optional<Users> findByUsername(String username) {
+    public Optional<Users> loadByUsername(final String username) {
         return dsl.selectFrom(USERS)
                 .where(USERS.USERNAME.eq(username))
                 .fetchOptional(mapper::fromRecord);
     }
 
-    public boolean existsByUsername(String username) {
-        return dsl.fetchExists(USERS, USERS.USERNAME.eq(username));
-    }
-
-    public boolean isEmpty() {
+    public boolean hasNoUsers() {
         return !dsl.fetchExists(USERS);
     }
 
-    public void insert(Users user) {
+    public void insert(final Users user) {
         dsl.insertInto(USERS)
                 .set(mapper.toRecord(user))
                 .execute();
@@ -54,7 +50,7 @@ public class UserDao {
     /**
      * Sets the role, which for an OIDC user follows the one their provider gives them each time they sign in.
      */
-    public void updateRole(UUID userId, UserRole role) {
+    public void updateRole(final UUID userId, final UserRole role) {
         dsl.update(USERS)
                 .set(USERS.ROLE, role)
                 .where(USERS.USER_ID.eq(userId))
@@ -66,7 +62,7 @@ public class UserDao {
      *
      * @return the stored user, which keeps its original ID if it already existed
      */
-    public Users upsert(Users user) {
+    public Users upsert(final Users user) {
         final var record = dsl.insertInto(USERS)
                 .set(mapper.toRecord(user))
                 .onConflict(USERS.USERNAME)

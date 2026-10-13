@@ -24,7 +24,7 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
 
     @Override
     public OidcSignIn signIn(final ProviderUser providerUser, final String providerRefreshToken) {
-        final var user = userDao.findById(providerUser.userId()).orElse(null);
+        final var user = userDao.loadById(providerUser.userId()).orElse(null);
         if (user == null) {
             return new OidcSignIn.RegistrationRequired(registrationTokens.issueToken(providerUser));
         }
@@ -44,7 +44,7 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
         if (username == null || username.isBlank()) {
             throw new ClientException(ErrorCode.INVALID_USERNAME);
         }
-        if (userDao.findById(user.userId()).isPresent()) {
+        if (userDao.loadById(user.userId()).isPresent()) {
             throw new ClientException(ErrorCode.ALREADY_REGISTERED);
         }
         final var account = new Users(user.userId(), UserType.OIDC, username, user.role(), AccountState.ACTIVE);

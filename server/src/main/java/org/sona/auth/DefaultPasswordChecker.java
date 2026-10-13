@@ -33,13 +33,13 @@ public class DefaultPasswordChecker implements PasswordChecker {
 
     @Override
     public Optional<Users> checkLogin(final String username, final String password) {
-        final var user = userDao.findByUsername(username).orElse(null);
+        final var user = userDao.loadByUsername(username).orElse(null);
         if (user == null) {
             encoder.matches(password, unknownUserHash);
             return Optional.empty();
         }
         // Users who sign in through an OIDC provider have no password, so they can't log in here.
-        final var stored = passwordDao.findByUserId(user.userId()).orElse(null);
+        final var stored = passwordDao.loadByUserId(user.userId()).orElse(null);
         if (stored == null) {
             encoder.matches(password, unknownUserHash);
             return Optional.empty();
@@ -54,7 +54,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
     @Override
     public PasswordChange changePassword(final SignedInUser signedIn, final String currentPassword,
                                          final String newPassword) {
-        final var user = userDao.findById(signedIn.userId()).orElseThrow();
+        final var user = userDao.loadById(signedIn.userId()).orElseThrow();
         return switch (user.type()) {
             case LOCAL -> changeLocalPassword(user, currentPassword, newPassword);
             case OIDC -> PasswordChange.MANAGED_BY_PROVIDER;
@@ -63,7 +63,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
 
     private PasswordChange changeLocalPassword(final Users user, final String currentPassword,
                                                final String newPassword) {
-        final var password = passwordDao.findByUserId(user.userId()).orElseThrow();
+        final var password = passwordDao.loadByUserId(user.userId()).orElseThrow();
         if (!encoder.matches(currentPassword, password.passwordHash())) {
             return PasswordChange.INCORRECT_CURRENT_PASSWORD;
         }

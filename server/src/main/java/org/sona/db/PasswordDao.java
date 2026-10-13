@@ -25,7 +25,7 @@ public class PasswordDao {
     private final DSLContext dsl;
     private final PasswordMapper mapper;
 
-    public Optional<Password> findByUserId(UUID userId) {
+    public Optional<Password> loadByUserId(final UUID userId) {
         return dsl.selectFrom(PASSWORD)
                 .where(PASSWORD.USER_ID.eq(userId))
                 .fetchOptional(mapper::fromRecord);
@@ -34,7 +34,7 @@ public class PasswordDao {
     /**
      * Inserts the user's password, or overwrites their stored one.
      */
-    public void upsert(Password password) {
+    public void upsert(final Password password) {
         dsl.insertInto(PASSWORD)
                 .set(mapper.toRecord(password))
                 .onConflict(PASSWORD.USER_ID)
@@ -47,7 +47,7 @@ public class PasswordDao {
     /**
      * Sets a new password hash, which also ends a required password change.
      */
-    public void updateHash(UUID userId, String passwordHash) {
+    public void updateHash(final UUID userId, final String passwordHash) {
         dsl.update(PASSWORD)
                 .set(PASSWORD.PASSWORD_HASH, passwordHash)
                 .set(PASSWORD.STATE, PasswordState.VALID)

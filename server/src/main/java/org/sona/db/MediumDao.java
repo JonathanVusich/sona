@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.MEDIUM;
@@ -39,5 +41,12 @@ public class MediumDao {
                 .set(MEDIUM.FORMAT, excluded(MEDIUM.FORMAT))
                 .returning()
                 .fetch(mapper::fromRecord);
+    }
+
+    public Optional<Medium> loadByPosition(final UUID releaseId, final int position) {
+        return dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.RELEASE_ID.eq(releaseId))
+                .and(MEDIUM.POSITION.eq(position))
+                .fetchOptional(mapper::fromRecord);
     }
 }

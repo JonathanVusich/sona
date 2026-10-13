@@ -5,6 +5,8 @@ import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
+import org.sona.db.ArtistDao;
+import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
@@ -62,6 +64,10 @@ class DefaultIngestionEngineTest {
     @Autowired
     private ReleaseGroupDao releaseGroupDao;
     @Autowired
+    private ReleaseDao releaseDao;
+    @Autowired
+    private ArtistDao artistDao;
+    @Autowired
     private WireMockServer musicBrainz;
     // For rows the DAOs have no lookup for.
     @Autowired
@@ -81,11 +87,14 @@ class DefaultIngestionEngineTest {
         assertThat(track.name()).isEqualTo("A Whisper");
         assertThat(track.duration()).isEqualTo(10);
         assertThat(track.format()).isEqualTo(AudioFormat.FLAC);
-        assertThat(track.discNumber()).isEqualTo(1);
-        assertThat(track.trackNumber()).isEqualTo(9);
+        assertThat(track.position()).isEqualTo(9);
 
+        final var medium = dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.MEDIUM_ID.eq(track.mediumId()))
+                .fetchSingleInto(Medium.class);
+        assertThat(medium.position()).isEqualTo(1);
         final var release = dsl.selectFrom(RELEASE)
-                .where(RELEASE.RELEASE_ID.eq(track.releaseId()))
+                .where(RELEASE.RELEASE_ID.eq(medium.releaseId()))
                 .fetchSingleInto(Release.class);
         assertThat(release.musicbrainzReleaseId()).isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
         assertThat(release.date()).isEqualTo(LocalDate.of(2022, 8, 26));
@@ -134,7 +143,7 @@ class DefaultIngestionEngineTest {
         engine.processTrack(first);
         engine.processTrack(second);
 
-        assertThat(loadTrack(second).releaseId()).isEqualTo(loadTrack(first).releaseId());
+        assertThat(loadTrack(second).mediumId()).isEqualTo(loadTrack(first).mediumId());
         assertThat(dsl.fetchCount(RELEASE)).isEqualTo(1);
         assertThat(dsl.fetchCount(RELEASE_GROUP)).isEqualTo(1);
         // The release was stored with the first track, so it isn't looked up again.
@@ -142,7 +151,34 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void requireInputForUnmatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
+    void finishStoringAReleaseStoredWithoutItsLabelsAndMedia()
+            throws IOException, InvalidFormatException, InterruptedException {
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
+                UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
+                null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+        final var release = releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null, 0,
+                releaseGroup.releaseGroupId(), artist.artistId(),
+                UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")));
+        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+
+        engine.processTrack(ingest);
+
+        final var medium = dsl.selectFrom(MEDIUM)
+                .where(MEDIUM.MEDIUM_ID.eq(loadTrack(ingest).mediumId()))
+                .fetchSingleInto(Medium.class);
+        assertThat(medium).extracting(Medium::releaseId, Medium::position, Medium::format)
+                .containsExactly(release.releaseId(), 1, "Digital Media");
+        final var labelNames = dsl.select(LABEL.NAME)
+                .from(RELEASE_LABEL)
+                .join(LABEL).on(LABEL.LABEL_ID.eq(RELEASE_LABEL.LABEL_ID))
+                .where(RELEASE_LABEL.RELEASE_ID.eq(release.releaseId()))
+                .fetch(LABEL.NAME);
+        assertThat(labelNames).containsExactly("Parlophone");
+    }
+
+    @Test
+    void requireInputForUnmatchedTrack()throws IOException, InvalidFormatException, InterruptedException {
         final var flac = flacFile(newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall"));
         final var ingest = storeIngest(flac, "unknown.flac");
 
@@ -157,8 +193,10 @@ class DefaultIngestionEngineTest {
 
     @Test
     void retryOnlyTheMoveAfterItFails() throws IOException, InvalidFormatException, InterruptedException {
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(),
-                "A Rush of Blood to the Head", null, null, null, UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
+                UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
+                null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
         // A file where the release group's folder belongs makes the move fail.
         final var blocker = libraryProperties.mediaFolder()
                 .resolve(releaseGroup.releaseGroupId() + "[A Rush of Blood to the Head]");
@@ -203,11 +241,7 @@ class DefaultIngestionEngineTest {
     }
 
     private TrackToIngest storeIngest(final byte[] flac, final String fileName) throws IOException {
-        final var groupId = uuidv7();
-        library.storeIngestTrack(groupId, fileName, new ByteArrayInputStream(flac));
-        final var ingests = trackToIngestDao.loadByGroup(groupId);
-        assertThat(ingests).hasSize(1);
-        return ingests.getFirst();
+        return library.storeIngestTrack(uuidv7(), fileName, new ByteArrayInputStream(flac));
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {

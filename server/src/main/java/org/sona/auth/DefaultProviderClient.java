@@ -26,7 +26,7 @@ public class DefaultProviderClient implements ProviderClient {
 
     @Override
     public boolean refreshSession(final OidcSession session) {
-        final var identity = oidcIdentityDao.findByUserId(session.userId()).orElseThrow();
+        final var identity = oidcIdentityDao.loadByUserId(session.userId()).orElseThrow();
         // A provider that has been removed from the configuration no longer vouches for anyone.
         final var registration = discoveryClient.findByIssuer(identity.issuer()).orElse(null);
         if (registration == null) {

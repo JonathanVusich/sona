@@ -26,7 +26,7 @@ public class ArtistDao {
      *
      * @return the stored artist, which keeps its original ID if it already existed
      */
-    public Artist upsert(Artist artist) {
+    public Artist upsert(final Artist artist) {
         final var record = dsl.insertInto(ARTIST)
                 .set(mapper.toRecord(artist))
                 .onConflict(ARTIST.MUSICBRAINZ_ARTIST_ID)

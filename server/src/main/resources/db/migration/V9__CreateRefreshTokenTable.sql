@@ -8,7 +8,9 @@ create table if not exists refresh_token (
     -- SHA-256 of the token, hex encoded. The token itself is never stored.
     token_hash text not null unique,
     expires_at timestamptz not null,
+    -- Null until the token is revoked.
     revoked_at timestamptz
 );
 
 create index if not exists refresh_token_family_id_idx on refresh_token (family_id);
+create index if not exists refresh_token_user_id_idx on refresh_token (user_id);

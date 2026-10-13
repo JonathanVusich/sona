@@ -3,14 +3,14 @@ package org.sona.db;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.TrackToIngestMapper;
-import org.sona.model.Tables;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
+
+import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 @Component
 @RequiredArgsConstructor
@@ -20,37 +20,22 @@ public class TrackToIngestDao {
     private final DSLContext dsl;
     private final TrackToIngestMapper mapper;
 
-    public void storeAll(List<TrackToIngest> tracks) {
-        final var records = tracks.stream()
-                .map(mapper::toRecord).toList();
-
-        dsl.batchStore(records)
+    public void insert(final TrackToIngest trackToIngest) {
+        dsl.insertInto(TRACK_TO_INGEST)
+                .set(mapper.toRecord(trackToIngest))
                 .execute();
     }
 
-    public List<TrackToIngest> loadByGroup(UUID ingestGroupId) {
-        return dsl.selectFrom(Tables.TRACK_TO_INGEST)
-                .where(Tables.TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
-                .fetch(mapper::fromRecord);
+    public TrackToIngest loadById(final UUID trackToIngestId) {
+        return dsl.selectFrom(TRACK_TO_INGEST)
+                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .fetchSingle(mapper::fromRecord);
     }
 
-    public TrackToIngest loadById(UUID trackToIngestId) {
-        final var record = dsl.selectFrom(Tables.TRACK_TO_INGEST)
-                .where(Tables.TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
-                .fetchOne();
-        return mapper.fromRecord(record);
-    }
-
-    public List<TrackToIngest> loadPending() {
-        return dsl.selectFrom(Tables.TRACK_TO_INGEST)
-                .where(Tables.TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
-                .fetch(mapper::fromRecord);
-    }
-
-    public void updateState(UUID trackToIngestId, IngestState state) {
-        dsl.update(Tables.TRACK_TO_INGEST)
-                .set(Tables.TRACK_TO_INGEST.STATE, state)
-                .where(Tables.TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+    public void updateState(final UUID trackToIngestId, final IngestState state) {
+        dsl.update(TRACK_TO_INGEST)
+                .set(TRACK_TO_INGEST.STATE, state)
+                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
                 .execute();
     }
 }
