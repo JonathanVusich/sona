@@ -40,10 +40,10 @@ public class ReleaseGroupController {
             throw new ClientException(ErrorCode.INVALID_PARAMETER);
         }
         // One more than the page holds tells whether there's a page after it.
-        final var loaded = summaryDao.loadPage(after, limit + 1);
-        final var page = loaded.subList(0, Math.min(limit, loaded.size()));
-        final var releaseGroups = page.stream().map(mapper::toResponse).toList();
-        return new ReleaseGroupPageResponse(releaseGroups, nextPage(loaded, page));
+        if (after == null) {
+            return pageResponse(summaryDao.loadFirstPage(limit + 1), limit);
+        }
+        return pageResponse(summaryDao.loadNextPage(after, limit + 1), limit);
     }
 
     @GetMapping(ApiRoutes.RELEASE_GROUP)
@@ -54,12 +54,15 @@ public class ReleaseGroupController {
     }
 
     /**
-     * @return the last release group on the page, or null when nothing comes after it
+     * @param loaded up to one more release group than the page holds
      */
-    private static UUID nextPage(final List<ReleaseGroupSummary> loaded, final List<ReleaseGroupSummary> page) {
+    private ReleaseGroupPageResponse pageResponse(final List<ReleaseGroupSummary> loaded, final int limit) {
+        final var page = loaded.stream().limit(limit).toList();
+        final var releaseGroups = page.stream().map(mapper::toResponse).toList();
         if (loaded.size() == page.size()) {
-            return null;
+            // The response marks the last page with a null next.
+            return new ReleaseGroupPageResponse(releaseGroups, null);
         }
-        return page.getLast().releaseGroup().releaseGroupId();
+        return new ReleaseGroupPageResponse(releaseGroups, page.getLast().releaseGroup().releaseGroupId());
     }
 }
