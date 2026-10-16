@@ -9,11 +9,38 @@ import Menu from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
 import { AppRoutes, routeTo } from "../routes";
 
+/** What a row shows and links to. */
+export interface TrackRow {
+  id: string;
+  number: number;
+  title: string;
+  /** In seconds. */
+  duration: number;
+  artist: { id: string; name: string } | undefined;
+  release: { id: string; title: string } | undefined;
+}
+
+export function trackRowOf(track: Track): TrackRow {
+  const { release, artist } = contextOf(track);
+  return {
+    id: track.id,
+    number: track.number,
+    title: track.title,
+    duration: track.duration,
+    artist: artist === undefined ? undefined : { id: artist.id, name: artist.name },
+    release: release === undefined ? undefined : { id: release.id, title: release.title },
+  };
+}
+
 // Rows play on click. With showContext each row also names and links its artist and release, for lists that mix
-// releases such as playlists. Passing playlistId offers removing tracks from that playlist.
+// releases such as playlists. Without it, a row names its artist only when it isn't the page's (artistId), as on a
+// compilation. Passing playlistId offers removing tracks from that playlist.
 export default function TrackList(props: {
-  tracks: Track[];
+  tracks: TrackRow[];
   showContext: boolean;
+  artistId?: string;
+  // Tracks that aren't in the mocked library can't go on its playlists.
+  canAddToPlaylist?: boolean;
   playlistId?: string;
   onPlay: (index: number) => void;
 }) {
@@ -21,7 +48,6 @@ export default function TrackList(props: {
     <ol class="tracklist" classList={{ "with-context": props.showContext }}>
       <For each={props.tracks}>
         {(track, index) => {
-          const context = () => contextOf(track);
           const isCurrent = () => current()?.id === track.id;
           // Links and buttons inside the row do their own thing.
           const onRowClick = (event: MouseEvent) => {
@@ -48,7 +74,7 @@ export default function TrackList(props: {
               </button>
               <span class="track-main">
                 <span class="track-title">{track.title}</span>
-                <Show when={props.showContext && context().artist}>
+                <Show when={(props.showContext || track.artist?.id !== props.artistId) && track.artist}>
                   {(artist) => (
                     <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="track-sub">
                       {artist().name}
@@ -58,23 +84,25 @@ export default function TrackList(props: {
               </span>
               <Show when={props.showContext}>
                 <span class="track-release">
-                  <Show when={context().release}>
+                  <Show when={track.release}>
                     {(release) => <A href={routeTo(AppRoutes.RELEASE, release().id)}>{release().title}</A>}
                   </Show>
                 </span>
               </Show>
               <span class="track-duration">{formatTime(track.duration)}</span>
               <Menu label={`More for ${track.title}`} icon={<MoreIcon size={18} />} class="track-menu">
-                <AddToPlaylistItems trackIds={() => [track.id]} />
-                <hr class="menu-divider" />
-                <Show when={context().artist}>
+                <Show when={props.canAddToPlaylist !== false}>
+                  <AddToPlaylistItems trackIds={() => [track.id]} />
+                  <hr class="menu-divider" />
+                </Show>
+                <Show when={track.artist}>
                   {(artist) => (
                     <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="menu-item" role="menuitem">
                       Go to artist
                     </A>
                   )}
                 </Show>
-                <Show when={props.showContext && context().release}>
+                <Show when={props.showContext && track.release}>
                   {(release) => (
                     <A href={routeTo(AppRoutes.RELEASE, release().id)} class="menu-item" role="menuitem">
                       Go to release

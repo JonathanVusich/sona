@@ -17,3 +17,4 @@ Data a page will show that its endpoint doesn't serve yet.
 | Gap | Until it's served |
 |---|---|
 | **The release page's other editions and the artist's other release groups.** `GET /api/releases/{id}` serves only the release itself. | The release page links to its release group (`releaseGroupId`), which will list the editions. |
+| **Playing music.** Sona doesn't stream yet, and playlists are still mocked in the frontend. | The release page's Play, Shuffle and More buttons do nothing, and its tracks can't be added to playlists. |

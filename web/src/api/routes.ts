@@ -5,4 +5,5 @@ export const ApiRoutes = {
   AUTH_LOGOUT: "/api/auth/logout",
   CURRENT_USER: "/api/users/me",
   CURRENT_USER_PASSWORD: "/api/users/me/password",
+  RELEASES: "/api/releases",
 } as const;
