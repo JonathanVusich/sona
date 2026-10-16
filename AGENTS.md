@@ -99,7 +99,8 @@ media.
   the server and tests from `server/` (Gradle does this for you).
 - `library.ingestFolder` / `library.mediaFolder` → `LibraryProperties`; `musicbrainz.url` → `MusicBrainzProperties`;
   `auth.*` (token lifetimes, `frontendUrl`, the `oidcProviders` users can sign in through) → `AuthProperties`.
-- `bootRun` activates the `dev` profile, which creates `admin`/`admin` and `user`/`user`. Any other profile gets
+- `bootRun` activates the `dev` profile, which creates `admin`/`admin` and `user`/`user`, and stores a few releases
+  (`DevLibraryRunner`, whose tracks have no audio files) and logs each one's page. Any other profile gets
   `admin`/`admin` on an empty database, who must change the password first.
 - The MusicBrainz rate limit is in `application.properties` (`resilience4j.ratelimiter.instances.musicbrainz.*`).
 - The datasource is Spring Boot's (`spring.datasource.*` in `application.properties`, local dev credentials).
