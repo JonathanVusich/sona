@@ -28,7 +28,7 @@ export default function ReleaseDetail() {
         loaded.ok ? (
           <ReleaseView release={loaded.body} />
         ) : (
-          <PageLayout header={<p class="empty">{messageFor(loaded.failure)}</p>} />
+          <PageLayout header={<p class="empty">{failureMessage(loaded.failure)}</p>} />
         )
       }
     </Show>
@@ -98,7 +98,7 @@ function ReleaseView(props: { release: ReleaseResponse }) {
 function MediumTracks(props: { medium: MediumResponse; release: ReleaseResponse }) {
   return (
     <TrackList
-      tracks={props.medium.tracks.map(trackRowOf)}
+      tracks={props.medium.tracks.map(trackRow)}
       showContext={false}
       artistId={props.release.artist.artistId}
       canAddToPlaylist={false}
@@ -107,7 +107,7 @@ function MediumTracks(props: { medium: MediumResponse; release: ReleaseResponse 
   );
 }
 
-function trackRowOf(track: TrackResponse): TrackRow {
+function trackRow(track: TrackResponse): TrackRow {
   return {
     id: track.trackId,
     number: track.position,
@@ -118,9 +118,10 @@ function trackRowOf(track: TrackResponse): TrackRow {
   };
 }
 
-function messageFor(failure: ApiFailure): string {
+function failureMessage(failure: ApiFailure): string {
   // An ID that isn't one of Sona's can't be a release in the library either.
-  return failure.code === ErrorCode.RELEASE_NOT_FOUND || failure.code === ErrorCode.INVALID_PARAMETER
-    ? NOT_IN_LIBRARY
-    : failure.reason;
+  if (failure.code === ErrorCode.RELEASE_NOT_FOUND || failure.code === ErrorCode.INVALID_PARAMETER) {
+    return NOT_IN_LIBRARY;
+  }
+  return failure.reason;
 }

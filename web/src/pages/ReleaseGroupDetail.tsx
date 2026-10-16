@@ -8,7 +8,7 @@ import Menu from "../components/Menu";
 import PageLayout from "../components/PageLayout";
 import { AddToPlaylistItems } from "../components/PlaylistDialog";
 import Section from "../components/Section";
-import TrackList, { trackRowOf } from "../components/TrackList";
+import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { artistById, canonicalRelease, groupById, groupsOf, groupYear, releasesOf, tracksOfRelease } from "../library";
 import { playTracks, shufflePlay } from "../player";
@@ -67,7 +67,7 @@ export default function ReleaseGroupDetail() {
             }
           >
             <TrackList
-              tracks={tracks().map(trackRowOf)}
+              tracks={tracks().map(trackRow)}
               showContext={false}
               artistId={group().artistId}
               onPlay={(index) => playTracks(tracks(), index)}

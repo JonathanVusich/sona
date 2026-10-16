@@ -6,7 +6,7 @@ import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import Menu from "../components/Menu";
 import PageLayout from "../components/PageLayout";
 import { openPlaylistDialog } from "../components/PlaylistDialog";
-import TrackList, { trackRowOf } from "../components/TrackList";
+import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
 import { playTracks, shufflePlay } from "../player";
@@ -68,7 +68,7 @@ export default function PlaylistDetail() {
               fallback={<p class="empty">Add songs from any album with the ⋯ button on a track.</p>}
             >
               <TrackList
-                tracks={playlistTracks().map(trackRowOf)}
+                tracks={playlistTracks().map(trackRow)}
                 showContext
                 playlistId={playlist().id}
                 onPlay={(index) => playTracks(playlistTracks(), index)}

@@ -20,15 +20,15 @@ export interface TrackRow {
   release: { id: string; title: string } | undefined;
 }
 
-export function trackRowOf(track: Track): TrackRow {
+export function trackRow(track: Track): TrackRow {
   const { release, artist } = contextOf(track);
   return {
     id: track.id,
     number: track.number,
     title: track.title,
     duration: track.duration,
-    artist: artist === undefined ? undefined : { id: artist.id, name: artist.name },
-    release: release === undefined ? undefined : { id: release.id, title: release.title },
+    artist,
+    release,
   };
 }
 
