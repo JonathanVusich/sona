@@ -33,5 +33,8 @@ public final class ApiRoutes {
     public static final String CURRENT_USER = API + "/users/me";
     public static final String CURRENT_USER_PASSWORD = CURRENT_USER + "/password";
 
+    public static final String RELEASES = API + "/releases";
+    public static final String RELEASE = RELEASES + "/{releaseId}";
+
     public static final String JWKS = "/.well-known/jwks.json";
 }

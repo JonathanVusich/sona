@@ -1,5 +1,5 @@
 import { Navigate } from "@solidjs/router";
-import { createSignal, Show } from "solid-js";
+import { createSignal, onMount, Show } from "solid-js";
 import { SessionState } from "../api/responses";
 import { changePassword, currentUser, logOut } from "../auth";
 import { AppRoutes } from "../routes";
@@ -12,6 +12,11 @@ export default function ChangePassword() {
   const [confirmedPassword, setConfirmedPassword] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [pending, setPending] = createSignal(false);
+  let currentPasswordInput: HTMLInputElement | undefined;
+
+  // Focused here rather than with autofocus, which WebKit applies late enough to move focus away from a field already
+  // being typed in.
+  onMount(() => currentPasswordInput?.focus());
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
@@ -34,11 +39,11 @@ export default function ChangePassword() {
           <label>
             Current password
             <input
+              ref={currentPasswordInput}
               type="password"
               value={currentPassword()}
               onInput={(e) => setCurrentPassword(e.currentTarget.value)}
               autocomplete="current-password"
-              autofocus
               required
             />
           </label>

@@ -1,5 +1,5 @@
 import { Navigate } from "@solidjs/router";
-import { createSignal, Show } from "solid-js";
+import { createSignal, onMount, Show } from "solid-js";
 import { currentUser, logIn } from "../auth";
 import { AppRoutes } from "../routes";
 
@@ -8,6 +8,11 @@ export default function Login() {
   const [password, setPassword] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [pending, setPending] = createSignal(false);
+  let usernameInput: HTMLInputElement | undefined;
+
+  // Focused here rather than with autofocus, which WebKit applies late enough to move focus away from a field already
+  // being typed in.
+  onMount(() => usernameInput?.focus());
 
   // Once logged in, the fallback below leaves this page.
   const submit = async (event: SubmitEvent) => {
@@ -26,10 +31,10 @@ export default function Login() {
           <label>
             Username
             <input
+              ref={usernameInput}
               value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
               autocomplete="username"
-              autofocus
               required
             />
           </label>

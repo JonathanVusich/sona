@@ -28,6 +28,12 @@ dependencies {
     testImplementation("org.assertj:assertj-core:3.27.6")
 }
 
+// Every warning fails the build, except two that don't apply: annotation processing only reports annotations no
+// processor claims, and Sona serializes with Jackson, never with Java serialization.
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing,-serial", "-Werror"))
+}
+
 tasks.test {
     useJUnitPlatform()
 }

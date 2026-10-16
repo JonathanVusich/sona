@@ -14,7 +14,7 @@ buildscript {
 plugins {
     id("java")
     id("org.springframework.boot").version("4.1.1")
-    id("org.jooq.jooq-codegen-gradle").version("3.19.27")
+    id("org.jooq.jooq-codegen-gradle").version("3.21.7")
     id("org.flywaydb.flyway").version("11.16.0")
 }
 
@@ -131,6 +131,12 @@ jooq {
             }
         }
     }
+}
+
+// Every warning fails the build, except two that don't apply: annotation processing only reports annotations no
+// processor claims, and Sona serializes with Jackson, never with Java serialization.
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing,-serial", "-Werror"))
 }
 
 tasks.named("jooqCodegen") {
