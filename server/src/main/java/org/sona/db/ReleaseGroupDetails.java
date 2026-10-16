@@ -1,0 +1,12 @@
+package org.sona.db;
+
+import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.ReleaseGroup;
+
+import java.util.List;
+
+/**
+ * A release group, read in one query with its artist and its editions, earliest first.
+ */
+public record ReleaseGroupDetails(ReleaseGroup releaseGroup, Artist artist, List<Edition> editions) {
+}
