@@ -10,7 +10,6 @@ import org.jooq.Update;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.io.Serial;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.stream.Stream;
@@ -23,9 +22,6 @@ import static org.sona.model.Sona.SONA;
  * runs with it, so a query added without its index fails the first test that runs it.
  */
 public final class IndexedQueryListener implements ExecuteListener {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 

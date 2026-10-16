@@ -133,9 +133,10 @@ jooq {
     }
 }
 
-// Every warning fails the build. Annotation processing is left out: it only reports annotations no processor claims.
+// Every warning fails the build, except two that don't apply: annotation processing only reports annotations no
+// processor claims, and Sona serializes with Jackson, never with Java serialization.
 tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.addAll(listOf("-Xlint:all,-processing", "-Werror"))
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing,-serial", "-Werror"))
 }
 
 tasks.named("jooqCodegen") {

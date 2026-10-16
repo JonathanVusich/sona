@@ -3,7 +3,6 @@ package org.sona.auth;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-import java.io.Serial;
 import java.util.Set;
 
 /**
@@ -12,16 +11,16 @@ import java.util.Set;
  */
 public final class UserAuthentication extends AbstractAuthenticationToken {
 
-    @Serial
-    private static final long serialVersionUID = 1L;
-
     private final SignedInUser user;
     private final Jwt token;
+    private final Set<Permission> permissions;
 
     public UserAuthentication(final SignedInUser user, final Jwt token) {
-        super(user.permissions());
+        final var permissions = user.permissions();
+        super(permissions);
         this.user = user;
         this.token = token;
+        this.permissions = permissions;
         setAuthenticated(true);
     }
 
@@ -30,7 +29,7 @@ public final class UserAuthentication extends AbstractAuthenticationToken {
     }
 
     public Set<Permission> permissions() {
-        return user.permissions();
+        return permissions;
     }
 
     @Override
