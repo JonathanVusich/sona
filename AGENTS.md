@@ -183,6 +183,7 @@ Match the surrounding code. The conventions below are consistent across the code
 **Language**
 - Java 25. Use modern features: records for data, sealed interfaces + pattern-matching `switch` for
   closed hierarchies (`Block`, `TagValue`), unnamed variables (`_ ->`), `List.getFirst()`, `Stream.toList()`.
+- Compiler warnings fail the build (`-Xlint:all -Werror`); fix them rather than suppressing them.
 - `final var` for locals; `final` on parameters in implementation classes.
 - Classes are `final` unless designed for extension or proxied by Spring AOP (`MusicBrainzClient` isn't, so
   `@RateLimiter` can apply). Records over Lombok `@Value` for new data types.

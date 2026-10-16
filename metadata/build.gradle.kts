@@ -28,6 +28,11 @@ dependencies {
     testImplementation("org.assertj:assertj-core:3.27.6")
 }
 
+// Every warning fails the build. Annotation processing is left out: it only reports annotations no processor claims.
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing", "-Werror"))
+}
+
 tasks.test {
     useJUnitPlatform()
 }

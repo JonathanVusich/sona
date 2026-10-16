@@ -14,7 +14,7 @@ buildscript {
 plugins {
     id("java")
     id("org.springframework.boot").version("4.1.1")
-    id("org.jooq.jooq-codegen-gradle").version("3.19.27")
+    id("org.jooq.jooq-codegen-gradle").version("3.21.7")
     id("org.flywaydb.flyway").version("11.16.0")
 }
 
@@ -131,6 +131,11 @@ jooq {
             }
         }
     }
+}
+
+// Every warning fails the build. Annotation processing is left out: it only reports annotations no processor claims.
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing", "-Werror"))
 }
 
 tasks.named("jooqCodegen") {
