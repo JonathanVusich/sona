@@ -208,7 +208,8 @@ class ReleaseGroupControllerTest {
     }
 
     private static ReleaseGroupSummaryResponse summary(final ReleaseGroup group, final Artist artist) {
-        return new ReleaseGroupSummaryResponse(group.releaseGroupId(), group.name(), artist(artist));
+        return new ReleaseGroupSummaryResponse(group.releaseGroupId(), group.name(), group.type(),
+                group.firstReleaseDate(), artist(artist));
     }
 
     private static ArtistResponse artist(final Artist artist) {
