@@ -1,5 +1,5 @@
 import type { ChangePasswordRequest, LoginRequest } from "./requests";
-import type { CurrentUserResponse, ErrorCode, ErrorResponse, TokenResponse } from "./responses";
+import type { CurrentUserResponse, ErrorCode, ErrorResponse, ReleaseResponse, TokenResponse } from "./responses";
 import { ApiRoutes } from "./routes";
 
 // Calls to Sona's HTTP API, one function per endpoint. The frontend is served from Sona's origin, so the refresh cookie
@@ -44,6 +44,10 @@ export async function fetchCurrentUser(accessToken: string): Promise<ApiResult<C
 
 export async function changePassword(accessToken: string, request: ChangePasswordRequest): Promise<ApiResult<void>> {
   return sendForNothing(HttpMethod.POST, ApiRoutes.CURRENT_USER_PASSWORD, { accessToken, body: request });
+}
+
+export async function fetchRelease(accessToken: string, releaseId: string): Promise<ApiResult<ReleaseResponse>> {
+  return sendForJson(HttpMethod.GET, `${ApiRoutes.RELEASES}/${encodeURIComponent(releaseId)}`, { accessToken });
 }
 
 async function sendForJson<T>(method: HttpMethod, path: string, options?: RequestOptions): Promise<ApiResult<T>> {

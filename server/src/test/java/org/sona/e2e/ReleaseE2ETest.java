@@ -1,0 +1,141 @@
+package org.sona.e2e;
+
+import com.microsoft.playwright.Page;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.sona.auth.TestUsers;
+import org.sona.db.ArtistDao;
+import org.sona.db.LabelDao;
+import org.sona.db.MediumDao;
+import org.sona.db.PasswordDao;
+import org.sona.db.ReleaseDao;
+import org.sona.db.ReleaseGroupDao;
+import org.sona.db.ReleaseLabelDao;
+import org.sona.db.TrackDao;
+import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
+import org.sona.model.enums.UserRole;
+import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Label;
+import org.sona.model.tables.pojos.Medium;
+import org.sona.model.tables.pojos.Release;
+import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.ReleaseLabel;
+import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+@E2ETest
+class ReleaseE2ETest {
+
+    @Autowired
+    UserDao userDao;
+    @Autowired
+    PasswordDao passwordDao;
+    @Autowired
+    PasswordEncoder encoder;
+    @Autowired
+    ArtistDao artistDao;
+    @Autowired
+    ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    ReleaseDao releaseDao;
+    @Autowired
+    LabelDao labelDao;
+    @Autowired
+    ReleaseLabelDao releaseLabelDao;
+    @Autowired
+    MediumDao mediumDao;
+    @Autowired
+    TrackDao trackDao;
+    @Autowired
+    TrackToIngestDao trackToIngestDao;
+
+    @BeforeEach
+    void setUp() {
+        new TestUsers(userDao, passwordDao, encoder).createUser("alice", UserRole.USER);
+    }
+
+    @Test
+    void aReleaseListsItsTracksDiscByDiscWithEachTracksArtist(final Page page) {
+        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, uuidv7()));
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var release = insertRelease(various, "Britpop", "Parlophone");
+        final var disc1 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var disc2 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD"))).getFirst();
+        insertTrack(disc1, coldplay, "Yellow");
+        insertTrack(disc2, keane, "Somewhere Only We Know");
+        final var releasePage = logInAndOpen(page, release);
+
+        assertThat(releasePage.title()).hasText("Britpop");
+        assertThat(releasePage.link("Various Artists")).isVisible();
+        assertThat(releasePage.details()).hasText("2002 · CD · Parlophone · GB · 2 songs · 10 min");
+        assertThat(releasePage.link("All editions"))
+                .hasAttribute("href", "/release-groups/" + release.releaseGroupId());
+        assertThat(releasePage.disc("Disc 1 · CD")).isVisible();
+        assertThat(releasePage.disc("Disc 2 · CD")).isVisible();
+        assertThat(releasePage.trackArtist("Yellow", "Coldplay")).isVisible();
+        assertThat(releasePage.trackArtist("Somewhere Only We Know", "Keane")).isVisible();
+    }
+
+    @Test
+    void aSingleDiscReleaseNamesNeitherTheDiscNorTheReleasesOwnArtistOnEachTrack(final Page page) {
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
+        final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
+        final var disc = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        insertTrack(disc, coldplay, "Yellow");
+        final var releasePage = logInAndOpen(page, release);
+
+        assertThat(releasePage.track("Yellow")).isVisible();
+        assertThat(releasePage.disc("Disc 1 · CD")).isHidden();
+        assertThat(releasePage.track("Yellow")).not().containsText("Coldplay");
+    }
+
+    @Test
+    void aReleaseThatIsntInTheLibraryIsReported(final Page page) {
+        new LoginPage(page).logIn("alice", "alice");
+        assertThat(page).hasURL(Pattern.compile("/discover$"));
+        final var releasePage = new ReleasePage(page);
+
+        releasePage.open(uuidv7());
+
+        assertThat(releasePage.message()).hasText("This release isn't in the library.");
+    }
+
+    private ReleasePage logInAndOpen(final Page page, final Release release) {
+        new LoginPage(page).logIn("alice", "alice");
+        // Opening the release before the login finishes would reload the page without a session.
+        assertThat(page).hasURL(Pattern.compile("/discover$"));
+        final var releasePage = new ReleasePage(page);
+        releasePage.open(release.releaseId());
+        return releasePage;
+    }
+
+    private Release insertRelease(final Artist artist, final String name, final String labelName) {
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null,
+                artist.artistId(), uuidv7()));
+        final var release = releaseDao.upsert(new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "GB", 0,
+                releaseGroup.releaseGroupId(), artist.artistId(), uuidv7()));
+        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7()))).getFirst();
+        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
+        return release;
+    }
+
+    private void insertTrack(final Medium medium, final Artist artist, final String name) {
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
+        trackToIngestDao.insert(ingest);
+        trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
+                artist.artistId(), ingest.trackIngestId()));
+    }
+}

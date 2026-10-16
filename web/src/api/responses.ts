@@ -64,9 +64,58 @@ export const ErrorCode = {
   USERNAME_TAKEN: 203,
   INVALID_USERNAME: 204,
   ALREADY_REGISTERED: 205,
+
+  RELEASE_NOT_FOUND: 300,
+
+  INVALID_PARAMETER: 400,
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+export interface ArtistResponse {
+  artistId: string;
+  name: string;
+}
+
+export interface LabelResponse {
+  labelId: string;
+  name: string;
+}
+
+export interface TrackResponse {
+  trackId: string;
+  name: string;
+  /** In seconds. */
+  duration: number;
+  /** On its medium, from 1. */
+  position: number;
+  /** The track's own artist, who may not be the release's (as on a compilation). */
+  artist: ArtistResponse;
+}
+
+export interface MediumResponse {
+  /** On its release, from 1. */
+  position: number;
+  /** Like "CD" or "Digital Media"; null when MusicBrainz doesn't know. */
+  format: string | null;
+  tracks: TrackResponse[];
+}
+
+/** Everything the release page shows. */
+export interface ReleaseResponse {
+  releaseId: string;
+  name: string;
+  /** An ISO date, null when unknown. MusicBrainz may only know the year or month: "2002" is 2002-01-01. */
+  date: string | null;
+  /** ISO 3166-1 code, or a MusicBrainz code like "XW" for worldwide; null when unknown. */
+  country: string | null;
+  /** How many of the release's tracks are in the library. */
+  trackCount: number;
+  releaseGroupId: string;
+  artist: ArtistResponse;
+  labels: LabelResponse[];
+  media: MediumResponse[];
+}
 
 /** The body of every client error Sona sends. */
 export interface ErrorResponse {
