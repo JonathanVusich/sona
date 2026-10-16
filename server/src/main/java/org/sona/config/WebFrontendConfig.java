@@ -11,7 +11,8 @@ import static org.sona.controller.ApiRoutes.API;
 
 /**
  * Serves the web frontend, which the boot jar bundles under {@code static/}, from the same origin as the API, as the
- * refresh cookie needs. Without a bundled frontend, as under bootRun and most tests, there's nothing to serve.
+ * refresh cookie needs. bootRun and the E2E tests bundle it too. Without one, as in most tests, there's nothing to
+ * serve.
  */
 @Configuration
 @ConditionalOnResource(resources = WebFrontendConfig.INDEX)

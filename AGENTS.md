@@ -99,7 +99,8 @@ media.
   the server and tests from `server/` (Gradle does this for you).
 - `library.ingestFolder` / `library.mediaFolder` → `LibraryProperties`; `musicbrainz.url` → `MusicBrainzProperties`;
   `auth.*` (token lifetimes, `frontendUrl`, the `oidcProviders` users can sign in through) → `AuthProperties`.
-- `bootRun` activates the `dev` profile, which creates `admin`/`admin` and `user`/`user`. Any other profile gets
+- `bootRun` serves the bundled frontend as the boot jar does, building `web/` again first if it changed. It activates
+  the `dev` profile, which creates `admin`/`admin` and `user`/`user`. Any other profile gets
   `admin`/`admin` on an empty database, who must change the password first.
 - The MusicBrainz rate limit is in `application.properties` (`resilience4j.ratelimiter.instances.musicbrainz.*`).
 - The datasource is Spring Boot's (`spring.datasource.*` in `application.properties`, local dev credentials).
@@ -117,8 +118,8 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
 ./gradlew :server:e2eTest                            # builds web/, then drives it in Firefox against a test server
 ./gradlew :server:e2eTest -Pe2eBrowser=webkit        # or chromium; CI runs all three
-./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
-npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
+./gradlew :server:bootRun                            # app on :8080; dev profile: admin/admin and user/user
+npm --prefix web run dev                             # hot-reloading frontend on :5173, proxying /api to bootRun
 ```
 
 The docker-compose database is only needed for `bootRun` and jOOQ codegen; tests don't use it.

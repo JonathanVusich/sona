@@ -149,7 +149,7 @@ tasks.test {
 }
 
 // Sona serves the web frontend itself, from static/ on its classpath. Building it needs Node, so the boot jar (and with
-// it `build`) and the E2E tests include it; `test` doesn't.
+// it `build`), bootRun and the E2E tests include it; `test` doesn't. It's built again only when its inputs change.
 val web = rootProject.layout.projectDirectory.dir("web")
 val npm = if (System.getProperty("os.name").startsWith("Windows")) "npm.cmd" else "npm"
 
@@ -165,7 +165,13 @@ val buildWeb by tasks.registering(Exec::class) {
     workingDir = web.asFile
     commandLine(npm, "run", "build")
     inputs.dir(web.dir("src"))
-    inputs.files(web.file("index.html"), web.file("package-lock.json"), web.file("vite.config.ts"))
+    inputs.files(
+        web.file("index.html"),
+        web.file("package.json"),
+        web.file("package-lock.json"),
+        web.file("tsconfig.json"),
+        web.file("vite.config.ts"),
+    )
     outputs.dir(web.dir("dist"))
 }
 
@@ -199,7 +205,8 @@ val e2eTest by tasks.registering(Test::class) {
     systemProperty("sona.e2e.playwright-version", playwrightVersion)
 }
 
-// Local runs seed the dev users, admin/admin and user/user.
+// Local runs seed the dev users, admin/admin and user/user, and serve the bundled frontend as the boot jar does.
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     args("--spring.profiles.active=dev")
+    classpath(files(bundledWeb).builtBy(bundleWeb))
 }
