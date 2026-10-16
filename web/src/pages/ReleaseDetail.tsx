@@ -1,7 +1,7 @@
 import { A, useParams } from "@solidjs/router";
 import { createResource, For, Show } from "solid-js";
 import * as api from "../api/client";
-import type { ApiFailure } from "../api/client";
+import { FailureKind, type ApiFailure } from "../api/client";
 import { ErrorCode, type MediumResponse, type ReleaseResponse, type TrackResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
 import Cover from "../components/Cover";
@@ -120,8 +120,14 @@ function trackRow(track: TrackResponse): TrackRow {
 
 function failureMessage(failure: ApiFailure): string {
   // An ID that isn't one of Sona's can't be a release in the library either.
-  if (failure.code === ErrorCode.RELEASE_NOT_FOUND || failure.code === ErrorCode.INVALID_PARAMETER) {
-    return NOT_IN_LIBRARY;
+  if (failure.kind !== FailureKind.REFUSED) {
+    return failure.reason;
   }
-  return failure.reason;
+  switch (failure.code) {
+    case ErrorCode.RELEASE_NOT_FOUND:
+    case ErrorCode.INVALID_PARAMETER:
+      return NOT_IN_LIBRARY;
+    default:
+      return failure.reason;
+  }
 }

@@ -8,9 +8,17 @@ import { hasPermission } from "../../auth";
 import { importFiles } from "../../library";
 import { AppRoutes } from "../../routes";
 
+// Whether files are being dragged over the drop zone.
+const DropZone = {
+  IDLE: "idle",
+  DRAGGED_OVER: "dragged-over",
+} as const;
+
+type DropZone = (typeof DropZone)[keyof typeof DropZone];
+
 export default function Upload() {
   const [pending, setPending] = createSignal<PickedFile[]>([]);
-  const [dragging, setDragging] = createSignal(false);
+  const [dropZone, setDropZone] = createSignal<DropZone>(DropZone.IDLE);
   const navigate = useNavigate();
   let filesInput: HTMLInputElement | undefined;
   let folderInput: HTMLInputElement | undefined;
@@ -33,7 +41,7 @@ export default function Upload() {
 
   const onDrop = async (event: DragEvent) => {
     event.preventDefault();
-    setDragging(false);
+    setDropZone(DropZone.IDLE);
     if (event.dataTransfer !== null) {
       add(await fromDataTransfer(event.dataTransfer));
     }
@@ -49,12 +57,12 @@ export default function Upload() {
       <PageLayout header={<PageHeader title="Upload music" />}>
         <div
           class="dropzone"
-          classList={{ dragging: dragging() }}
+          classList={{ dragging: dropZone() === DropZone.DRAGGED_OVER }}
           onDragOver={(e) => {
             e.preventDefault();
-            setDragging(true);
+            setDropZone(DropZone.DRAGGED_OVER);
           }}
-          onDragLeave={() => setDragging(false)}
+          onDragLeave={() => setDropZone(DropZone.IDLE)}
           onDrop={onDrop}
         >
           <p>Drag and drop audio files or folders here</p>

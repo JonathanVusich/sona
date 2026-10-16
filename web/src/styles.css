@@ -584,7 +584,7 @@ select {
 }
 
 .track-row:hover,
-.track-row:has(.menu[data-open]) {
+.track-row:has(.menu.open) {
   background: var(--surface-2);
 }
 
@@ -664,7 +664,7 @@ a.player-artist:hover {
 
 .track-row:hover .track-menu .icon-button,
 .track-menu .icon-button:focus-visible,
-.track-menu[data-open] .icon-button {
+.track-menu.open .icon-button {
   opacity: 1;
 }
 

@@ -2,7 +2,7 @@ import { A, useNavigate } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { Mosaic } from "../components/Cover";
 import PageLayout from "../components/PageLayout";
-import { openPlaylistDialog } from "../components/PlaylistDialog";
+import { openPlaylistDialog, PlaylistDialogStatus } from "../components/PlaylistDialog";
 import { PageHeader } from "../components/Section";
 import { plural } from "../format";
 import { contextOf, tracksOf } from "../library";
@@ -17,7 +17,12 @@ export function coverSeeds(playlist: Playlist): string[] {
 
 export default function Playlists() {
   const navigate = useNavigate();
-  const create = () => openPlaylistDialog({ onCreated: (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)) });
+  const create = () =>
+    openPlaylistDialog({
+      status: PlaylistDialogStatus.CREATING,
+      trackIds: [],
+      onCreated: (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)),
+    });
 
   return (
     <PageLayout

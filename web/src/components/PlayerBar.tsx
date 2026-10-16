@@ -1,25 +1,52 @@
 import { A } from "@solidjs/router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { formatTime } from "../format";
-import { contextOf } from "../library";
+import { contextOf, type Track } from "../library";
 import * as player from "../player";
-import { RepeatMode } from "../player";
+import { Playback, RepeatMode, ShuffleMode, Sound } from "../player";
 import Cover from "./Cover";
 import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, VolumeIcon } from "./Icons";
-import Slider, { SliderSize } from "./Slider";
+import Slider, { SliderSize, SliderStatus } from "./Slider";
 import { AppRoutes, routeTo } from "../routes";
 
+const ScrubStatus = {
+  IDLE: "idle",
+  // While the scrub thumb is held, the bar shows where it is instead of the playback position.
+  HELD: "held",
+} as const;
+
+type Scrub = { status: typeof ScrubStatus.IDLE } | { status: typeof ScrubStatus.HELD; seconds: number };
+
+const IDLE: Scrub = { status: ScrubStatus.IDLE };
+
 export default function PlayerBar() {
-  // While the scrub thumb is held, show where it is instead of the playback position.
-  const [scrub, setScrub] = createSignal<number | null>(null);
+  const [scrub, setScrub] = createSignal<Scrub>(IDLE);
   const track = player.current;
   const context = () => {
     const playingTrack = track();
-    return playingTrack === undefined ? { release: undefined, group: undefined, artist: undefined } : contextOf(playingTrack);
+    if (playingTrack === null) {
+      return { release: undefined, group: undefined, artist: undefined };
+    }
+    return contextOf(playingTrack);
   };
   const duration = () => track()?.duration ?? 0;
-  const shownPosition = () => scrub() ?? player.position();
-  const shownVolume = () => (player.muted() ? 0 : player.volume());
+  const shownPosition = () => {
+    const current = scrub();
+    switch (current.status) {
+      case ScrubStatus.IDLE:
+        return player.position();
+      case ScrubStatus.HELD:
+        return current.seconds;
+    }
+  };
+  const shownVolume = () => {
+    switch (player.sound()) {
+      case Sound.ON:
+        return player.volume();
+      case Sound.MUTED:
+        return 0;
+    }
+  };
 
   // Space toggles playback, unless focus is on something that uses Space itself.
   const onKeyDown = (event: KeyboardEvent) => {
@@ -45,12 +72,12 @@ export default function PlayerBar() {
           value={shownPosition()}
           max={duration()}
           step={5}
-          disabled={!track()}
+          status={seekStatus(track())}
           valueText={`${formatTime(shownPosition())} of ${formatTime(duration())}`}
-          onInput={setScrub}
+          onInput={(seconds) => setScrub({ status: ScrubStatus.HELD, seconds })}
           onCommit={(seconds) => {
             player.seek(seconds);
-            setScrub(null);
+            setScrub(IDLE);
           }}
         />
       </div>
@@ -77,9 +104,9 @@ export default function PlayerBar() {
       <div class="player-controls">
         <button
           class="icon-button toggle optional"
-          classList={{ on: player.shuffle() }}
+          classList={{ on: player.shuffleMode() === ShuffleMode.ON }}
           aria-label="Shuffle"
-          aria-pressed={player.shuffle()}
+          aria-pressed={player.shuffleMode() === ShuffleMode.ON}
           onClick={() => player.toggleShuffle()}
         >
           <ShuffleIcon size={18} />
@@ -89,11 +116,11 @@ export default function PlayerBar() {
         </button>
         <button
           class="play-button"
-          aria-label={player.playing() ? "Pause" : "Play"}
+          aria-label={playButtonLabel(player.playback())}
           disabled={!track()}
           onClick={() => player.togglePlay()}
         >
-          <Show when={player.playing()} fallback={<PlayIcon size={22} />}>
+          <Show when={player.playback() === Playback.PLAYING} fallback={<PlayIcon size={22} />}>
             <PauseIcon size={22} />
           </Show>
         </button>
@@ -115,11 +142,12 @@ export default function PlayerBar() {
         <span class="player-time">
           {formatTime(shownPosition())} / {formatTime(duration())}
         </span>
-        <button class="icon-button" aria-label={player.muted() ? "Unmute" : "Mute"} onClick={() => player.toggleMute()}>
+        <button class="icon-button" aria-label={muteButtonLabel(player.sound())} onClick={() => player.toggleMute()}>
           <VolumeIcon size={18} muted={shownVolume() === 0} />
         </button>
         <Slider
           size={SliderSize.SMALL}
+          status={SliderStatus.ENABLED}
           label="Volume"
           value={shownVolume()}
           max={1}
@@ -131,4 +159,30 @@ export default function PlayerBar() {
       </div>
     </div>
   );
+}
+
+// There's nothing to seek through until something plays.
+function seekStatus(track: Track | null): SliderStatus {
+  if (track === null) {
+    return SliderStatus.DISABLED;
+  }
+  return SliderStatus.ENABLED;
+}
+
+function playButtonLabel(playback: Playback): string {
+  switch (playback) {
+    case Playback.PLAYING:
+      return "Pause";
+    case Playback.PAUSED:
+      return "Play";
+  }
+}
+
+function muteButtonLabel(sound: Sound): string {
+  switch (sound) {
+    case Sound.ON:
+      return "Mute";
+    case Sound.MUTED:
+      return "Unmute";
+  }
 }

@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { formatTime } from "../format";
 import { contextOf, type Track } from "../library";
-import { current, playing } from "../player";
+import { current, Playback, playback } from "../player";
 import { removeFromPlaylist } from "../playlists";
 import { MoreIcon, PlayIcon } from "./Icons";
 import Menu from "./Menu";
@@ -59,7 +59,7 @@ export default function TrackList(props: {
             <li class="track-row" classList={{ current: isCurrent() }} onClick={onRowClick}>
               <button class="track-play" aria-label={`Play ${track.title}`} onClick={() => props.onPlay(index())}>
                 <Show
-                  when={isCurrent() && playing()}
+                  when={isCurrent() && playback() === Playback.PLAYING}
                   fallback={<span class="track-number">{props.showContext ? index() + 1 : track.number}</span>}
                 >
                   <span class="bars" aria-hidden="true">

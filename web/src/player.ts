@@ -11,53 +11,100 @@ export const RepeatMode = {
 
 export type RepeatMode = (typeof RepeatMode)[keyof typeof RepeatMode];
 
+export const Playback = {
+  PLAYING: "playing",
+  PAUSED: "paused",
+} as const;
+
+export type Playback = (typeof Playback)[keyof typeof Playback];
+
+export const Sound = {
+  ON: "on",
+  MUTED: "muted",
+} as const;
+
+export type Sound = (typeof Sound)[keyof typeof Sound];
+
+export const ShuffleMode = {
+  OFF: "off",
+  ON: "on",
+} as const;
+
+export type ShuffleMode = (typeof ShuffleMode)[keyof typeof ShuffleMode];
+
+// Why the player moves on to another track.
+const Advance = {
+  SKIPPED: "skipped",
+  ENDED: "ended",
+} as const;
+
+type Advance = (typeof Advance)[keyof typeof Advance];
+
 const [queue, setQueue] = createSignal<Track[]>([]);
 // Play order as indexes into the queue; shuffled when shuffle is on.
 const [order, setOrder] = createSignal<number[]>([]);
 // Position within the play order.
 const [cursor, setCursor] = createSignal(0);
-const [playing, setPlaying] = createSignal(false);
+const [playback, setPlayback] = createSignal<Playback>(Playback.PAUSED);
 const [position, setPosition] = createSignal(0);
 const [volume, setVolumeLevel] = createSignal(0.8);
-const [muted, setMuted] = createSignal(false);
-const [shuffle, setShuffle] = createSignal(false);
+const [sound, setSound] = createSignal<Sound>(Sound.ON);
+const [shuffleMode, setShuffleMode] = createSignal<ShuffleMode>(ShuffleMode.OFF);
 const [repeat, setRepeat] = createSignal<RepeatMode>(RepeatMode.OFF);
 
-export { playing, position, volume, muted, shuffle, repeat };
+export { playback, position, volume, sound, shuffleMode, repeat };
 
-export const current = (): Track | undefined => {
+/**
+ * @returns the track the player is on, or null when nothing is queued
+ */
+export function current(): Track | null {
   const index = order()[cursor()];
-  return index === undefined ? undefined : queue()[index];
-};
+  if (index === undefined) {
+    return null;
+  }
+  return queue()[index] ?? null;
+}
 
 export function playTracks(tracks: Track[], start = 0) {
   if (tracks.length === 0) {
     return;
   }
   setQueue(tracks);
-  if (shuffle()) {
-    setOrder(shuffledOrder(tracks.length, start));
-    setCursor(0);
-  } else {
-    setOrder(inOrder(tracks.length));
-    setCursor(start);
+  switch (shuffleMode()) {
+    case ShuffleMode.ON:
+      setOrder(shuffledOrder(tracks.length, start));
+      setCursor(0);
+      break;
+    case ShuffleMode.OFF:
+      setOrder(inOrder(tracks.length));
+      setCursor(start);
+      break;
   }
   startTrack();
 }
 
 export function shufflePlay(tracks: Track[]) {
-  setShuffle(true);
+  setShuffleMode(ShuffleMode.ON);
   playTracks(tracks, Math.floor(Math.random() * tracks.length));
 }
 
 export function togglePlay() {
-  if (current() !== undefined) {
-    setPlaying(!playing());
+  if (current() !== null) {
+    setPlayback(toggledPlayback(playback()));
+  }
+}
+
+function toggledPlayback(current: Playback): Playback {
+  switch (current) {
+    case Playback.PLAYING:
+      return Playback.PAUSED;
+    case Playback.PAUSED:
+      return Playback.PLAYING;
   }
 }
 
 export function next() {
-  advance(false);
+  advance(Advance.SKIPPED);
 }
 
 export function previous() {
@@ -66,31 +113,51 @@ export function previous() {
     setPosition(0);
     return;
   }
-  setCursor(cursor() === 0 ? order().length - 1 : cursor() - 1);
+  setCursor(previousCursor());
   startTrack();
+}
+
+// The previous track wraps around to the last.
+function previousCursor(): number {
+  if (cursor() === 0) {
+    return order().length - 1;
+  }
+  return cursor() - 1;
 }
 
 export function seek(seconds: number) {
   const track = current();
-  if (track !== undefined) {
+  if (track !== null) {
     setPosition(clamp(seconds, 0, track.duration));
   }
 }
 
 export function toggleShuffle() {
-  const on = !shuffle();
-  setShuffle(on);
+  const mode = toggledShuffleMode(shuffleMode());
+  setShuffleMode(mode);
   const playingIndex = order()[cursor()];
   if (playingIndex === undefined) {
     return;
   }
   // Keep the current track playing and reorder only what comes after it.
-  if (on) {
-    setOrder(shuffledOrder(queue().length, playingIndex));
-    setCursor(0);
-  } else {
-    setOrder(inOrder(queue().length));
-    setCursor(playingIndex);
+  switch (mode) {
+    case ShuffleMode.ON:
+      setOrder(shuffledOrder(queue().length, playingIndex));
+      setCursor(0);
+      break;
+    case ShuffleMode.OFF:
+      setOrder(inOrder(queue().length));
+      setCursor(playingIndex);
+      break;
+  }
+}
+
+function toggledShuffleMode(mode: ShuffleMode): ShuffleMode {
+  switch (mode) {
+    case ShuffleMode.ON:
+      return ShuffleMode.OFF;
+    case ShuffleMode.OFF:
+      return ShuffleMode.ON;
   }
 }
 
@@ -111,18 +178,33 @@ function nextRepeatMode(mode: RepeatMode): RepeatMode {
 
 export function setVolume(level: number) {
   setVolumeLevel(clamp(level, 0, 1));
-  setMuted(level <= 0);
+  setSound(soundAtLevel(level));
+}
+
+function soundAtLevel(level: number): Sound {
+  if (level <= 0) {
+    return Sound.MUTED;
+  }
+  return Sound.ON;
 }
 
 export function toggleMute() {
-  if (muted() && volume() <= 0) {
-    setVolumeLevel(0.5);
+  switch (sound()) {
+    case Sound.ON:
+      setSound(Sound.MUTED);
+      break;
+    case Sound.MUTED:
+      // Unmuting at no volume would stay silent.
+      if (volume() <= 0) {
+        setVolumeLevel(0.5);
+      }
+      setSound(Sound.ON);
+      break;
   }
-  setMuted(!muted());
 }
 
 export function stop() {
-  setPlaying(false);
+  setPlayback(Playback.PAUSED);
   setQueue([]);
   setOrder([]);
   setCursor(0);
@@ -131,15 +213,15 @@ export function stop() {
 
 function startTrack() {
   setPosition(0);
-  setPlaying(true);
+  setPlayback(Playback.PLAYING);
   const track = current();
-  if (track !== undefined) {
+  if (track !== null) {
     markPlayed(track);
   }
 }
 
-function advance(trackEnded: boolean) {
-  if (trackEnded && repeat() === RepeatMode.ONE) {
+function advance(cause: Advance) {
+  if (cause === Advance.ENDED && repeat() === RepeatMode.ONE) {
     setPosition(0);
   } else if (cursor() + 1 < order().length) {
     setCursor(cursor() + 1);
@@ -148,7 +230,7 @@ function advance(trackEnded: boolean) {
     setCursor(0);
     startTrack();
   } else {
-    setPlaying(false);
+    setPlayback(Playback.PAUSED);
     setPosition(0);
   }
 }
@@ -176,12 +258,12 @@ setInterval(() => {
   const elapsed = (now - lastTick) / 1000;
   lastTick = now;
   const track = current();
-  if (!playing() || track === undefined) {
+  if (playback() === Playback.PAUSED || track === null) {
     return;
   }
   const nextPosition = position() + elapsed;
   if (nextPosition >= track.duration) {
-    advance(true);
+    advance(Advance.ENDED);
   } else {
     setPosition(nextPosition);
   }
