@@ -59,8 +59,30 @@ public class DevLibraryRunner implements ApplicationRunner {
             new DevArtist("Ada Mori", null),
             new DevArtist(VARIOUS_ARTISTS, null));
 
+    private static final DevReleaseGroup PARACHUTES =
+            new DevReleaseGroup("Coldplay", "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
+    private static final DevReleaseGroup HOPES_AND_FEARS =
+            new DevReleaseGroup("Keane", "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
+    private static final DevReleaseGroup BRITPOP_ANTHEMS =
+            new DevReleaseGroup(VARIOUS_ARTISTS, "Britpop Anthems", ReleaseGroupType.ALBUM, LocalDate.of(2010, 3, 1));
+    private static final DevReleaseGroup FIELD_RECORDINGS =
+            new DevReleaseGroup("Ada Mori", "Field Recordings", ReleaseGroupType.EP, null);
+
+    private static final List<DevTrack> HOPES_AND_FEARS_TRACKS = List.of(
+            new DevTrack("Somewhere Only We Know", 237, "Keane"),
+            new DevTrack("This Is the Last Time", 211, "Keane"),
+            new DevTrack("Bend and Break", 216, "Keane"),
+            new DevTrack("We Might as Well Be Strangers", 191, "Keane"),
+            new DevTrack("Everybody's Changing", 215, "Keane"),
+            new DevTrack("Your Eyes Open", 193, "Keane"),
+            new DevTrack("She Has No Time", 285, "Keane"),
+            new DevTrack("Can't Stop Now", 216, "Keane"),
+            new DevTrack("Sunshine", 252, "Keane"),
+            new DevTrack("Untitled 1", 337, "Keane"),
+            new DevTrack("Bedshaped", 278, "Keane"));
+
     private static final List<DevRelease> RELEASES = List.of(
-            new DevRelease("Coldplay", "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10), "GB",
+            new DevRelease(PARACHUTES, "Parachutes", LocalDate.of(2000, 7, 10), "GB",
                     List.of("Parlophone"),
                     List.of(new DevMedium("CD", List.of(
                             new DevTrack("Don't Panic", 137, "Coldplay"),
@@ -73,22 +95,20 @@ public class DevLibraryRunner implements ApplicationRunner {
                             new DevTrack("High Speed", 254, "Coldplay"),
                             new DevTrack("We Never Change", 249, "Coldplay"),
                             new DevTrack("Everything's Not Lost", 435, "Coldplay"))))),
-            new DevRelease("Keane", "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10), "GB",
+            new DevRelease(HOPES_AND_FEARS, "Hopes and Fears", LocalDate.of(2004, 5, 10), "GB",
                     List.of("Island"),
-                    List.of(new DevMedium("CD", List.of(
-                            new DevTrack("Somewhere Only We Know", 237, "Keane"),
-                            new DevTrack("This Is the Last Time", 211, "Keane"),
-                            new DevTrack("Bend and Break", 216, "Keane"),
-                            new DevTrack("We Might as Well Be Strangers", 191, "Keane"),
-                            new DevTrack("Everybody's Changing", 215, "Keane"),
-                            new DevTrack("Your Eyes Open", 193, "Keane"),
-                            new DevTrack("She Has No Time", 285, "Keane"),
-                            new DevTrack("Can't Stop Now", 216, "Keane"),
-                            new DevTrack("Sunshine", 252, "Keane"),
-                            new DevTrack("Untitled 1", 337, "Keane"),
-                            new DevTrack("Bedshaped", 278, "Keane"))))),
+                    List.of(new DevMedium("CD", HOPES_AND_FEARS_TRACKS))),
+            // A second edition of the same release group, with a disc of B-sides.
+            new DevRelease(HOPES_AND_FEARS, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12), "GB",
+                    List.of("Island"),
+                    List.of(new DevMedium("CD", HOPES_AND_FEARS_TRACKS),
+                            new DevMedium("CD", List.of(
+                                    new DevTrack("Snowed Under", 230, "Keane"),
+                                    new DevTrack("Allemande", 247, "Keane"),
+                                    new DevTrack("To the End of the Earth", 226, "Keane"),
+                                    new DevTrack("Fly to Me", 199, "Keane"))))),
             // A compilation, whose tracks each have their own artist, on two discs.
-            new DevRelease(VARIOUS_ARTISTS, "Britpop Anthems", ReleaseGroupType.ALBUM, LocalDate.of(2010, 3, 1), "GB",
+            new DevRelease(BRITPOP_ANTHEMS, "Britpop Anthems", LocalDate.of(2010, 3, 1), "GB",
                     List.of("Parlophone", "EMI"),
                     List.of(new DevMedium("CD", List.of(
                                     new DevTrack("Yellow", 269, "Coldplay"),
@@ -99,7 +119,7 @@ public class DevLibraryRunner implements ApplicationRunner {
                                     new DevTrack("Song 2", 122, "Blur"),
                                     new DevTrack("Disco 2000", 273, "Pulp"))))),
             // A release MusicBrainz knows little about: no date, country, label or format.
-            new DevRelease("Ada Mori", "Field Recordings", ReleaseGroupType.EP, null, null,
+            new DevRelease(FIELD_RECORDINGS, "Field Recordings", null, null,
                     List.of(),
                     List.of(new DevMedium(null, List.of(
                             new DevTrack("Morning", 180, "Ada Mori"),
@@ -119,7 +139,8 @@ public class DevLibraryRunner implements ApplicationRunner {
         final var artists = upsertArtists();
         for (final var devRelease : RELEASES) {
             final var release = storeRelease(devRelease, artists);
-            log.info("Dev release {} is at /releases/{}", release.name(), release.releaseId());
+            log.info("Dev release {} is at /releases/{}, in /release-groups/{}", release.name(), release.releaseId(),
+                    release.releaseGroupId());
         }
     }
 
@@ -131,9 +152,10 @@ public class DevLibraryRunner implements ApplicationRunner {
     }
 
     private Release storeRelease(final DevRelease devRelease, final Map<String, Artist> artists) {
-        final var artistId = artists.get(devRelease.artist()).artistId();
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), devRelease.name(),
-                devRelease.type(), devRelease.date(), artistId, musicBrainzId("release-group", devRelease.name())));
+        final var devGroup = devRelease.releaseGroup();
+        final var artistId = artists.get(devGroup.artist()).artistId();
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), devGroup.name(), devGroup.type(),
+                devGroup.firstReleaseDate(), artistId, musicBrainzId("release-group", devGroup.name())));
         final var release = releaseDao.upsert(new Release(uuidv7(), devRelease.name(), null, devRelease.date(),
                 devRelease.country(), 0, releaseGroup.releaseGroupId(), artistId,
                 musicBrainzId("release", devRelease.name())));
@@ -194,7 +216,10 @@ public class DevLibraryRunner implements ApplicationRunner {
     private record DevArtist(String name, String country) {
     }
 
-    private record DevRelease(String artist, String name, ReleaseGroupType type, LocalDate date, String country,
+    private record DevReleaseGroup(String artist, String name, ReleaseGroupType type, LocalDate firstReleaseDate) {
+    }
+
+    private record DevRelease(DevReleaseGroup releaseGroup, String name, LocalDate date, String country,
                               List<String> labels, List<DevMedium> media) {
     }
 
