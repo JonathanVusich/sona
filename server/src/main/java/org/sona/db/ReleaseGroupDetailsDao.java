@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.sona.mappers.ArtistMapper;
+import org.sona.mappers.DefaultReleaseMapper;
 import org.sona.mappers.EditionMapper;
 import org.sona.mappers.LabelMapper;
 import org.sona.mappers.MediumMapper;
@@ -46,14 +47,36 @@ public class ReleaseGroupDetailsDao {
     private final MediumMapper mediumMapper;
     private final ReleaseGroupDetailsMapper detailsMapper;
     private final EditionMapper editionMapper;
+    private final DefaultReleaseMapper defaultReleaseMapper;
+    private final MediaFields mediaFields;
 
     public Optional<ReleaseGroupDetails> loadById(final UUID releaseGroupId) {
         return dsl.select(RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
-                        ARTIST.convertFrom(artistMapper::fromRecord), editions())
+                        ARTIST.convertFrom(artistMapper::fromRecord), defaultRelease(), editions())
                 .from(RELEASE_GROUP)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
-                .fetchOptional(group -> detailsMapper.fromPojos(group.value1(), group.value2(), group.value3()));
+                .fetchOptional(group -> detailsMapper.fromPojos(group.value1(), group.value2(), group.value3(),
+                        group.value4()));
+    }
+
+    /**
+     * The group's earliest release, in the order {@link #editions()} lists them, so a later deluxe or instrumental
+     * edition doesn't stand for the group. Null when none of its releases is stored.
+     */
+    // TODO: Let users choose a group's default release, which this then prefers.
+    private Field<DefaultRelease> defaultRelease() {
+        final var release = RELEASE.as("default_release");
+        return multiset(select(release.convertFrom(releaseMapper::fromRecord),
+                        mediaFields.releaseMedia(release.RELEASE_ID))
+                .from(release)
+                .where(release.RELEASE_GROUP_ID.eq(RELEASE_GROUP.RELEASE_GROUP_ID))
+                .orderBy(release.DATE.asc().nullsLast(), release.RELEASE_ID)
+                .limit(1))
+                .convertFrom(releases -> releases.stream()
+                        .map(found -> defaultReleaseMapper.fromPojos(found.value1(), found.value2()))
+                        .findFirst()
+                        .orElse(null));
     }
 
     /**
