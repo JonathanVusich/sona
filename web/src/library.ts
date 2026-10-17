@@ -622,15 +622,3 @@ export function placeholderEditions(): EditionResponse[] {
   }
   return releasesOf(group.id).map(editionResponse);
 }
-
-export function placeholderTracks(artist: ArtistResponse): TrackResponse[] {
-  const group = groups()[0];
-  if (group === undefined) {
-    return [];
-  }
-  const release = canonicalRelease(group.id);
-  if (release === undefined) {
-    return [];
-  }
-  return tracksOfRelease(release.id).map((track) => ({ ...trackResponse(track), artist }));
-}

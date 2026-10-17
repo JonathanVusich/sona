@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 import java.util.UUID;
 
 /**
- * A release group's page: its details, and its editions, each linking to its release's page.
+ * A release group's page: its details, its default release's tracks disc by disc, and its editions, each linking to
+ * its release's page.
  */
 @RequiredArgsConstructor
 public final class ReleaseGroupPage {
@@ -33,6 +34,14 @@ public final class ReleaseGroupPage {
 
     public Locator link(final String name) {
         return page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(name).setExact(true));
+    }
+
+    public Locator disc(final String name) {
+        return page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName(name).setLevel(2));
+    }
+
+    public Locator track(final String name) {
+        return page.locator(".track-row").filter(new Locator.FilterOptions().setHasText(name));
     }
 
     /**

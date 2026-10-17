@@ -96,6 +96,26 @@ class ReleaseGroupE2ETest {
     }
 
     @Test
+    void aReleaseGroupListsItsEarliestEditionsTracksDiscByDisc(final Page page) {
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
+        final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
+        insertTrack(insertMedia(deluxe, "CD").getFirst(), keane, "Snowed Under");
+        final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
+        final var discs = insertMedia(original, "CD", "DVD");
+        insertTrack(discs.getFirst(), keane, "Somewhere Only We Know");
+        insertTrack(discs.getLast(), keane, "Everybody's Changing");
+        final var releaseGroupPage = logInAndOpen(page, group);
+
+        assertThat(releaseGroupPage.disc("Disc 1 · CD")).isVisible();
+        assertThat(releaseGroupPage.disc("Disc 2 · DVD")).isVisible();
+        assertThat(releaseGroupPage.track("Somewhere Only We Know")).isVisible();
+        assertThat(releaseGroupPage.track("Everybody's Changing")).isVisible();
+        assertThat(releaseGroupPage.track("Snowed Under")).hasCount(0);
+    }
+
+    @Test
     void anEditionOpensItsReleasesPage(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,

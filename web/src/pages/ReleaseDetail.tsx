@@ -1,8 +1,8 @@
 import { A, useParams } from "@solidjs/router";
-import { createResource, For, Show, type JSX } from "solid-js";
+import { createResource, Show, type JSX } from "solid-js";
 import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
-import { ErrorCode, type MediumResponse, type ReleaseResponse } from "../api/responses";
+import { ErrorCode, type ReleaseResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
 import { CardLayout, DiscographyGrid } from "../components/Cards";
 import Cover, { CoverSize } from "../components/Cover";
@@ -10,7 +10,7 @@ import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
-import { ReleaseTrackList } from "../components/TrackList";
+import { MediaTrackList } from "../components/TrackList";
 import { formatLabels, formatMedia, formatTotal, formatYear, joinDetails, plural } from "../format";
 import { placeholderEditions, placeholderGroups } from "../library";
 import { AppRoutes, routeTo } from "../routes";
@@ -92,20 +92,7 @@ function ReleaseView(props: { release: ReleaseResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <Show
-          when={props.release.media.length > 1}
-          fallback={
-            <For each={props.release.media}>{(medium) => <MediumTracks medium={medium} release={props.release} />}</For>
-          }
-        >
-          <For each={props.release.media}>
-            {(medium) => (
-              <Section title={joinDetails([`Disc ${medium.position}`, medium.format])}>
-                <MediumTracks medium={medium} release={props.release} />
-              </Section>
-            )}
-          </For>
-        </Show>
+        <MediaTrackList media={props.release.media} artistId={props.release.artist.artistId} />
         <Section title="Other editions">
           <EditionList editions={placeholderEditions()} />
         </Section>
@@ -116,12 +103,6 @@ function ReleaseView(props: { release: ReleaseResponse }) {
         </Section>
       </PageBody>
     </>
-  );
-}
-
-function MediumTracks(props: { medium: MediumResponse; release: ReleaseResponse }) {
-  return (
-    <ReleaseTrackList tracks={props.medium.tracks} artistId={props.release.artist.artistId} onPlay={() => {}} />
   );
 }
 

@@ -10,15 +10,15 @@ import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
-import { ReleaseTrackList } from "../components/TrackList";
+import { MediaTrackList } from "../components/TrackList";
 import { formatYear, joinDetails, plural, releaseGroupTypeLabel } from "../format";
-import { placeholderGroups, placeholderTracks } from "../library";
+import { placeholderGroups } from "../library";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release group isn't in the library.";
 
-// The album as an idea: shows its original edition's tracks, lists every edition, and links the rest of the
-// artist's discography. The tracks and the discography are mocked until Sona serves them (docs/GAPS.md).
+// The album as an idea: shows its default release's tracks, lists every edition, and links the rest of the artist's
+// discography, which is mocked until Sona serves it (docs/GAPS.md).
 export default function ReleaseGroupDetail() {
   const params = useParams<{ id: string }>();
   const [result] = createResource(
@@ -81,11 +81,11 @@ function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <ReleaseTrackList
-          tracks={placeholderTracks(props.releaseGroup.artist)}
-          artistId={props.releaseGroup.artist.artistId}
-          onPlay={() => {}}
-        />
+        <Show when={props.releaseGroup.defaultRelease} keyed>
+          {(defaultRelease) => (
+            <MediaTrackList media={defaultRelease.media} artistId={props.releaseGroup.artist.artistId} />
+          )}
+        </Show>
         <Section title={editionsTitle(editions().length)}>
           <EditionList editions={editions()} />
         </Section>
