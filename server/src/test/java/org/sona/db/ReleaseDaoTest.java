@@ -44,6 +44,23 @@ class ReleaseDaoTest {
     }
 
     @Test
+    void releaseCountFollowsTheGroupsReleases() {
+        final var musicbrainzId = uuidv7();
+        final var first = releaseGroupId();
+        final var second = releaseGroupId();
+        dao.upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
+        dao.upsert(newRelease("A Rush of Blood to the Head (Japan)", first, uuidv7()));
+        // Upserted again, as a retried ingest does.
+        dao.upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
+
+        // MusicBrainz puts the release in another group now.
+        dao.upsert(newRelease("A Rush of Blood to the Head", second, musicbrainzId));
+
+        assertThat(releaseGroupDao.loadById(first)).map(ReleaseGroup::releaseCount).contains(1);
+        assertThat(releaseGroupDao.loadById(second)).map(ReleaseGroup::releaseCount).contains(1);
+    }
+
+    @Test
     void upsertInsertsEachReleaseWithoutAMusicBrainzId() {
         final var first = newRelease("Bootleg", releaseGroupId(), null);
         final var second = newRelease("Bootleg", releaseGroupId(), null);
