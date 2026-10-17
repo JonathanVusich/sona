@@ -50,7 +50,10 @@ public class ArtistDao {
     }
 
     /**
-     * @return the first {@code size} artists, by name
+     * Only artists with a release group in the library are listed: one credited only on a track has no page of
+     * their own yet.
+     *
+     * @return the first {@code size} listed artists, by name
      */
     public List<Artist> loadFirstPage(final int size) {
         return loadPage(noCondition(), size);
@@ -61,7 +64,7 @@ public class ArtistDao {
      * before.
      *
      * @param after the last artist of the page before; an artist who isn't stored has no page after them
-     * @return up to {@code size} artists, by name, who come after {@code after}
+     * @return up to {@code size} listed artists, by name, who come after {@code after}
      */
     public List<Artist> loadNextPage(final UUID after, final int size) {
         return loadPage(afterArtist(after), size);
@@ -69,7 +72,8 @@ public class ArtistDao {
 
     private List<Artist> loadPage(final Condition start, final int size) {
         return dsl.selectFrom(ARTIST)
-                .where(start)
+                .where(ARTIST.RELEASE_GROUP_COUNT.gt(0))
+                .and(start)
                 .orderBy(ARTIST.NAME, ARTIST.ARTIST_ID)
                 .limit(size)
                 .fetch(mapper::fromRecord);

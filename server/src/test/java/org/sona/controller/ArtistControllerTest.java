@@ -100,25 +100,38 @@ class ArtistControllerTest {
         insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
         insertReleaseGroup(coldplay, "Yellow", ReleaseGroupType.SINGLE, LocalDate.of(2000, 6, 26));
         insertReleaseGroup(keane, "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
+        insertReleaseGroup(blur, "Parklife", ReleaseGroupType.ALBUM, LocalDate.of(1994, 4, 25));
 
         final var first = loadPage(ApiRoutes.ARTISTS + "?limit=2");
         final var second = loadPage(ApiRoutes.ARTISTS + "?limit=2&after=" + first.next());
 
         assertThat(first).isEqualTo(new ArtistPageResponse(
-                List.of(summary(blur, 0), summary(coldplay, 2)), coldplay.artistId()));
+                List.of(summary(blur, 1), summary(coldplay, 2)), coldplay.artistId()));
         assertThat(second).isEqualTo(new ArtistPageResponse(List.of(summary(keane, 1)), null));
+    }
+
+    @Test
+    void artistsWithNoReleaseGroupsArentListed() {
+        final var coldplay = insertArtist("Coldplay", "GB");
+        insertArtist("Ada Mori", null);
+        insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
+
+        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)),
+                null));
     }
 
     @Test
     void artistsWithTheSameNameArePagedById() {
         final var american = insertArtist("Nirvana", "US");
         final var british = insertArtist("Nirvana", "GB");
+        insertReleaseGroup(american, "Nevermind", ReleaseGroupType.ALBUM, LocalDate.of(1991, 9, 24));
+        insertReleaseGroup(british, "Local Anaesthetic", ReleaseGroupType.ALBUM, LocalDate.of(1971, 1, 1));
 
         final var first = loadPage(ApiRoutes.ARTISTS + "?limit=1");
         final var second = loadPage(ApiRoutes.ARTISTS + "?limit=1&after=" + first.next());
 
-        assertThat(first.artists()).containsExactly(summary(american, 0));
-        assertThat(second).isEqualTo(new ArtistPageResponse(List.of(summary(british, 0)), null));
+        assertThat(first.artists()).containsExactly(summary(american, 1));
+        assertThat(second).isEqualTo(new ArtistPageResponse(List.of(summary(british, 1)), null));
     }
 
     @ParameterizedTest

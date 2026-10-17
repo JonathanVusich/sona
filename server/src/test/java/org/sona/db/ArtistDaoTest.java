@@ -56,7 +56,8 @@ class ArtistDaoTest {
 
     @Test
     void loadNextPageFindsNoPageAfterAnUnknownArtist() {
-        dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var coldplay = dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        upsertReleaseGroup(coldplay, "Parachutes", uuidv7());
 
         assertThat(dao.loadNextPage(uuidv7(), 10)).isEmpty();
     }

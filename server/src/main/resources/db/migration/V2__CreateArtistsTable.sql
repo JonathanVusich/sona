@@ -13,5 +13,5 @@ create table if not exists artist (
     musicbrainz_artist_id uuid unique
 );
 
--- Lists artists by name.
-create index if not exists artist_name_idx on artist (name, artist_id);
+-- Lists artists by name. Only those with a release group in the library are listed.
+create index if not exists artist_name_idx on artist (name, artist_id) where release_group_count > 0;
