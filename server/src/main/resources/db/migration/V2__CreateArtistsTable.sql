@@ -6,7 +6,8 @@ create table if not exists artist (
     country text,
     -- Null when there's no image of the artist.
     thumbnail_path text,
-    -- How many of the artist's release groups are in the library, kept up to date by a trigger on release_group.
+    -- How many of the artist's release groups are in the library, kept up to date by a trigger on release_group. A
+    -- group without a release isn't counted.
     release_group_count integer not null default 0,
 
     -- Null when the artist isn't in MusicBrainz.

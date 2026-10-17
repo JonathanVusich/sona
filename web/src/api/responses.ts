@@ -177,8 +177,8 @@ export interface ReleaseGroupResponse {
   /** The group's earliest release anywhere, as an ISO date; null when unknown. */
   firstReleaseDate: string | null;
   artist: ArtistResponse;
-  /** The group's earliest release, as editions lists it first; null when none of its releases is stored yet. */
-  defaultRelease: DefaultReleaseResponse | null;
+  /** The group's earliest release, as editions lists it first. */
+  defaultRelease: DefaultReleaseResponse;
   /** Earliest first, and those with no known date last. */
   editions: EditionResponse[];
 }

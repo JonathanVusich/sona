@@ -6,11 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
 import org.sona.db.PasswordDao;
+import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,6 +36,8 @@ class ArtistsE2ETest {
     ArtistDao artistDao;
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    ReleaseDao releaseDao;
 
     @BeforeEach
     void setUp() {
@@ -154,9 +158,15 @@ class ArtistsE2ETest {
         return artistDao.upsert(new Artist(uuidv7(), name, country, null, 0, uuidv7()));
     }
 
+    /**
+     * @return a release group in the library, with a release stored
+     */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type,
                                             final LocalDate firstReleaseDate) {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(),
-                uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate,
+                artist.artistId(), 0, uuidv7()));
+        releaseDao.upsert(new Release(uuidv7(), name, null, firstReleaseDate, "GB", 0, group.releaseGroupId(),
+                artist.artistId(), uuidv7()));
+        return group;
     }
 }

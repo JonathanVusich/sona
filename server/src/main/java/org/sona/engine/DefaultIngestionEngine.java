@@ -175,7 +175,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final var group = resolved.releaseGroup();
         final var groupArtist = upsertArtist(group.artist());
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), group.title(), group.type(),
-                group.firstReleaseDate(), groupArtist.artistId(), group.releaseGroupId()));
+                group.firstReleaseDate(), groupArtist.artistId(), 0, group.releaseGroupId()));
         final var releaseArtist = upsertArtist(resolved.artist());
         final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
                 resolved.country(), 0, releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));

@@ -127,13 +127,13 @@ class ReleaseGroupControllerTest {
     }
 
     @Test
-    void aGroupWithNoStoredReleasesHasNoDefault() {
+    void aGroupWithNoStoredReleaseIsNotFound() {
         final var group = insertReleaseGroup(insertArtist("Keane"), "Hopes and Fears");
 
-        final var response = loadReleaseGroup(group);
-
-        assertThat(response.defaultRelease()).isNull();
-        assertThat(response.editions()).isEmpty();
+        api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(301);
     }
 
     @Test
@@ -149,9 +149,9 @@ class ReleaseGroupControllerTest {
     void releaseGroupsComeByNameAPageAtATime() {
         final var coldplay = insertArtist("Coldplay");
         final var keane = insertArtist("Keane");
-        final var parachutes = insertReleaseGroup(coldplay, "Parachutes");
-        final var aRush = insertReleaseGroup(coldplay, "A Rush of Blood to the Head");
-        final var hopesAndFears = insertReleaseGroup(keane, "Hopes and Fears");
+        final var parachutes = insertReleaseGroupWithRelease(coldplay, "Parachutes");
+        final var aRush = insertReleaseGroupWithRelease(coldplay, "A Rush of Blood to the Head");
+        final var hopesAndFears = insertReleaseGroupWithRelease(keane, "Hopes and Fears");
 
         final var first = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=2");
         final var second = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=2&after=" + first.next());
@@ -165,14 +165,24 @@ class ReleaseGroupControllerTest {
     void releaseGroupsWithTheSameNameArePagedById() {
         final var queen = insertArtist("Queen");
         final var abba = insertArtist("ABBA");
-        final var queensHits = insertReleaseGroup(queen, "Greatest Hits");
-        final var abbasHits = insertReleaseGroup(abba, "Greatest Hits");
+        final var queensHits = insertReleaseGroupWithRelease(queen, "Greatest Hits");
+        final var abbasHits = insertReleaseGroupWithRelease(abba, "Greatest Hits");
 
         final var first = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=1");
         final var second = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=1&after=" + first.next());
 
         assertThat(first.releaseGroups()).containsExactly(summary(queensHits, queen));
         assertThat(second).isEqualTo(new ReleaseGroupPageResponse(List.of(summary(abbasHits, abba)), null));
+    }
+
+    @Test
+    void releaseGroupsWithNoStoredReleaseArentListed() {
+        final var coldplay = insertArtist("Coldplay");
+        final var parachutes = insertReleaseGroupWithRelease(coldplay, "Parachutes");
+        insertReleaseGroup(coldplay, "X&Y");
+
+        assertThat(loadPage(ApiRoutes.RELEASE_GROUPS)).isEqualTo(new ReleaseGroupPageResponse(
+                List.of(summary(parachutes, coldplay)), null));
     }
 
     @ParameterizedTest
@@ -204,7 +214,13 @@ class ReleaseGroupControllerTest {
 
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name) {
         return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), artist.artistId(), uuidv7()));
+                LocalDate.of(2004, 5, 10), artist.artistId(), 0, uuidv7()));
+    }
+
+    private ReleaseGroup insertReleaseGroupWithRelease(final Artist artist, final String name) {
+        final var group = insertReleaseGroup(artist, name);
+        insertRelease(group, name, group.firstReleaseDate());
+        return group;
     }
 
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {

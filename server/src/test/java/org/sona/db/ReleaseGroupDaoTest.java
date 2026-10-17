@@ -24,7 +24,7 @@ class ReleaseGroupDaoTest {
 
     @Test
     void upsertInsertsNewReleaseGroup() {
-        final var releaseGroup = new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), artistId(), uuidv7());
+        final var releaseGroup = new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), artistId(), 0, uuidv7());
 
         assertThat(dao.upsert(releaseGroup)).isEqualTo(releaseGroup);
     }
@@ -32,12 +32,12 @@ class ReleaseGroupDaoTest {
     @Test
     void upsertOverwritesReleaseGroupWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new ReleaseGroup(uuidv7(), "Old Name", ReleaseGroupType.SINGLE, LocalDate.of(2002, 1, 1), artistId(), musicbrainzId));
+        final var stored = dao.upsert(new ReleaseGroup(uuidv7(), "Old Name", ReleaseGroupType.SINGLE, LocalDate.of(2002, 1, 1), artistId(), 0, musicbrainzId));
         final var newArtistId = artistId();
 
-        final var refreshed = dao.upsert(new ReleaseGroup(uuidv7(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, musicbrainzId));
+        final var refreshed = dao.upsert(new ReleaseGroup(uuidv7(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, 0, musicbrainzId));
 
-        assertThat(refreshed).isEqualTo(new ReleaseGroup(stored.releaseGroupId(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, musicbrainzId));
+        assertThat(refreshed).isEqualTo(new ReleaseGroup(stored.releaseGroupId(), "New Name", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 12), newArtistId, 0, musicbrainzId));
     }
 
     private UUID artistId() {

@@ -137,7 +137,7 @@ class ReleaseE2ETest {
 
     private Release insertRelease(final Artist artist, final String name, final String labelName) {
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null,
-                artist.artistId(), uuidv7()));
+                artist.artistId(), 0, uuidv7()));
         final var release = releaseDao.upsert(new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "GB", 0,
                 releaseGroup.releaseGroupId(), artist.artistId(), uuidv7()));
         final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7()))).getFirst();

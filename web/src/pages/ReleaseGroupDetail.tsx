@@ -80,11 +80,9 @@ function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <Show when={props.releaseGroup.defaultRelease} keyed>
-          {(defaultRelease) => (
-            <MediaTrackList media={defaultRelease.media} artistId={props.releaseGroup.artist.artistId} />
-          )}
-        </Show>
+        <MediaTrackList
+          media={props.releaseGroup.defaultRelease.media}
+          artistId={props.releaseGroup.artist.artistId} />
         <Section title={editionsTitle(editions().length)}>
           <EditionList editions={editions()} />
         </Section>

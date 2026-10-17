@@ -155,7 +155,7 @@ public class DevLibraryRunner implements ApplicationRunner {
         final var devGroup = devRelease.releaseGroup();
         final var artistId = artists.get(devGroup.artist()).artistId();
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), devGroup.name(), devGroup.type(),
-                devGroup.firstReleaseDate(), artistId, musicBrainzId("release-group", devGroup.name())));
+                devGroup.firstReleaseDate(), artistId, 0, musicBrainzId("release-group", devGroup.name())));
         final var release = releaseDao.upsert(new Release(uuidv7(), devRelease.name(), null, devRelease.date(),
                 devRelease.country(), 0, releaseGroup.releaseGroupId(), artistId,
                 musicBrainzId("release", devRelease.name())));

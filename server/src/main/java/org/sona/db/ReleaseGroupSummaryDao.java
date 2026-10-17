@@ -18,6 +18,9 @@ import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.RELEASE_GROUP;
 
+/**
+ * Lists the release groups in the library: those with a release stored.
+ */
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -51,7 +54,8 @@ public class ReleaseGroupSummaryDao {
                         ARTIST.convertFrom(artistMapper::fromRecord))
                 .from(RELEASE_GROUP)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
-                .where(start)
+                .where(RELEASE_GROUP.RELEASE_COUNT.gt(0))
+                .and(start)
                 .orderBy(RELEASE_GROUP.NAME, RELEASE_GROUP.RELEASE_GROUP_ID)
                 .limit(size)
                 .fetch(group -> summaryMapper.fromPojos(group.value1(), group.value2()));

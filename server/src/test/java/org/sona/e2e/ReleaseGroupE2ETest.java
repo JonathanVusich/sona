@@ -73,7 +73,7 @@ class ReleaseGroupE2ETest {
     void aReleaseGroupListsItsEditionsEarliestFirst(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
         final var island = insertLabel("Island");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertMedia(deluxe, "CD", "CD");
@@ -99,7 +99,7 @@ class ReleaseGroupE2ETest {
     void aReleaseGroupListsItsEarliestEditionsTracksDiscByDisc(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertTrack(insertMedia(deluxe, "CD").getFirst(), keane, "Snowed Under");
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
@@ -119,11 +119,17 @@ class ReleaseGroupE2ETest {
     void aReleaseGroupListsTheArtistsOtherReleaseGroupsNewestFirst(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
-        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Under the Iron Sea", ReleaseGroupType.ALBUM,
-                LocalDate.of(2006, 6, 12), keane.artistId(), uuidv7()));
-        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Perfect Symmetry", ReleaseGroupType.ALBUM,
-                LocalDate.of(2008, 10, 13), keane.artistId(), uuidv7()));
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
+        final var underTheIronSea = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Under the Iron Sea",
+                ReleaseGroupType.ALBUM, LocalDate.of(2006, 6, 12), keane.artistId(), 0, uuidv7()));
+        insertRelease(underTheIronSea, "Under the Iron Sea", LocalDate.of(2006, 6, 12));
+        final var perfectSymmetry = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Perfect Symmetry",
+                ReleaseGroupType.ALBUM, LocalDate.of(2008, 10, 13), keane.artistId(), 0, uuidv7()));
+        insertRelease(perfectSymmetry, "Perfect Symmetry", LocalDate.of(2008, 10, 13));
+        // Not in the library until a release of it is stored.
+        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Strangeland", ReleaseGroupType.ALBUM,
+                LocalDate.of(2012, 5, 7), keane.artistId(), 0, uuidv7()));
         final var releaseGroupPage = logInAndOpen(page, group);
 
         assertThat(releaseGroupPage.moreByTitles()).hasText(new String[]{"Perfect Symmetry", "Under the Iron Sea"});
@@ -133,7 +139,7 @@ class ReleaseGroupE2ETest {
     void anEditionOpensItsReleasesPage(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var releaseGroupPage = logInAndOpen(page, group);
 

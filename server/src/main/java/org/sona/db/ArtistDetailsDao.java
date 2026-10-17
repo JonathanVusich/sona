@@ -41,11 +41,13 @@ public class ArtistDetailsDao {
     }
 
     /**
-     * Newest first, and those with no known date last.
+     * The artist's release groups in the library, those with a release stored, newest first, and those with no known
+     * date last.
      */
     private Field<List<ReleaseGroup>> releaseGroups() {
         return multiset(selectFrom(RELEASE_GROUP)
                 .where(RELEASE_GROUP.ARTIST_ID.eq(ARTIST.ARTIST_ID))
+                .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
                 .orderBy(RELEASE_GROUP.FIRST_RELEASE_DATE.desc().nullsLast(), RELEASE_GROUP.RELEASE_GROUP_ID))
                 .convertFrom(groups -> groups.map(releaseGroupMapper::fromRecord));
     }

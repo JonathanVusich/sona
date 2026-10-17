@@ -54,7 +54,7 @@ class ReleaseDaoTest {
 
     private UUID releaseGroupId() {
         return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artistId(),
-                uuidv7())).releaseGroupId();
+                0, uuidv7())).releaseGroupId();
     }
 
     private UUID artistId() {
