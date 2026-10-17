@@ -223,7 +223,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     private Artist upsertArtist(final ResolvedArtist artist) {
-        return artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null, artist.artistId()));
+        return artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null, 0, artist.artistId()));
     }
 
     private Track newTrack(final TrackToIngest trackToIngest,

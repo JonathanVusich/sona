@@ -41,6 +41,6 @@ class ReleaseGroupDaoTest {
     }
 
     private UUID artistId() {
-        return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7())).artistId();
+        return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7())).artistId();
     }
 }

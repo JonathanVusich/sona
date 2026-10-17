@@ -153,7 +153,7 @@ class DefaultIngestionEngineTest {
     @Test
     void finishStoringAReleaseStoredWithoutItsLabelsAndMedia()
             throws IOException, InvalidFormatException, InterruptedException {
-        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0,
                 UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
                 null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
@@ -193,7 +193,7 @@ class DefaultIngestionEngineTest {
 
     @Test
     void retryOnlyTheMoveAfterItFails() throws IOException, InvalidFormatException, InterruptedException {
-        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null,
+        final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0,
                 UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
                 null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));

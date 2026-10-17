@@ -51,8 +51,8 @@ class ReleaseDetailsDaoTest {
         final var disc2 = storeMedium(release, 2);
         final var disc1 = storeMedium(release, 1);
 
-        assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(release, artist,
-                List.of(capitol, parlophone),
+        assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(release,
+                withOneReleaseGroup(artist), List.of(capitol, parlophone),
                 List.of(new MediumWithTracks(disc1, List.of()), new MediumWithTracks(disc2, List.of()))));
     }
 
@@ -70,7 +70,7 @@ class ReleaseDetailsDaoTest {
 
         final var details = dao.loadById(release.releaseId()).orElseThrow();
 
-        assertThat(details.artist()).isEqualTo(releaseArtist);
+        assertThat(details.artist()).isEqualTo(withOneReleaseGroup(releaseArtist));
         assertThat(details.media()).containsExactly(
                 new MediumWithTracks(disc1, List.of(new TrackWithArtist(first, keane),
                         new TrackWithArtist(second, coldplay))),
@@ -96,7 +96,15 @@ class ReleaseDetailsDaoTest {
     }
 
     private Artist storeArtist(final String name) {
-        return artistDao.upsert(new Artist(uuidv7(), name, null, null, uuidv7()));
+        return artistDao.upsert(new Artist(uuidv7(), name, null, null, 0, uuidv7()));
+    }
+
+    /**
+     * @return the artist as stored once {@link #storeRelease} has stored a release group of theirs
+     */
+    private static Artist withOneReleaseGroup(final Artist artist) {
+        return new Artist(artist.artistId(), artist.name(), artist.country(), artist.thumbnailPath(), 1,
+                artist.musicbrainzArtistId());
     }
 
     private Release storeRelease(final Artist artist) {

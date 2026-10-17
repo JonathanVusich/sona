@@ -71,7 +71,7 @@ class ReleaseGroupE2ETest {
 
     @Test
     void aReleaseGroupListsItsEditionsEarliestFirst(final Page page) {
-        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
                 LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
         final var island = insertLabel("Island");
@@ -97,7 +97,7 @@ class ReleaseGroupE2ETest {
 
     @Test
     void anEditionOpensItsReleasesPage(final Page page) {
-        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
                 LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));

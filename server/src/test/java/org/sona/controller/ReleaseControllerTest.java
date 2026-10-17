@@ -75,9 +75,9 @@ class ReleaseControllerTest {
 
     @Test
     void aReleaseComesWithItsArtistLabelsAndMediaEachWithItsTracks() {
-        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, uuidv7()));
-        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
-        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, 0, uuidv7()));
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Britpop", null, null,
                 various.artistId(), uuidv7()));
         final var release = releaseDao.upsert(new Release(uuidv7(), "Britpop", null, LocalDate.of(2002, 8, 26), "GB",

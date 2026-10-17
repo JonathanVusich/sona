@@ -146,7 +146,7 @@ public class DevLibraryRunner implements ApplicationRunner {
 
     private Map<String, Artist> upsertArtists() {
         return ARTISTS.stream()
-                .map(artist -> artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null,
+                .map(artist -> artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null, 0,
                         musicBrainzId("artist", artist.name()))))
                 .collect(toUnmodifiableMap(Artist::name, Function.identity()));
     }
