@@ -1,8 +1,13 @@
 import { A } from "@solidjs/router";
 import { For } from "solid-js";
-import { ReleaseGroupType, type ReleaseGroupSummaryResponse } from "../api/responses";
+import {
+  ReleaseGroupType,
+  type ArtistReleaseGroupResponse,
+  type ArtistSummaryResponse,
+  type ReleaseGroupSummaryResponse,
+} from "../api/responses";
 import { formatYear, joinDetails, plural, releaseGroupTypeLabel } from "../format";
-import { canonicalRelease, groupsOf, tracksOfRelease, type Artist } from "../library";
+import { canonicalRelease, tracksOfRelease } from "../library";
 import { playTracks } from "../player";
 import Cover, { ArtistAvatar, CoverSize } from "./Cover";
 import { PlayIcon } from "./Icons";
@@ -26,7 +31,7 @@ export function ReleaseGroupGrid(props: { groups: ReleaseGroupSummaryResponse[];
 }
 
 // One artist's release groups as cards, each naming its year instead, since the artist is already known.
-export function DiscographyGrid(props: { groups: ReleaseGroupSummaryResponse[]; layout: CardLayout }) {
+export function DiscographyGrid(props: { groups: ArtistReleaseGroupResponse[]; layout: CardLayout }) {
   return (
     <div class={props.layout}>
       <For each={props.groups}>{(group) => <ReleaseGroupCard group={group} subtitle={yearSubtitle(group)} />}</For>
@@ -34,7 +39,7 @@ export function DiscographyGrid(props: { groups: ReleaseGroupSummaryResponse[]; 
   );
 }
 
-function ReleaseGroupCard(props: { group: ReleaseGroupSummaryResponse; subtitle: string }) {
+function ReleaseGroupCard(props: { group: ArtistReleaseGroupResponse; subtitle: string }) {
   // Only the mocked library plays; nothing plays from Sona until it streams (docs/GAPS.md).
   const play = () => {
     const release = canonicalRelease(props.group.releaseGroupId);
@@ -61,7 +66,7 @@ function artistSubtitle(group: ReleaseGroupSummaryResponse): string {
   return joinDetails([group.artist.name, cardTypeLabel(group.type)]);
 }
 
-function yearSubtitle(group: ReleaseGroupSummaryResponse): string {
+function yearSubtitle(group: ArtistReleaseGroupResponse): string {
   return joinDetails([formatYear(group.firstReleaseDate), cardTypeLabel(group.type)]);
 }
 
@@ -75,15 +80,15 @@ function cardTypeLabel(type: ReleaseGroupType | null): string | null {
   return releaseGroupTypeLabel(type);
 }
 
-export function ArtistGrid(props: { artists: Artist[] }) {
+export function ArtistGrid(props: { artists: ArtistSummaryResponse[] }) {
   return (
     <div class="card-grid">
       <For each={props.artists}>
         {(artist) => (
-          <A href={routeTo(AppRoutes.ARTIST, artist.id)} class="card-link artist-card">
+          <A href={routeTo(AppRoutes.ARTIST, artist.artistId)} class="card-link artist-card">
             <ArtistAvatar name={artist.name} size={CoverSize.CARD} />
             <div class="card-title">{artist.name}</div>
-            <div class="card-subtitle">{plural(groupsOf(artist.id).length, "release")}</div>
+            <div class="card-subtitle">{plural(artist.releaseGroupCount, "release")}</div>
           </A>
         )}
       </For>

@@ -66,6 +66,7 @@ export const ErrorCode = {
 
   RELEASE_NOT_FOUND: 300,
   RELEASE_GROUP_NOT_FOUND: 301,
+  ARTIST_NOT_FOUND: 302,
 
   INVALID_PARAMETER: 400,
 } as const;
@@ -172,6 +173,41 @@ export interface ReleaseGroupResponse {
   artist: ArtistResponse;
   /** Earliest first, and those with no known date last. */
   editions: EditionResponse[];
+}
+
+/** An artist as the list of artists shows them. */
+export interface ArtistSummaryResponse {
+  artistId: string;
+  name: string;
+  /** How many of the artist's release groups are in the library. */
+  releaseGroupCount: number;
+}
+
+/** One page of the artists with a release group in the library, by name. */
+export interface ArtistPageResponse {
+  artists: ArtistSummaryResponse[];
+  /** The ID to load the next page after, or null on the last page. */
+  next: string | null;
+}
+
+/** One of an artist's release groups, as the artist page lists them. */
+export interface ArtistReleaseGroupResponse {
+  releaseGroupId: string;
+  name: string;
+  /** Null when MusicBrainz gives the release group no primary type. */
+  type: ReleaseGroupType | null;
+  /** The group's earliest release anywhere, as an ISO date; null when unknown. */
+  firstReleaseDate: string | null;
+}
+
+/** Everything the artist page shows. */
+export interface ArtistDetailsResponse {
+  artistId: string;
+  name: string;
+  /** ISO 3166-1 code of the artist's area; null when MusicBrainz doesn't know it. */
+  country: string | null;
+  /** Newest first, and those with no known date last. */
+  releaseGroups: ArtistReleaseGroupResponse[];
 }
 
 /** The body of every client error Sona sends. */

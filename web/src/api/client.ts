@@ -1,5 +1,7 @@
 import { PagePosition, type ChangePasswordRequest, type LoginRequest, type PageRequest } from "./requests";
 import type {
+  ArtistDetailsResponse,
+  ArtistPageResponse,
   CurrentUserResponse,
   ErrorCode,
   ErrorResponse,
@@ -85,6 +87,15 @@ export async function fetchReleaseGroup(
   releaseGroupId: string,
 ): Promise<ApiResult<ReleaseGroupResponse>> {
   const path = `${ApiRoutes.RELEASE_GROUPS}/${encodeURIComponent(releaseGroupId)}`;
+  return sendForJson(path, getAsUser(accessToken));
+}
+
+export async function fetchArtists(accessToken: string, page: PageRequest): Promise<ApiResult<ArtistPageResponse>> {
+  return sendForJson(`${ApiRoutes.ARTISTS}${pageQuery(page)}`, getAsUser(accessToken));
+}
+
+export async function fetchArtist(accessToken: string, artistId: string): Promise<ApiResult<ArtistDetailsResponse>> {
+  const path = `${ApiRoutes.ARTISTS}/${encodeURIComponent(artistId)}`;
   return sendForJson(path, getAsUser(accessToken));
 }
 
