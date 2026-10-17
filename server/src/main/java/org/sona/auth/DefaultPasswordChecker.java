@@ -67,7 +67,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
         if (!encoder.matches(currentPassword, password.passwordHash())) {
             return PasswordChange.INCORRECT_CURRENT_PASSWORD;
         }
-        if (newPassword == null || newPassword.isBlank() || newPassword.equals(currentPassword)) {
+        if (newPassword.equals(currentPassword)) {
             return PasswordChange.INVALID_NEW_PASSWORD;
         }
         passwordDao.updateHash(user.userId(), encoder.encode(newPassword));

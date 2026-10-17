@@ -116,7 +116,7 @@ class ReleaseControllerTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(400)
-                .jsonPath("$.reason").isEqualTo("The request has a parameter Sona can't read.");
+                .jsonPath("$.reason").isEqualTo("The request has a parameter or field that is missing or invalid.");
     }
 
     private Track insertTrack(final Medium medium, final Artist artist, final String name) {

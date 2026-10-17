@@ -25,19 +25,17 @@ public enum ErrorCode {
     SIGN_IN_REQUIRED(108, HttpStatus.UNAUTHORIZED, "Sign in to continue."),
 
     INCORRECT_CURRENT_PASSWORD(200, HttpStatus.BAD_REQUEST, "The current password is incorrect."),
-    INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST,
-            "The new password must not be empty or the same as the current one."),
+    INVALID_NEW_PASSWORD(201, HttpStatus.BAD_REQUEST, "The new password must not be the same as the current one."),
     PASSWORD_MANAGED_BY_PROVIDER(202, HttpStatus.BAD_REQUEST,
             "You sign in through your identity provider, so change your password there."),
     USERNAME_TAKEN(203, HttpStatus.CONFLICT, "That username is taken."),
-    INVALID_USERNAME(204, HttpStatus.BAD_REQUEST, "The username must not be empty."),
     ALREADY_REGISTERED(205, HttpStatus.CONFLICT, "You already have an account."),
 
     RELEASE_NOT_FOUND(300, HttpStatus.NOT_FOUND, "This release isn't in the library."),
     RELEASE_GROUP_NOT_FOUND(301, HttpStatus.NOT_FOUND, "This release group isn't in the library."),
     ARTIST_NOT_FOUND(302, HttpStatus.NOT_FOUND, "This artist isn't in the library."),
 
-    INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter Sona can't read.");
+    INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid.");
 
     @JsonValue
     private final int code;

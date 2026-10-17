@@ -2,6 +2,8 @@ package org.sona.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.sona.IntegrationTest;
 import org.sona.auth.Permission;
 import org.sona.auth.SessionState;
@@ -85,6 +87,16 @@ class AuthControllerTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(101)
                 .jsonPath("$.reason").isEqualTo("The username or password is incorrect.");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"' ', alice", "alice, ''"})
+    void loginRefusesABlankUsernameOrPassword(final String username, final String password) {
+        users.createUser("alice", UserRole.USER);
+
+        api.login(username, password)
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(400);
     }
 
     @Test

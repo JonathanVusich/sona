@@ -1,4 +1,6 @@
 package org.sona.controller.request;
 
-public record ChangePasswordRequest(String currentPassword, String newPassword) {
+import jakarta.validation.constraints.NotBlank;
+
+public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {
 }

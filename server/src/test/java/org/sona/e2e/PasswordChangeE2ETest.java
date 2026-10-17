@@ -66,6 +66,17 @@ class PasswordChangeE2ETest {
     }
 
     @Test
+    void aBlankNewPasswordIsRefused(final Page page) {
+        new LoginPage(page).logIn("carol", "carol");
+        final var changePassword = new ChangePasswordPage(page);
+
+        changePassword.changePassword("carol", " ", " ");
+
+        assertThat(changePassword.error()).hasText("Enter your current password and a new one.");
+        assertThat(page).hasURL(Pattern.compile("/change-password$"));
+    }
+
+    @Test
     void aWrongCurrentPasswordIsRefused(final Page page) {
         new LoginPage(page).logIn("carol", "carol");
         final var changePassword = new ChangePasswordPage(page);

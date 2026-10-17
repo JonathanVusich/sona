@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.AccountRegistrar;
 import org.sona.auth.OidcDiscoveryClient;
@@ -37,7 +38,7 @@ public final class OidcController {
      * the browser back to the provider, which signs them straight in if their session there is still open.
      */
     @PostMapping(ApiRoutes.AUTH_REGISTER)
-    public ResponseEntity<Void> registerUser(@RequestBody final RegisterRequest request) {
+    public ResponseEntity<Void> registerUser(@RequestBody @Valid final RegisterRequest request) {
         final var user = accountRegistrar.registerUser(request.registrationToken(), request.username());
         final var signIn = URI.create(ApiRoutes.OIDC_AUTHORIZE + "/" + user.providerId());
         return ResponseEntity.created(signIn).build();

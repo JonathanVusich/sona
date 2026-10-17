@@ -41,9 +41,6 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
     public ProviderUser registerUser(final String registrationToken, final String username) {
         final var user = registrationTokens.readToken(registrationToken)
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REGISTRATION_TOKEN));
-        if (username == null || username.isBlank()) {
-            throw new ClientException(ErrorCode.INVALID_USERNAME);
-        }
         if (userDao.loadById(user.userId()).isPresent()) {
             throw new ClientException(ErrorCode.ALREADY_REGISTERED);
         }

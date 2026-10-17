@@ -99,6 +99,15 @@ class UserControllerTest {
         api.changePassword(session.accessToken(), "alice", "alice")
                 .expectStatus().isBadRequest()
                 .expectBody().jsonPath("$.code").isEqualTo(201);
-        api.changePassword(session.accessToken(), "alice", " ").expectStatus().isBadRequest();
+    }
+
+    @Test
+    void aBlankNewPasswordIsRefused() {
+        users.createUser("alice", UserRole.USER);
+        final var session = api.startSession("alice", "alice");
+
+        api.changePassword(session.accessToken(), "alice", " ")
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(400);
     }
 }

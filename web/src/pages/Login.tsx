@@ -2,7 +2,7 @@ import { Navigate } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { currentUser, logIn } from "../auth";
 import FormError from "../components/FormError";
-import { failureReason, FormStatus } from "../forms";
+import { failureReason, FormStatus, isBlank } from "../forms";
 import { AppRoutes } from "../routes";
 
 export default function Login() {
@@ -19,6 +19,10 @@ export default function Login() {
   // Once logged in, the fallback below leaves this page.
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
+    if (isBlank(username()) || isBlank(password())) {
+      setError("Enter your username and password.");
+      return;
+    }
     setStatus(FormStatus.SUBMITTING);
     const result = await logIn({ username: username().trim(), password: password() });
     setStatus(FormStatus.EDITING);
