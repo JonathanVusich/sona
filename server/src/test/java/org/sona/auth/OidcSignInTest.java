@@ -188,7 +188,7 @@ class OidcSignInTest {
     void aBlankUsernameIsRefused() {
         api.registerUser(registrationToken("alice-id"), " ")
                 .expectStatus().isBadRequest()
-                .expectBody().jsonPath("$.code").isEqualTo(204);
+                .expectBody().jsonPath("$.code").isEqualTo(400);
     }
 
     @Test
@@ -227,7 +227,7 @@ class OidcSignInTest {
     void aProviderUserCannotLogInWithAPassword() {
         existingUser("alice-id", "alice");
 
-        api.login("alice", "").expectStatus().isUnauthorized();
+        api.login("alice", "s3cret").expectStatus().isUnauthorized();
     }
 
     @Test

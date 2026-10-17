@@ -3,7 +3,7 @@ import { createSignal, onMount, Show } from "solid-js";
 import { SessionState } from "../api/responses";
 import { changePassword, currentUser, logOut } from "../auth";
 import FormError from "../components/FormError";
-import { failureReason, FormStatus } from "../forms";
+import { failureReason, FormStatus, isBlank } from "../forms";
 import { AppRoutes } from "../routes";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
@@ -22,6 +22,10 @@ export default function ChangePassword() {
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
+    if (isBlank(currentPassword()) || isBlank(newPassword())) {
+      setError("Enter your current password and a new one.");
+      return;
+    }
     if (newPassword() !== confirmedPassword()) {
       setError("The new passwords don't match.");
       return;

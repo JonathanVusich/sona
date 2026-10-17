@@ -59,6 +59,17 @@ class LoginE2ETest {
     }
 
     @Test
+    void aBlankUsernameIsRefused(final Page page) {
+        users.createUser("alice", UserRole.USER);
+        final var login = new LoginPage(page);
+
+        login.logIn(" ", "alice");
+
+        assertThat(login.error()).hasText("Enter your username and password.");
+        assertThat(page).hasURL(Pattern.compile("/login$"));
+    }
+
+    @Test
     void aWrongPasswordIsRefused(final Page page) {
         users.createUser("alice", UserRole.USER);
         final var login = new LoginPage(page);

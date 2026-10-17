@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.PasswordChecker;
 import org.sona.auth.RefreshCookieService;
@@ -32,7 +33,7 @@ public final class AuthController {
     private final AuthProperties properties;
 
     @PostMapping(ApiRoutes.AUTH_TOKEN)
-    public ResponseEntity<TokenResponse> login(@RequestBody final LoginRequest request) {
+    public ResponseEntity<TokenResponse> login(@RequestBody @Valid final LoginRequest request) {
         // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
         final var user = passwordChecker.checkLogin(request.username(), request.password())
                 .orElseThrow(() -> new ClientException(ErrorCode.INVALID_CREDENTIALS));

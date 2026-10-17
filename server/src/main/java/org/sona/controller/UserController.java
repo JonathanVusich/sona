@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.PasswordChecker;
 import org.sona.auth.UserAuthentication;
@@ -37,7 +38,7 @@ public final class UserController {
      */
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
     public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
-                                               @RequestBody final ChangePasswordRequest request) {
+                                               @RequestBody @Valid final ChangePasswordRequest request) {
         final var change = passwordChecker.changePassword(authentication.user(), request.currentPassword(),
                 request.newPassword());
         return switch (change) {
