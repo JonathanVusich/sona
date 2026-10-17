@@ -50,19 +50,23 @@ public class ReleaseGroupDetailsDao {
     private final DefaultReleaseMapper defaultReleaseMapper;
     private final MediaFields mediaFields;
 
+    /**
+     * @return the release group, if it's in the library: a group is only once a release of it is stored
+     */
     public Optional<ReleaseGroupDetails> loadById(final UUID releaseGroupId) {
         return dsl.select(RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
                         ARTIST.convertFrom(artistMapper::fromRecord), defaultRelease(), editions())
                 .from(RELEASE_GROUP)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
+                .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
                 .fetchOptional(group -> detailsMapper.fromPojos(group.value1(), group.value2(), group.value3(),
                         group.value4()));
     }
 
     /**
      * The group's earliest release, in the order {@link #editions()} lists them, so a later deluxe or instrumental
-     * edition doesn't stand for the group. Null when none of its releases is stored.
+     * edition doesn't stand for the group. {@link #loadById} only loads a group with a release stored.
      */
     // TODO: Let users choose a group's default release, which this then prefers.
     private Field<DefaultRelease> defaultRelease() {
@@ -73,10 +77,8 @@ public class ReleaseGroupDetailsDao {
                 .where(release.RELEASE_GROUP_ID.eq(RELEASE_GROUP.RELEASE_GROUP_ID))
                 .orderBy(release.DATE.asc().nullsLast(), release.RELEASE_ID)
                 .limit(1))
-                .convertFrom(releases -> releases.stream()
-                        .map(found -> defaultReleaseMapper.fromPojos(found.value1(), found.value2()))
-                        .findFirst()
-                        .orElse(null));
+                .convertFrom(releases -> releases.map(found -> defaultReleaseMapper.fromPojos(found.value1(),
+                        found.value2())).getFirst());
     }
 
     /**

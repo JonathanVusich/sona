@@ -32,7 +32,7 @@ class DefaultLibraryTest {
             "A Rush of Blood: Deluxe/Remastered",
             null,
             null,
-            null,
+            null, 0,
             UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")
     );
     private static final Release RELEASE = new Release(

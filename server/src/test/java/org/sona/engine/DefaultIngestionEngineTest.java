@@ -156,7 +156,7 @@ class DefaultIngestionEngineTest {
         final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0,
                 UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
-                null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+                null, artist.artistId(), 0, UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
         final var release = releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, null, null, 0,
                 releaseGroup.releaseGroupId(), artist.artistId(),
                 UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")));
@@ -196,7 +196,7 @@ class DefaultIngestionEngineTest {
         final var artist = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0,
                 UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null,
-                null, artist.artistId(), UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
+                null, artist.artistId(), 0, UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
         // A file where the release group's folder belongs makes the move fail.
         final var blocker = libraryProperties.mediaFolder()
                 .resolve(releaseGroup.releaseGroupId() + "[A Rush of Blood to the Head]");

@@ -3,8 +3,6 @@ import { updateById } from "./collections";
 import {
   ReleaseGroupType as ApiReleaseGroupType,
   type ArtistResponse,
-  type EditionResponse,
-  type LabelResponse,
   type ReleaseGroupSummaryResponse,
   type TrackResponse,
 } from "./api/responses";
@@ -578,59 +576,9 @@ function artistResponse(artist: Artist | undefined): ArtistResponse {
   return { artistId: artist.id, name: artist.name };
 }
 
-export function editionResponse(release: Release): EditionResponse {
-  return {
-    releaseId: release.id,
-    name: release.title,
-    date: mockDate(release.year),
-    country: release.country,
-    trackCount: tracksOfRelease(release.id).length,
-    labels: mockLabels(release.label),
-    formats: [release.format],
-  };
-}
-
 function mockDate(year: number | null): string | null {
   if (year === null) {
     return null;
   }
   return `${year}-01-01`;
-}
-
-function mockLabels(label: string | null): LabelResponse[] {
-  if (label === null) {
-    return [];
-  }
-  return [{ labelId: label, name: label }];
-}
-
-// Stand-ins for sections of real pages whose data Sona doesn't serve yet (docs/GAPS.md), so the pages keep their
-// layout. Each is drawn from the mocked library's first release group, and credited to the real page's artist.
-
-export function placeholderGroups(artist: ArtistResponse): ReleaseGroupSummaryResponse[] {
-  const group = groups()[0];
-  if (group === undefined) {
-    return [];
-  }
-  return groupsOf(group.artistId).map((other) => ({ ...summaryResponse(other), artist }));
-}
-
-export function placeholderEditions(): EditionResponse[] {
-  const group = groups()[0];
-  if (group === undefined) {
-    return [];
-  }
-  return releasesOf(group.id).map(editionResponse);
-}
-
-export function placeholderTracks(artist: ArtistResponse): TrackResponse[] {
-  const group = groups()[0];
-  if (group === undefined) {
-    return [];
-  }
-  const release = canonicalRelease(group.id);
-  if (release === undefined) {
-    return [];
-  }
-  return tracksOfRelease(release.id).map((track) => ({ ...trackResponse(track), artist }));
 }

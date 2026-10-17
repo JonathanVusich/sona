@@ -103,6 +103,19 @@ class ReleaseE2ETest {
     }
 
     @Test
+    void aReleaseListsItsGroupsOtherEditionsAndTheArtistsOtherReleaseGroups(final Page page) {
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var original = insertRelease(coldplay, "A Rush of Blood to the Head", "Parlophone");
+        releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Japan)", null, LocalDate.of(2002, 8, 27),
+                "JP", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
+        insertRelease(coldplay, "Parachutes", "Parlophone");
+        final var releasePage = logInAndOpen(page, original);
+
+        assertThat(releasePage.editionTitles()).hasText(new String[]{"A Rush of Blood to the Head (Japan)"});
+        assertThat(releasePage.moreByTitles()).hasText(new String[]{"Parachutes"});
+    }
+
+    @Test
     void aReleaseThatIsntInTheLibraryIsReported(final Page page) {
         new LoginPage(page).logIn("alice", "alice");
         assertThat(page).hasURL(Pattern.compile("/discover$"));
@@ -124,7 +137,7 @@ class ReleaseE2ETest {
 
     private Release insertRelease(final Artist artist, final String name, final String labelName) {
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null,
-                artist.artistId(), uuidv7()));
+                artist.artistId(), 0, uuidv7()));
         final var release = releaseDao.upsert(new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "GB", 0,
                 releaseGroup.releaseGroupId(), artist.artistId(), uuidv7()));
         final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7()))).getFirst();

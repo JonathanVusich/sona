@@ -12,10 +12,12 @@ import org.sona.controller.response.ArtistPageResponse;
 import org.sona.controller.response.ArtistReleaseGroupResponse;
 import org.sona.controller.response.ArtistSummaryResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +38,8 @@ class ArtistControllerTest {
     ArtistDao artistDao;
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    ReleaseDao releaseDao;
 
     @Value("${local.server.port}")
     int port;
@@ -69,6 +73,21 @@ class ArtistControllerTest {
         // Those with no known date come last.
         assertThat(response).isEqualTo(new ArtistDetailsResponse(coldplay.artistId(), "Coldplay", "GB", List.of(
                 releaseGroup(aRush), releaseGroup(parachutes), releaseGroup(yellow), releaseGroup(demos))));
+    }
+
+    @Test
+    void anArtistsReleaseGroupsWithNoReleaseArentInTheLibrary() {
+        final var coldplay = insertArtist("Coldplay", "GB");
+        final var parachutes = insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM,
+                LocalDate.of(2000, 7, 10));
+        insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
+
+        final var response = api.getWithToken(ApiRoutes.ARTISTS + "/" + coldplay.artistId(), token)
+                .expectStatus().isOk()
+                .expectBody(ArtistDetailsResponse.class)
+                .returnResult().getResponseBody();
+
+        assertThat(response.releaseGroups()).containsExactly(releaseGroup(parachutes));
     }
 
     @Test
@@ -121,6 +140,18 @@ class ArtistControllerTest {
     }
 
     @Test
+    void artistsWhoseReleaseGroupsHaveNoReleaseArentListed() {
+        final var coldplay = insertArtist("Coldplay", "GB");
+        final var keane = insertArtist("Keane", "GB");
+        insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
+        insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
+        insertReleaseGroupWithoutRelease(keane, "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
+
+        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)),
+                null));
+    }
+
+    @Test
     void artistsWithTheSameNameArePagedById() {
         final var american = insertArtist("Nirvana", "US");
         final var british = insertArtist("Nirvana", "GB");
@@ -154,9 +185,21 @@ class ArtistControllerTest {
         return artistDao.upsert(new Artist(uuidv7(), name, country, null, 0, uuidv7()));
     }
 
+    /**
+     * @return a release group in the library, with a release stored
+     */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type,
                                             final LocalDate firstReleaseDate) {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(),
+        final var group = insertReleaseGroupWithoutRelease(artist, name, type, firstReleaseDate);
+        releaseDao.upsert(new Release(uuidv7(), name, null, firstReleaseDate, "GB", 0, group.releaseGroupId(),
+                artist.artistId(), uuidv7()));
+        return group;
+    }
+
+    private ReleaseGroup insertReleaseGroupWithoutRelease(final Artist artist, final String name,
+                                                          final ReleaseGroupType type,
+                                                          final LocalDate firstReleaseDate) {
+        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(), 0,
                 uuidv7()));
     }
 

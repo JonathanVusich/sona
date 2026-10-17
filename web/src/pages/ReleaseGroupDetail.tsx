@@ -4,21 +4,20 @@ import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
 import { ErrorCode, type ReleaseGroupResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
-import { CardLayout, DiscographyGrid } from "../components/Cards";
 import Cover, { CoverSize } from "../components/Cover";
 import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
+import MoreByArtist from "../components/MoreByArtist";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
-import { ReleaseTrackList } from "../components/TrackList";
+import { MediaTrackList } from "../components/TrackList";
 import { formatYear, joinDetails, plural, releaseGroupTypeLabel } from "../format";
-import { placeholderGroups, placeholderTracks } from "../library";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release group isn't in the library.";
 
-// The album as an idea: shows its original edition's tracks, lists every edition, and links the rest of the
-// artist's discography. The tracks and the discography are mocked until Sona serves them (docs/GAPS.md).
+// The album as an idea: shows its default release's tracks, lists every edition, and links the rest of the artist's
+// discography.
 export default function ReleaseGroupDetail() {
   const params = useParams<{ id: string }>();
   const [result] = createResource(
@@ -81,19 +80,13 @@ function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <ReleaseTrackList
-          tracks={placeholderTracks(props.releaseGroup.artist)}
-          artistId={props.releaseGroup.artist.artistId}
-          onPlay={() => {}}
-        />
+        <MediaTrackList
+          media={props.releaseGroup.defaultRelease.media}
+          artistId={props.releaseGroup.artist.artistId} />
         <Section title={editionsTitle(editions().length)}>
           <EditionList editions={editions()} />
         </Section>
-        <Section title={`More by ${props.releaseGroup.artist.name}`}>
-          <DiscographyGrid
-            groups={placeholderGroups(props.releaseGroup.artist)}
-            layout={CardLayout.ROW} />
-        </Section>
+        <MoreByArtist artist={props.releaseGroup.artist} releaseGroupId={props.releaseGroup.releaseGroupId} />
       </PageBody>
     </>
   );

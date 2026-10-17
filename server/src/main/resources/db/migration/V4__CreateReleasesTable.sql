@@ -19,3 +19,22 @@ create table if not exists release (
 
 -- A group's releases, earliest first: the earliest stands for the group.
 create index if not exists release_release_group_id_idx on release (release_group_id, date, release_id);
+
+-- Keeps release_group.release_count up to date as releases are added, removed, or moved to another group.
+create or replace function count_release_group_releases() returns trigger as $$
+begin
+    if tg_op in ('INSERT', 'UPDATE') then
+        update ${schema}.release_group set release_count = release_count + 1
+        where release_group_id = new.release_group_id;
+    end if;
+    if tg_op in ('UPDATE', 'DELETE') then
+        update ${schema}.release_group set release_count = release_count - 1
+        where release_group_id = old.release_group_id;
+    end if;
+    return null;
+end;
+$$ language plpgsql;
+
+create or replace trigger release_count_release_group_releases
+    after insert or delete or update of release_group_id on release
+    for each row execute function count_release_group_releases();

@@ -162,6 +162,12 @@ export interface EditionResponse {
   formats: (string | null)[];
 }
 
+/** The release that stands for its group, whose tracks the release group page shows. */
+export interface DefaultReleaseResponse {
+  releaseId: string;
+  media: MediumResponse[];
+}
+
 /** Everything the release group page shows. */
 export interface ReleaseGroupResponse {
   releaseGroupId: string;
@@ -171,6 +177,8 @@ export interface ReleaseGroupResponse {
   /** The group's earliest release anywhere, as an ISO date; null when unknown. */
   firstReleaseDate: string | null;
   artist: ArtistResponse;
+  /** The group's earliest release, as editions lists it first. */
+  defaultRelease: DefaultReleaseResponse;
   /** Earliest first, and those with no known date last. */
   editions: EditionResponse[];
 }

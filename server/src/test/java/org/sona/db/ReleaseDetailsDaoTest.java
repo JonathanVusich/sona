@@ -109,7 +109,7 @@ class ReleaseDetailsDaoTest {
 
     private Release storeRelease(final Artist artist) {
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head",
-                null, null, artist.artistId(), uuidv7()));
+                null, null, artist.artistId(), 0, uuidv7()));
         return releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head", null, LocalDate.of(2002, 8, 26),
                 "GB", 0, releaseGroup.releaseGroupId(), artist.artistId(), uuidv7()));
     }

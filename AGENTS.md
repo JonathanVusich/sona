@@ -59,7 +59,8 @@ IngestionEngine.processTrack ◄────────────────
 Each row commits on its own, and the upserts are idempotent, so processing an ingest again after a failure reuses
 what was stored. A release's media are stored after the release and its labels, so a stored release without the
 track's medium is one whose ingest stopped part-way: the engine looks the release up again and stores its labels and
-media.
+media. Likewise a release group is stored before its release, so a group with no release (`release_group.release_count`
+is 0) isn't in the library yet: the albums list, the artist page and the release group page leave it out.
 
 | Package | Responsibility |
 |---|---|

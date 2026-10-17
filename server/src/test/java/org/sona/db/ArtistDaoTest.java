@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -21,6 +22,8 @@ class ArtistDaoTest {
     ArtistDao dao;
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+    @Autowired
+    ReleaseDao releaseDao;
 
     @Test
     void upsertInsertsNewArtist() {
@@ -40,12 +43,14 @@ class ArtistDaoTest {
     }
 
     @Test
-    void releaseGroupCountFollowsTheArtistsReleaseGroups() {
+    void releaseGroupCountFollowsTheArtistsReleaseGroupsWithARelease() {
         final var coldplay = dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var keane = dao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var musicbrainzId = uuidv7();
-        upsertReleaseGroup(coldplay, "Parachutes", uuidv7());
-        upsertReleaseGroup(coldplay, "Hopes and Fears", musicbrainzId);
+        insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7()));
+        insertRelease(upsertReleaseGroup(coldplay, "Hopes and Fears", musicbrainzId));
+        // Not in the library until a release of it is stored.
+        upsertReleaseGroup(coldplay, "X&Y", uuidv7());
 
         // MusicBrainz credits the group to another artist now.
         upsertReleaseGroup(keane, "Hopes and Fears", musicbrainzId);
@@ -57,13 +62,18 @@ class ArtistDaoTest {
     @Test
     void loadNextPageFindsNoPageAfterAnUnknownArtist() {
         final var coldplay = dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
-        upsertReleaseGroup(coldplay, "Parachutes", uuidv7());
+        insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7()));
 
         assertThat(dao.loadNextPage(uuidv7(), 10)).isEmpty();
     }
 
-    private void upsertReleaseGroup(final Artist artist, final String name, final UUID musicbrainzId) {
-        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10),
-                artist.artistId(), musicbrainzId));
+    private ReleaseGroup upsertReleaseGroup(final Artist artist, final String name, final UUID musicbrainzId) {
+        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, ReleaseGroupType.ALBUM,
+                LocalDate.of(2000, 7, 10), artist.artistId(), 0, musicbrainzId));
+    }
+
+    private void insertRelease(final ReleaseGroup group) {
+        releaseDao.upsert(new Release(uuidv7(), group.name(), null, group.firstReleaseDate(), "GB", 0,
+                group.releaseGroupId(), group.artistId(), uuidv7()));
     }
 }

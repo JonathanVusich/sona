@@ -1,13 +1,37 @@
 import { A } from "@solidjs/router";
 import { For, Show, type JSX } from "solid-js";
-import type { TrackResponse } from "../api/responses";
-import { formatTime } from "../format";
+import type { MediumResponse, TrackResponse } from "../api/responses";
+import { formatTime, joinDetails } from "../format";
 import { current, Playback, playback } from "../player";
 import { removeFromPlaylist, type PlaylistTrack } from "../playlists";
 import { AppRoutes, routeTo } from "../routes";
 import { PlayIcon } from "./Icons";
 import Menu, { MenuKind } from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
+import Section from "./Section";
+
+// A release's tracks, disc by disc, each disc under its own heading when there is more than one. Nothing plays until
+// Sona streams (docs/GAPS.md).
+export function MediaTrackList(props: { media: MediumResponse[]; artistId: string }) {
+  return (
+    <Show
+      when={props.media.length > 1}
+      fallback={
+        <For each={props.media}>
+          {(medium) => <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />}
+        </For>
+      }
+    >
+      <For each={props.media}>
+        {(medium) => (
+          <Section title={joinDetails([`Disc ${medium.position}`, medium.format])}>
+            <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />
+          </Section>
+        )}
+      </For>
+    </Show>
+  );
+}
 
 // One release's tracks, numbered by their position on their medium. A row names its artist only when it isn't the
 // release's own (artistId), as on a compilation. Playlists are still mocked, so these tracks can't go on them.
