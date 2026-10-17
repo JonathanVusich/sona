@@ -1,5 +1,7 @@
 package org.sona.controller;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ArtistDetailsResponse;
 import org.sona.controller.response.ArtistPageResponse;
@@ -35,10 +37,7 @@ public class ArtistController {
      */
     @GetMapping(ApiRoutes.ARTISTS)
     public ArtistPageResponse artists(@RequestParam(required = false) final UUID after,
-                                      @RequestParam(defaultValue = "50") final int limit) {
-        if (limit < 1 || limit > MAX_LIMIT) {
-            throw new ClientException(ErrorCode.INVALID_PARAMETER);
-        }
+                                      @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT) final int limit) {
         // One more than the page holds tells whether there's a page after it.
         if (after == null) {
             return pageResponse(artistDao.loadFirstPage(limit + 1), limit);
