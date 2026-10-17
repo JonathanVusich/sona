@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { formatTime } from "../format";
-import { contextOf, type Track } from "../library";
+import { trackContext, type Track } from "../library";
 import { current, Playback, playback } from "../player";
 import { removeFromPlaylist } from "../playlists";
 import { MoreIcon, PlayIcon } from "./Icons";
@@ -21,7 +21,7 @@ export interface TrackRow {
 }
 
 export function trackRow(track: Track): TrackRow {
-  const context = contextOf(track);
+  const context = trackContext(track);
   return {
     id: track.id,
     number: track.number,

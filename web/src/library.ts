@@ -368,7 +368,7 @@ export interface ReleaseContext {
 /**
  * @returns the track's release, group and artist, or null once its release has been removed (the player keeps it)
  */
-export function contextOf(track: Track): ReleaseContext | null {
+export function trackContext(track: Track): ReleaseContext | null {
   const release = releaseById(track.releaseId);
   if (release === undefined) {
     return null;

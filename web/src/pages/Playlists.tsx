@@ -5,14 +5,14 @@ import PageLayout from "../components/PageLayout";
 import { openNewPlaylistDialog } from "../components/PlaylistDialog";
 import { PageHeader } from "../components/Section";
 import { plural } from "../format";
-import { contextOf, tracksOf } from "../library";
+import { trackContext, tracksOf } from "../library";
 import { myPlaylists, type Playlist } from "../playlists";
 import { AppRoutes, routeTo } from "../routes";
 
 // Titles of the first release groups a playlist draws from, for its mosaic cover.
 export function coverSeeds(playlist: Playlist): string[] {
   const titles = tracksOf(playlist.trackIds).flatMap((track) => {
-    const context = contextOf(track);
+    const context = trackContext(track);
     if (context === null) {
       return [];
     }

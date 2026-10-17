@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { formatTime } from "../format";
-import { contextOf, type Track } from "../library";
+import { trackContext, type Track } from "../library";
 import * as player from "../player";
 import { Playback, RepeatMode, ShuffleMode, Sound } from "../player";
 import Cover from "./Cover";
@@ -124,7 +124,7 @@ export default function PlayerBar() {
 }
 
 function NowPlaying(props: { track: Track }) {
-  const context = () => contextOf(props.track);
+  const context = () => trackContext(props.track);
   return (
     <>
       <Show when={context()} fallback={<div class="cover player-cover empty-cover" />}>
