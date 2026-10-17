@@ -1,24 +1,28 @@
-import { Show } from "solid-js";
+import * as api from "../api/client";
+import { sendAsCurrentUser } from "../auth";
 import { CardLayout, ReleaseGroupGrid } from "../components/Cards";
+import InfiniteScroll from "../components/InfiniteScroll";
+import ListMessage from "../components/ListMessage";
 import { PageBody, PageHead } from "../components/PageLayout";
-import { PageHeader, PageMeta } from "../components/Section";
-import { plural } from "../format";
-import { groupsByArtist, summaryResponse } from "../library";
+import { PageHeader } from "../components/Section";
+import { createPagedList } from "../paging";
 
+// Everything in the library, singles and EPs included, by name, loading more as the user scrolls.
 export default function Albums() {
-  // Everything in the library, singles and EPs included; artist pages separate them.
-  const albums = () => groupsByArtist(() => true);
+  const albums = createPagedList(
+    (page) => sendAsCurrentUser((accessToken) => api.fetchReleaseGroups(accessToken, page)),
+    (page) => page.releaseGroups,
+  );
+
   return (
     <>
       <PageHead>
-        <PageHeader title="Albums">
-          <PageMeta>{plural(albums().length, "release")}</PageMeta>
-        </PageHeader>
+        <PageHeader title="Albums" />
       </PageHead>
       <PageBody>
-        <Show when={albums().length > 0} fallback={<p class="empty">No albums in the library yet.</p>}>
-          <ReleaseGroupGrid groups={albums().map(summaryResponse)} layout={CardLayout.GRID} />
-        </Show>
+        <ReleaseGroupGrid groups={albums.items()} layout={CardLayout.GRID} />
+        <ListMessage list={albums} emptyMessage="No albums in the library yet." />
+        <InfiniteScroll list={albums} />
       </PageBody>
     </>
   );

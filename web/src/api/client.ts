@@ -1,5 +1,13 @@
-import type { ChangePasswordRequest, LoginRequest } from "./requests";
-import type { CurrentUserResponse, ErrorCode, ErrorResponse, ReleaseResponse, TokenResponse } from "./responses";
+import { PagePosition, type ChangePasswordRequest, type LoginRequest, type PageRequest } from "./requests";
+import type {
+  CurrentUserResponse,
+  ErrorCode,
+  ErrorResponse,
+  ReleaseGroupPageResponse,
+  ReleaseGroupResponse,
+  ReleaseResponse,
+  TokenResponse,
+} from "./responses";
 import { ApiRoutes } from "./routes";
 
 // Calls to Sona's HTTP API, one function per endpoint. The frontend is served from Sona's origin, so the refresh cookie
@@ -63,6 +71,30 @@ export async function changePassword(accessToken: string, request: ChangePasswor
 export async function fetchRelease(accessToken: string, releaseId: string): Promise<ApiResult<ReleaseResponse>> {
   const path = `${ApiRoutes.RELEASES}/${encodeURIComponent(releaseId)}`;
   return sendForJson(path, getAsUser(accessToken));
+}
+
+export async function fetchReleaseGroups(
+  accessToken: string,
+  page: PageRequest,
+): Promise<ApiResult<ReleaseGroupPageResponse>> {
+  return sendForJson(`${ApiRoutes.RELEASE_GROUPS}${pageQuery(page)}`, getAsUser(accessToken));
+}
+
+export async function fetchReleaseGroup(
+  accessToken: string,
+  releaseGroupId: string,
+): Promise<ApiResult<ReleaseGroupResponse>> {
+  const path = `${ApiRoutes.RELEASE_GROUPS}/${encodeURIComponent(releaseGroupId)}`;
+  return sendForJson(path, getAsUser(accessToken));
+}
+
+function pageQuery(page: PageRequest): string {
+  switch (page.position) {
+    case PagePosition.FIRST:
+      return "";
+    case PagePosition.AFTER:
+      return `?${new URLSearchParams({ after: page.after })}`;
+  }
 }
 
 // One function per kind of request. The auth calls send no access token: the refresh cookie authenticates them if
