@@ -1,9 +1,9 @@
 import { A, Navigate } from "@solidjs/router";
 import { createSignal, For, Show } from "solid-js";
-import Cover from "../../components/Cover";
+import Cover, { CoverSize } from "../../components/Cover";
 import Dialog, { ConfirmDialog } from "../../components/Dialog";
-import PageLayout from "../../components/PageLayout";
-import { PageHeader } from "../../components/Section";
+import { PageBody, PageHead } from "../../components/PageLayout";
+import { PageAction, PageHeader, PageMeta } from "../../components/Section";
 import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { plural } from "../../format";
@@ -46,112 +46,138 @@ export default function Library() {
 
   return (
     <Show when={hasPermission(Permission.LIBRARY_WRITE)} fallback={<Navigate href={AppRoutes.HOME} />}>
-      <PageLayout
-        header={
-          <PageHeader
-            title="Library"
-            meta={[
-              plural(artists().length, "artist"),
-              plural(groups().length, "release group"),
-              plural(releases().length, "release"),
-              plural(trackCount(), "track"),
-            ].join(" · ")}
-            action={
-              <Show when={hasPermission(Permission.LIBRARY_UPLOAD)}>
+      <>
+        <PageHead>
+          <PageHeader title="Library">
+            <PageMeta>
+              {[
+                plural(artists().length, "artist"),
+                plural(groups().length, "release group"),
+                plural(releases().length, "release"),
+                plural(trackCount(), "track"),
+              ].join(" · ")}
+            </PageMeta>
+            <Show when={hasPermission(Permission.LIBRARY_UPLOAD)}>
+              <PageAction>
                 <A href={AppRoutes.ADMIN_UPLOAD} class="button primary">
                   Upload
                 </A>
-              </Show>
-            }
+              </PageAction>
+            </Show>
+          </PageHeader>
+        </PageHead>
+        <PageBody>
+          <input
+            class="admin-search"
+            type="search"
+            placeholder="Search releases, artists, labels"
+            aria-label="Search the library"
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
           />
-        }
-      >
-        <input
-          class="admin-search"
-          type="search"
-          placeholder="Search releases, artists, labels"
-          aria-label="Search the library"
-          value={query()}
-          onInput={(e) => setQuery(e.currentTarget.value)}
-        />
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Release</th>
-                <th>Artist</th>
-                <th>Release group</th>
-                <th>Year</th>
-                <th>Format</th>
-                <th>Label</th>
-                <th class="numeric">Tracks</th>
-                <th>
-                  <span class="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={rows()} fallback={<tr><td colspan="8" class="empty">No releases match.</td></tr>}>
-                {({ release, group, artist }) => (
-                  <tr>
-                    <td>
-                      <div class="admin-release">
-                        <Cover seed={group.title} class="admin-thumb" />
-                        <span>{release.title}</span>
-                      </div>
-                    </td>
-                    <td>{artist.name}</td>
-                    <td>
-                      {group.title} <span class="muted">{group.type}</span>
-                    </td>
-                    <td>{release.year ?? <span class="muted">—</span>}</td>
-                    <td>{release.format}</td>
-                    <td>{release.label ?? <span class="muted">—</span>}</td>
-                    <td class="numeric">{tracksOfRelease(release.id).length}</td>
-                    <td class="admin-actions">
-                      <button class="quiet" onClick={() => setEditing(release)}>
-                        Edit
-                      </button>
-                      <button
-                        class="quiet danger"
-                        onClick={() => setRemoving(release)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
-        </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Release</th>
+                  <th>Artist</th>
+                  <th>Release group</th>
+                  <th>Year</th>
+                  <th>Format</th>
+                  <th>Label</th>
+                  <th class="numeric">Tracks</th>
+                  <th>
+                    <span class="visually-hidden">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={rows()} fallback={<tr><td colspan="8" class="empty">No releases match.</td></tr>}>
+                  {({ release, group, artist }) => (
+                    <tr>
+                      <td>
+                        <div class="admin-release">
+                          <Cover seed={group.title} size={CoverSize.THUMBNAIL} />
+                          <span>{release.title}</span>
+                        </div>
+                      </td>
+                      <td>{artist.name}</td>
+                      <td>
+                        {group.title} <span class="muted">{group.type}</span>
+                      </td>
+                      <td>{release.year ?? <span class="muted">—</span>}</td>
+                      <td>{release.format}</td>
+                      <td>{release.label ?? <span class="muted">—</span>}</td>
+                      <td class="numeric">{tracksOfRelease(release.id).length}</td>
+                      <td class="admin-actions">
+                        <button class="quiet" onClick={() => setEditing(release)}>
+                          Edit
+                        </button>
+                        <button
+                          class="quiet danger"
+                          onClick={() => setRemoving(release)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
 
-        <Show when={editing()}>
-          {(release) => (
-            <Dialog title="Edit release" onClose={() => setEditing(null)}>
-              <EditReleaseForm release={release()} onDone={() => setEditing(null)} />
-            </Dialog>
-          )}
-        </Show>
-        <Show when={removing()}>
-          {(release) => (
-            <ConfirmDialog
-              title="Remove release?"
-              message={`"${release().title}" and its tracks will be removed from the library for everyone.`}
-              confirmLabel="Remove"
-              onConfirm={() => removeRelease(release().id)}
-              onClose={() => setRemoving(null)}
-            />
-          )}
-        </Show>
-      </PageLayout>
+          <Show when={editing()}>
+            {(release) => (
+              <Dialog title="Edit release" onClose={() => setEditing(null)}>
+                <EditReleaseForm release={release()} onDone={() => setEditing(null)} />
+              </Dialog>
+            )}
+          </Show>
+          <Show when={removing()}>
+            {(release) => (
+              <ConfirmDialog
+                title="Remove release?"
+                message={`"${release().title}" and its tracks will be removed from the library for everyone.`}
+                confirmLabel="Remove"
+                onConfirm={() => removeRelease(release().id)}
+                onClose={() => setRemoving(null)}
+              />
+            )}
+          </Show>
+        </PageBody>
+      </>
     </Show>
   );
 }
 
+// The year field is empty for a release with no known year, and leaving it empty clears the year.
+function yearText(year: number | null): string {
+  if (year === null) {
+    return "";
+  }
+  return String(year);
+}
+
+function enteredYear(text: string): number | null {
+  if (text === "") {
+    return null;
+  }
+  return Number(text);
+}
+
+// Likewise for the label.
+function enteredLabel(text: string): string | null {
+  const label = text.trim();
+  if (label === "") {
+    return null;
+  }
+  return label;
+}
+
 function EditReleaseForm(props: { release: Release; onDone: () => void }) {
   const [title, setTitle] = createSignal(props.release.title);
-  const [year, setYear] = createSignal(props.release.year === null ? "" : String(props.release.year));
+  const [year, setYear] = createSignal(yearText(props.release.year));
   const [format, setFormat] = createSignal(props.release.format);
   const [label, setLabel] = createSignal(props.release.label ?? "");
 
@@ -159,9 +185,9 @@ function EditReleaseForm(props: { release: Release; onDone: () => void }) {
     event.preventDefault();
     updateRelease(props.release.id, {
       title: title().trim(),
-      year: year() === "" ? null : Number(year()),
+      year: enteredYear(year()),
       format: format(),
-      label: label().trim() === "" ? null : label().trim(),
+      label: enteredLabel(label()),
     });
     props.onDone();
   };

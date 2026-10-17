@@ -1,10 +1,11 @@
 import { Navigate, useNavigate } from "@solidjs/router";
 import { createSignal, For, Show } from "solid-js";
 import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
-import PageLayout from "../../components/PageLayout";
+import { PageBody, PageHead } from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
 import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
+import { plural } from "../../format";
 import { importFiles } from "../../library";
 import { AppRoutes } from "../../routes";
 
@@ -54,66 +55,71 @@ export default function Upload() {
 
   return (
     <Show when={hasPermission(Permission.LIBRARY_UPLOAD)} fallback={<Navigate href={AppRoutes.HOME} />}>
-      <PageLayout header={<PageHeader title="Upload music" />}>
-        <div
-          class="dropzone"
-          classList={{ dragging: dropZone() === DropZone.DRAGGED_OVER }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDropZone(DropZone.DRAGGED_OVER);
-          }}
-          onDragLeave={() => setDropZone(DropZone.IDLE)}
-          onDrop={onDrop}
-        >
-          <p>Drag and drop audio files or folders here</p>
-          <div class="dropzone-actions">
-            <button onClick={() => filesInput?.click()}>Choose files</button>
-            <button onClick={() => folderInput?.click()}>Choose folder</button>
-          </div>
-          <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
-          <input
-            ref={(el) => {
-              folderInput = el;
-              el.webkitdirectory = true;
+      <>
+        <PageHead>
+          <PageHeader title="Upload music" />
+        </PageHead>
+        <PageBody>
+          <div
+            class="dropzone"
+            classList={{ dragging: dropZone() === DropZone.DRAGGED_OVER }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDropZone(DropZone.DRAGGED_OVER);
             }}
-            type="file"
-            multiple
-            hidden
-            onChange={onPick}
-          />
-        </div>
-
-        <Show when={pending().length > 0} fallback={<p class="muted">No files selected. Only audio files are kept.</p>}>
-          <div class="pending-header">
-            <span>
-              {pending().length} file{pending().length === 1 ? "" : "s"} ready
-            </span>
+            onDragLeave={() => setDropZone(DropZone.IDLE)}
+            onDrop={onDrop}
+          >
+            <p>Drag and drop audio files or folders here</p>
             <div class="dropzone-actions">
-              <button onClick={() => setPending([])}>Clear</button>
-              <button class="primary" onClick={submit}>
-                Add to library
-              </button>
+              <button onClick={() => filesInput?.click()}>Choose files</button>
+              <button onClick={() => folderInput?.click()}>Choose folder</button>
             </div>
+            <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
+            <input
+              ref={(el) => {
+                folderInput = el;
+                el.webkitdirectory = true;
+              }}
+              type="file"
+              multiple
+              hidden
+              onChange={onPick}
+            />
           </div>
-          <ul class="pending-list">
-            <For each={pending()}>
-              {(picked) => (
-                <li>
-                  <span class="pending-path">{picked.path}</span>
-                  <span class="muted">{(picked.file.size / (1024 * 1024)).toFixed(1)} MB</span>
-                  <button
-                    class="link"
-                    aria-label={`Remove ${picked.path}`}
-                    onClick={() => setPending((current) => current.filter((p) => p !== picked))}
-                  >
-                    Remove
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </PageLayout>
+
+          <Show when={pending().length > 0} fallback={<p class="muted">No files selected. Only audio files are kept.</p>}>
+            <div class="pending-header">
+              <span>
+                {plural(pending().length, "file")} ready
+              </span>
+              <div class="dropzone-actions">
+                <button onClick={() => setPending([])}>Clear</button>
+                <button class="primary" onClick={submit}>
+                  Add to library
+                </button>
+              </div>
+            </div>
+            <ul class="pending-list">
+              <For each={pending()}>
+                {(picked) => (
+                  <li>
+                    <span class="pending-path">{picked.path}</span>
+                    <span class="muted">{(picked.file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                    <button
+                      class="link"
+                      aria-label={`Remove ${picked.path}`}
+                      onClick={() => setPending((current) => current.filter((p) => p !== picked))}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </PageBody>
+      </>
     </Show>
   );
 }

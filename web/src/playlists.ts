@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { currentUser } from "./auth";
+import { updateById } from "./collections";
 import { trackIdByTitle } from "./library";
 
 // Playlists are personal: each belongs to one user, and anyone can make their own, whatever their library permissions.
@@ -30,7 +31,10 @@ const [playlists, setPlaylists] = createSignal<Playlist[]>([
 
 export const myPlaylists = () => {
   const current = currentUser();
-  return current === null ? [] : playlists().filter((playlist) => playlist.owner === current.username);
+  if (current === null) {
+    return [];
+  }
+  return playlists().filter((playlist) => playlist.owner === current.username);
 };
 
 export const playlistById = (id: string) => myPlaylists().find((playlist) => playlist.id === id);
@@ -46,7 +50,7 @@ export function createPlaylist(name: string, description: string, trackIds: stri
 }
 
 export function updatePlaylist(id: string, name: string, description: string) {
-  setPlaylists((all) => all.map((playlist) => (playlist.id === id ? { ...playlist, name, description } : playlist)));
+  setPlaylists((all) => updateById(all, id, (playlist) => ({ ...playlist, name, description })));
 }
 
 export function deletePlaylist(id: string) {
@@ -60,14 +64,12 @@ export function addToPlaylist(id: string, trackIds: string[]): number {
     return 0;
   }
   const added = trackIds.filter((trackId, i) => !playlist.trackIds.includes(trackId) && trackIds.indexOf(trackId) === i);
-  setPlaylists((all) => all.map((other) => (other.id === id ? { ...other, trackIds: [...other.trackIds, ...added] } : other)));
+  setPlaylists((all) => updateById(all, id, (other) => ({ ...other, trackIds: [...other.trackIds, ...added] })));
   return added.length;
 }
 
 export function removeFromPlaylist(id: string, trackId: string) {
   setPlaylists((all) =>
-    all.map((playlist) =>
-      playlist.id === id ? { ...playlist, trackIds: playlist.trackIds.filter((other) => other !== trackId) } : playlist,
-    ),
+    updateById(all, id, (playlist) => ({ ...playlist, trackIds: playlist.trackIds.filter((other) => other !== trackId) })),
   );
 }

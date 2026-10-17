@@ -3,8 +3,7 @@ import { Show } from "solid-js";
 import { Permission } from "../api/responses";
 import { currentUser, hasPermission, logOut } from "../auth";
 import { stop } from "../player";
-import { GearIcon } from "./Icons";
-import Menu from "./Menu";
+import Menu, { MenuKind } from "./Menu";
 import { AppRoutes } from "../routes";
 
 export default function SettingsMenu() {
@@ -15,7 +14,7 @@ export default function SettingsMenu() {
   };
 
   return (
-    <Menu label="Settings" icon={<GearIcon />} class="settings-menu">
+    <Menu kind={MenuKind.SETTINGS} label="Settings">
       <div class="menu-header">
         <span>{currentUser()?.username}</span>
         <span class="badge">{currentUser()?.role.toLowerCase()}</span>

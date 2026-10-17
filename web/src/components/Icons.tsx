@@ -1,10 +1,12 @@
-import type { JSX } from "solid-js";
+import { Show, type JSX } from "solid-js";
+import { RepeatMode, Sound } from "../player";
 
-type IconProps = { size?: number };
+// Icons are square; size is their width and height in pixels.
+type IconProps = { size: number };
 
 function Stroked(props: IconProps & { children: JSX.Element }) {
   return (
-    <svg width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg width={props.size} height={props.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       {props.children}
     </svg>
   );
@@ -12,7 +14,7 @@ function Stroked(props: IconProps & { children: JSX.Element }) {
 
 function Filled(props: IconProps & { children: JSX.Element }) {
   return (
-    <svg width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width={props.size} height={props.size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       {props.children}
     </svg>
   );
@@ -55,30 +57,34 @@ export const ShuffleIcon = (props: IconProps) => (
   </Stroked>
 );
 
-export const RepeatIcon = (props: IconProps & { one?: boolean }) => (
+// Marked with a 1 when it repeats one track.
+export const RepeatIcon = (props: IconProps & { mode: RepeatMode }) => (
   <Stroked size={props.size}>
     <path d="m17 2 4 4-4 4" />
     <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
     <path d="m7 22-4-4 4-4" />
     <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-    {props.one && <path d="M11 10.5 12.5 9.5v5" />}
+    <Show when={props.mode === RepeatMode.ONE}>
+      <path d="M11 10.5 12.5 9.5v5" />
+    </Show>
   </Stroked>
 );
 
-export const VolumeIcon = (props: IconProps & { muted?: boolean }) => (
+export const VolumeIcon = (props: IconProps & { sound: Sound }) => (
   <Stroked size={props.size}>
     <path d="M11 5 6 9H3v6h3l5 4z" />
-    {props.muted ? (
-      <>
-        <path d="m22 9-6 6" />
-        <path d="m16 9 6 6" />
-      </>
-    ) : (
-      <>
-        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-        <path d="M18.5 5.5a9 9 0 0 1 0 13" />
-      </>
-    )}
+    <Show
+      when={props.sound === Sound.ON}
+      fallback={
+        <>
+          <path d="m22 9-6 6" />
+          <path d="m16 9 6 6" />
+        </>
+      }
+    >
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </Show>
   </Stroked>
 );
 

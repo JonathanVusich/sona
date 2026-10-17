@@ -10,15 +10,25 @@ function gradient(seed: string): string {
   return `linear-gradient(145deg, hsl(${hue} 30% 58%), hsl(${(hue + 35) % 360} 34% 26%))`;
 }
 
-export default function Cover(props: { seed: string; class?: string }) {
-  return <div class={`cover ${props.class ?? ""}`} style={{ background: gradient(props.seed) }} />;
+// How big a cover is drawn, as the class that sizes it.
+export const CoverSize = {
+  CARD: "card-cover",
+  DETAIL: "detail-cover",
+  PLAYER: "player-cover",
+  THUMBNAIL: "admin-thumb",
+} as const;
+
+export type CoverSize = (typeof CoverSize)[keyof typeof CoverSize];
+
+export default function Cover(props: { seed: string; size: CoverSize }) {
+  return <div class={`cover ${props.size}`} style={{ background: gradient(props.seed) }} />;
 }
 
 // Four covers in a grid for playlists; a single cover when there aren't four albums to show.
-export function Mosaic(props: { seeds: string[]; class?: string }) {
+export function Mosaic(props: { seeds: string[]; size: CoverSize }) {
   return (
-    <Show when={props.seeds.length >= 4} fallback={<Cover seed={props.seeds[0] ?? ""} class={props.class} />}>
-      <div class={`cover mosaic ${props.class ?? ""}`}>
+    <Show when={props.seeds.length >= 4} fallback={<Cover seed={props.seeds[0] ?? ""} size={props.size} />}>
+      <div class={`cover mosaic ${props.size}`}>
         <For each={props.seeds.slice(0, 4)}>{(seed) => <div style={{ background: gradient(seed) }} />}</For>
       </div>
     </Show>
@@ -26,7 +36,7 @@ export function Mosaic(props: { seeds: string[]; class?: string }) {
 }
 
 // Round placeholder portrait with the artist's initials.
-export function ArtistAvatar(props: { name: string; class?: string }) {
+export function ArtistAvatar(props: { name: string; size: CoverSize }) {
   const initials = () =>
     props.name
       .split(/\s+/)
@@ -35,7 +45,7 @@ export function ArtistAvatar(props: { name: string; class?: string }) {
       .map((word) => word[0].toUpperCase())
       .join("");
   return (
-    <div class={`cover avatar ${props.class ?? ""}`} style={{ background: gradient(props.name) }}>
+    <div class={`cover avatar ${props.size}`} style={{ background: gradient(props.name) }}>
       <span>{initials()}</span>
     </div>
   );

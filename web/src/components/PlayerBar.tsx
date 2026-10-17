@@ -4,7 +4,7 @@ import { formatTime } from "../format";
 import { trackContext, type Track } from "../library";
 import * as player from "../player";
 import { Playback, RepeatMode, ShuffleMode, Sound } from "../player";
-import Cover from "./Cover";
+import Cover, { CoverSize } from "./Cover";
 import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, VolumeIcon } from "./Icons";
 import Slider, { SliderSize, SliderStatus } from "./Slider";
 import { AppRoutes, routeTo } from "../routes";
@@ -15,6 +15,8 @@ export default function PlayerBar() {
   const track = player.current;
   const duration = () => track()?.duration ?? 0;
   const shownPosition = () => scrub() ?? player.position();
+  // At no volume, the icon shows muted whether or not the player is.
+  const shownSound = () => soundAtLevel(shownVolume());
   const shownVolume = () => {
     switch (player.sound()) {
       case Sound.ON:
@@ -74,7 +76,7 @@ export default function PlayerBar() {
           <ShuffleIcon size={18} />
         </button>
         <button class="icon-button" aria-label="Previous" disabled={!track()} onClick={() => player.previous()}>
-          <PreviousIcon />
+          <PreviousIcon size={20} />
         </button>
         <button
           class="play-button"
@@ -87,7 +89,7 @@ export default function PlayerBar() {
           </Show>
         </button>
         <button class="icon-button" aria-label="Next" disabled={!track()} onClick={() => player.next()}>
-          <NextIcon />
+          <NextIcon size={20} />
         </button>
         <button
           class="icon-button toggle optional"
@@ -96,7 +98,7 @@ export default function PlayerBar() {
           aria-pressed={player.repeat() !== RepeatMode.OFF}
           onClick={() => player.cycleRepeat()}
         >
-          <RepeatIcon size={18} one={player.repeat() === RepeatMode.ONE} />
+          <RepeatIcon size={18} mode={player.repeat()} />
         </button>
       </div>
 
@@ -105,7 +107,7 @@ export default function PlayerBar() {
           {formatTime(shownPosition())} / {formatTime(duration())}
         </span>
         <button class="icon-button" aria-label={muteButtonLabel(player.sound())} onClick={() => player.toggleMute()}>
-          <VolumeIcon size={18} muted={shownVolume() === 0} />
+          <VolumeIcon size={18} sound={shownSound()} />
         </button>
         <Slider
           size={SliderSize.SMALL}
@@ -123,6 +125,13 @@ export default function PlayerBar() {
   );
 }
 
+function soundAtLevel(level: number): Sound {
+  if (level === 0) {
+    return Sound.MUTED;
+  }
+  return Sound.ON;
+}
+
 function NowPlaying(props: { track: Track }) {
   const context = () => trackContext(props.track);
   return (
@@ -130,7 +139,7 @@ function NowPlaying(props: { track: Track }) {
       <Show when={context()} fallback={<div class="cover player-cover empty-cover" />}>
         {(playing) => (
           <A href={routeTo(AppRoutes.RELEASE, playing().release.id)} aria-label={`Go to ${playing().release.title}`}>
-            <Cover seed={playing().group.title} class="player-cover" />
+            <Cover seed={playing().group.title} size={CoverSize.PLAYER} />
           </A>
         )}
       </Show>

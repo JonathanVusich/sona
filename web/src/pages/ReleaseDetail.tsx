@@ -4,9 +4,9 @@ import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
 import { ErrorCode, type MediumResponse, type ReleaseResponse, type TrackResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
-import Cover from "../components/Cover";
+import Cover, { CoverSize } from "../components/Cover";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
-import PageLayout from "../components/PageLayout";
+import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import TrackList, { type TrackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
@@ -34,9 +34,9 @@ function loadedPage(result: ApiResult<ReleaseResponse>): JSX.Element {
     case ResultKind.OK:
       return <ReleaseView release={result.body} />;
     case ResultKind.REFUSED:
-      return <PageLayout header={<p class="empty">{refusalMessage(result.code, result.reason)}</p>} />;
+      return <PageMessage message={refusalMessage(result.code, result.reason)} />;
     case ResultKind.FAILED:
-      return <PageLayout header={<p class="empty">{result.reason}</p>} />;
+      return <PageMessage message={result.reason} />;
     default: {
       const unknown: never = result;
       throw new Error(`Unknown result: ${JSON.stringify(unknown)}`);
@@ -52,10 +52,10 @@ function ReleaseView(props: { release: ReleaseResponse }) {
     props.release.media.flatMap((medium) => medium.tracks).reduce((sum, track) => sum + track.duration, 0);
 
   return (
-    <PageLayout
-      header={
+    <>
+      <PageHead>
         <header class="detail-header">
-          <Cover seed={props.release.name} class="detail-cover" />
+          <Cover seed={props.release.name} size={CoverSize.DETAIL} />
           <div class="detail-info">
             <span class="eyebrow">Release</span>
             <h1>{props.release.name}</h1>
@@ -84,23 +84,24 @@ function ReleaseView(props: { release: ReleaseResponse }) {
             </div>
           </div>
         </header>
-      }
-    >
-      <Show
-        when={props.release.media.length > 1}
-        fallback={
-          <For each={props.release.media}>{(medium) => <MediumTracks medium={medium} release={props.release} />}</For>
-        }
-      >
-        <For each={props.release.media}>
-          {(medium) => (
-            <Section title={[`Disc ${medium.position}`, medium.format].filter(Boolean).join(" · ")}>
-              <MediumTracks medium={medium} release={props.release} />
-            </Section>
-          )}
-        </For>
-      </Show>
-    </PageLayout>
+      </PageHead>
+      <PageBody>
+        <Show
+          when={props.release.media.length > 1}
+          fallback={
+            <For each={props.release.media}>{(medium) => <MediumTracks medium={medium} release={props.release} />}</For>
+          }
+        >
+          <For each={props.release.media}>
+            {(medium) => (
+              <Section title={[`Disc ${medium.position}`, medium.format].filter(Boolean).join(" · ")}>
+                <MediumTracks medium={medium} release={props.release} />
+              </Section>
+            )}
+          </For>
+        </Show>
+      </PageBody>
+    </>
   );
 }
 

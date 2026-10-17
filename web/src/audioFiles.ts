@@ -48,5 +48,8 @@ async function walk(entry: FileSystemEntry): Promise<PickedFile[]> {
 // readEntries returns entries in batches, then an empty batch once the directory is exhausted.
 async function readAll(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
   const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
-  return batch.length === 0 ? [] : [...batch, ...(await readAll(reader))];
+  if (batch.length === 0) {
+    return [];
+  }
+  return [...batch, ...(await readAll(reader))];
 }

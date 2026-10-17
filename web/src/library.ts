@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { updateById } from "./collections";
 import type { PickedFile } from "./audioFiles";
 
 // Mocked music library held in memory; it resets on reload. Modelled on MusicBrainz: an artist has release groups
@@ -275,6 +276,13 @@ function durationFor(title: string): number {
   return 150 + (Math.abs(hash) % 150);
 }
 
+function lastPlayed(now: number, playedHoursAgo: number | null): number | null {
+  if (playedHoursAgo === null) {
+    return null;
+  }
+  return now - playedHoursAgo * HOUR;
+}
+
 function buildSeed(now: number) {
   const artists: Artist[] = [];
   const groups: ReleaseGroup[] = [];
@@ -291,7 +299,7 @@ function buildSeed(now: number) {
         title: seedGroup.title,
         type: seedGroup.type,
         addedAt: now - (groups.length + 1) * 30 * HOUR,
-        lastPlayedAt: seedGroup.playedHoursAgo === null ? null : now - seedGroup.playedHoursAgo * HOUR,
+        lastPlayedAt: lastPlayed(now, seedGroup.playedHoursAgo),
       });
       for (const seedRelease of seedGroup.releases) {
         const releaseId = `r${releases.length + 1}`;
@@ -423,12 +431,12 @@ export const trackIdByTitle = (title: string) =>
 export function markPlayed(track: Track) {
   const release = releaseById(track.releaseId);
   if (release !== undefined) {
-    setGroups((all) => all.map((group) => (group.id === release.groupId ? { ...group, lastPlayedAt: Date.now() } : group)));
+    setGroups((all) => updateById(all, release.groupId, (group) => ({ ...group, lastPlayedAt: Date.now() })));
   }
 }
 
 export function updateRelease(id: string, changes: Pick<Release, "title" | "year" | "format" | "label">) {
-  setReleases((all) => all.map((release) => (release.id === id ? { ...release, ...changes } : release)));
+  setReleases((all) => updateById(all, id, (release) => ({ ...release, ...changes })));
 }
 
 // Removes a release and its tracks, then any release group or artist left without releases.
@@ -467,8 +475,9 @@ export function importFiles(files: PickedFile[]) {
 function importRelease(files: PickedFile[]) {
   const sorted = [...files].sort((a, b) => collator.compare(a.path, b.path));
   const parts = sorted[0].path.split("/");
-  const artistName = parts.length >= 3 ? parts[parts.length - 3] : "Unknown artist";
-  const title = parts.length >= 2 ? parts[parts.length - 2] : "Unknown album";
+  // The artist's and album's folders come before the file's own name.
+  const artistName = parts.at(-3) ?? "Unknown artist";
+  const title = parts.at(-2) ?? "Unknown album";
 
   const artist = artists().find((existing) => collator.compare(existing.name, artistName) === 0) ?? {
     id: crypto.randomUUID(),

@@ -387,7 +387,11 @@ select {
   margin: 0 auto;
 }
 
-.page-inner.narrow {
+.narrow-page {
+  display: contents;
+}
+
+.narrow-page .page-inner {
   max-width: 620px;
 }
 
@@ -396,10 +400,20 @@ select {
 }
 
 .page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  column-gap: 16px;
+}
+
+.page-header > h1,
+.page-meta {
+  grid-column: 1;
+}
+
+.page-action {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .page-meta {
