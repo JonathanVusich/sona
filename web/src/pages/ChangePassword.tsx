@@ -2,6 +2,8 @@ import { Navigate } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { SessionState } from "../api/responses";
 import { changePassword, currentUser, logOut } from "../auth";
+import FormError from "../components/FormError";
+import { failureReason, FormStatus } from "../forms";
 import { AppRoutes } from "../routes";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
@@ -11,7 +13,7 @@ export default function ChangePassword() {
   const [newPassword, setNewPassword] = createSignal("");
   const [confirmedPassword, setConfirmedPassword] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
-  const [pending, setPending] = createSignal(false);
+  const [status, setStatus] = createSignal<FormStatus>(FormStatus.EDITING);
   let currentPasswordInput: HTMLInputElement | undefined;
 
   // Focused here rather than with autofocus, which WebKit applies late enough to move focus away from a field already
@@ -24,10 +26,10 @@ export default function ChangePassword() {
       setError("The new passwords don't match.");
       return;
     }
-    setPending(true);
+    setStatus(FormStatus.SUBMITTING);
     const result = await changePassword({ currentPassword: currentPassword(), newPassword: newPassword() });
-    setPending(false);
-    setError(result.ok ? null : result.failure.reason);
+    setStatus(FormStatus.EDITING);
+    setError(failureReason(result));
   };
 
   return (
@@ -67,10 +69,8 @@ export default function ChangePassword() {
               required
             />
           </label>
-          <Show when={error()}>
-            <p class="error">{error()}</p>
-          </Show>
-          <button type="submit" class="primary" disabled={pending()}>
+          <FormError error={error()} />
+          <button type="submit" class="primary" disabled={status() === FormStatus.SUBMITTING}>
             Change password
           </button>
           <button type="button" class="link" onClick={logOut}>

@@ -2,22 +2,28 @@ import { A, useNavigate } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { Mosaic } from "../components/Cover";
 import PageLayout from "../components/PageLayout";
-import { openPlaylistDialog } from "../components/PlaylistDialog";
+import { openNewPlaylistDialog } from "../components/PlaylistDialog";
 import { PageHeader } from "../components/Section";
 import { plural } from "../format";
-import { contextOf, tracksOf } from "../library";
+import { trackContext, tracksOf } from "../library";
 import { myPlaylists, type Playlist } from "../playlists";
 import { AppRoutes, routeTo } from "../routes";
 
 // Titles of the first release groups a playlist draws from, for its mosaic cover.
 export function coverSeeds(playlist: Playlist): string[] {
-  const titles = tracksOf(playlist.trackIds).map((track) => contextOf(track).group?.title ?? "");
+  const titles = tracksOf(playlist.trackIds).flatMap((track) => {
+    const context = trackContext(track);
+    if (context === null) {
+      return [];
+    }
+    return [context.group.title];
+  });
   return [...new Set(titles)].slice(0, 4);
 }
 
 export default function Playlists() {
   const navigate = useNavigate();
-  const create = () => openPlaylistDialog({ onCreated: (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)) });
+  const create = () => openNewPlaylistDialog([], (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)));
 
   return (
     <PageLayout

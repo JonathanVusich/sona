@@ -358,10 +358,34 @@ export const groupsOf = (artistId: string) =>
     .filter((group) => group.artistId === artistId)
     .sort((a, b) => (groupYear(b.id) ?? 0) - (groupYear(a.id) ?? 0));
 
-export function contextOf(track: Track) {
+/** A release with the release group and artist it belongs to. */
+export interface ReleaseContext {
+  release: Release;
+  group: ReleaseGroup;
+  artist: Artist;
+}
+
+/**
+ * @returns the track's release, group and artist, or null once its release has been removed (the player keeps it)
+ */
+export function trackContext(track: Track): ReleaseContext | null {
   const release = releaseById(track.releaseId);
-  const group = release === undefined ? undefined : groupById(release.groupId);
-  const artist = group === undefined ? undefined : artistById(group.artistId);
+  if (release === undefined) {
+    return null;
+  }
+  return releaseContext(release);
+}
+
+// A release group goes only with its last release, and an artist with their last release group (removeRelease).
+export function releaseContext(release: Release): ReleaseContext {
+  const group = groupById(release.groupId);
+  if (group === undefined) {
+    throw new Error("Every release in the mocked library has a release group.");
+  }
+  const artist = artistById(group.artistId);
+  if (artist === undefined) {
+    throw new Error("Every release group in the mocked library has an artist.");
+  }
   return { release, group, artist };
 }
 

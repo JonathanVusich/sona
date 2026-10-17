@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, ReleaseGroupGrid } from "../components/Cards";
 import PageLayout from "../components/PageLayout";
 import { PageHeader } from "../components/Section";
 import { plural } from "../format";
@@ -11,7 +11,7 @@ export default function Albums() {
   return (
     <PageLayout header={<PageHeader title="Albums" meta={plural(albums().length, "release")} />}>
       <Show when={albums().length > 0} fallback={<p class="empty">No albums in the library yet.</p>}>
-        <ReleaseGroupGrid groups={albums()} layout={CardLayout.GRID} subtitle={CardSubtitle.ARTIST} />
+        <ReleaseGroupGrid groups={albums()} layout={CardLayout.GRID} />
       </Show>
     </PageLayout>
   );

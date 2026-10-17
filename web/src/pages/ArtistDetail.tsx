@@ -1,11 +1,11 @@
 import { useParams } from "@solidjs/router";
 import { For, Show } from "solid-js";
-import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, DiscographyGrid } from "../components/Cards";
 import { ArtistAvatar } from "../components/Cover";
 import { ShuffleIcon } from "../components/Icons";
 import PageLayout from "../components/PageLayout";
 import Section from "../components/Section";
-import { plural } from "../format";
+import { irregularPlural, plural } from "../format";
 import { artistById, canonicalRelease, groupsOf, isAlbum, tracksOfRelease, type ReleaseGroup } from "../library";
 import { shufflePlay } from "../player";
 
@@ -30,7 +30,7 @@ export default function ArtistDetail() {
         const albumCount = () => discography().filter(isAlbum).length;
         const counts = () => [
           albumCount() > 0 && plural(albumCount(), "album"),
-          discography().length > albumCount() && plural(discography().length - albumCount(), "single or EP", "singles & EPs"),
+          discography().length > albumCount() && irregularPlural(discography().length - albumCount(), "single or EP", "singles & EPs"),
         ];
 
         return (
@@ -59,7 +59,7 @@ export default function ArtistDetail() {
                 return (
                   <Show when={ofType().length > 0}>
                     <Section title={title}>
-                      <ReleaseGroupGrid groups={ofType()} layout={CardLayout.GRID} subtitle={CardSubtitle.YEAR} />
+                      <DiscographyGrid groups={ofType()} layout={CardLayout.GRID} />
                     </Section>
                   </Show>
                 );

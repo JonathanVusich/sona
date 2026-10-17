@@ -3,7 +3,10 @@
 
 export function readSetting(key: string): string | null {
   const storage = localStorageIfAllowed();
-  return storage === null ? null : storage.getItem(key);
+  if (storage === null) {
+    return null;
+  }
+  return storage.getItem(key);
 }
 
 export function writeSetting(key: string, value: string) {

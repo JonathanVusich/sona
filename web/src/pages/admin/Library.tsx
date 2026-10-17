@@ -8,11 +8,10 @@ import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { plural } from "../../format";
 import {
-  artistById,
   artists,
   FORMATS,
-  groupById,
   groups,
+  releaseContext,
   releases,
   removeRelease,
   trackCount,
@@ -24,28 +23,23 @@ import { AppRoutes } from "../../routes";
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
-function rowFor(release: Release) {
-  const group = groupById(release.groupId);
-  const artist = group === undefined ? undefined : artistById(group.artistId);
-  return { release, group, artist };
-}
-
 export default function Library() {
   const [query, setQuery] = createSignal("");
+  // Null while no release is being edited or removed.
   const [editing, setEditing] = createSignal<Release | null>(null);
   const [removing, setRemoving] = createSignal<Release | null>(null);
 
   const rows = () => {
     const needle = query().trim().toLowerCase();
     return releases()
-      .map(rowFor)
+      .map(releaseContext)
       .filter(({ release, group, artist }) =>
-        [release.title, group?.title, artist?.name, release.label].some((text) => text?.toLowerCase().includes(needle)),
+        [release.title, group.title, artist.name, release.label].some((text) => text?.toLowerCase().includes(needle)),
       )
       .sort(
         (a, b) =>
-          collator.compare(a.artist?.name ?? "", b.artist?.name ?? "") ||
-          collator.compare(a.group?.title ?? "", b.group?.title ?? "") ||
+          collator.compare(a.artist.name, b.artist.name) ||
+          collator.compare(a.group.title, b.group.title) ||
           (a.release.year ?? 0) - (b.release.year ?? 0),
       );
   };
@@ -102,13 +96,13 @@ export default function Library() {
                   <tr>
                     <td>
                       <div class="admin-release">
-                        <Cover seed={group?.title ?? release.title} class="admin-thumb" />
+                        <Cover seed={group.title} class="admin-thumb" />
                         <span>{release.title}</span>
                       </div>
                     </td>
-                    <td>{artist?.name}</td>
+                    <td>{artist.name}</td>
                     <td>
-                      {group?.title} <span class="muted">{group?.type}</span>
+                      {group.title} <span class="muted">{group.type}</span>
                     </td>
                     <td>{release.year ?? <span class="muted">—</span>}</td>
                     <td>{release.format}</td>
@@ -118,7 +112,10 @@ export default function Library() {
                       <button class="quiet" onClick={() => setEditing(release)}>
                         Edit
                       </button>
-                      <button class="quiet danger" onClick={() => setRemoving(release)}>
+                      <button
+                        class="quiet danger"
+                        onClick={() => setRemoving(release)}
+                      >
                         Remove
                       </button>
                     </td>
@@ -129,22 +126,24 @@ export default function Library() {
           </table>
         </div>
 
-        <Dialog open={editing() !== null} title="Edit release" onClose={() => setEditing(null)}>
-          <Show when={editing()}>{(release) => <EditReleaseForm release={release()} onDone={() => setEditing(null)} />}</Show>
-        </Dialog>
-        <ConfirmDialog
-          open={removing() !== null}
-          title="Remove release?"
-          message={`"${removing()?.title}" and its tracks will be removed from the library for everyone.`}
-          confirmLabel="Remove"
-          onConfirm={() => {
-            const release = removing();
-            if (release !== null) {
-              removeRelease(release.id);
-            }
-          }}
-          onClose={() => setRemoving(null)}
-        />
+        <Show when={editing()}>
+          {(release) => (
+            <Dialog title="Edit release" onClose={() => setEditing(null)}>
+              <EditReleaseForm release={release()} onDone={() => setEditing(null)} />
+            </Dialog>
+          )}
+        </Show>
+        <Show when={removing()}>
+          {(release) => (
+            <ConfirmDialog
+              title="Remove release?"
+              message={`"${release().title}" and its tracks will be removed from the library for everyone.`}
+              confirmLabel="Remove"
+              onConfirm={() => removeRelease(release().id)}
+              onClose={() => setRemoving(null)}
+            />
+          )}
+        </Show>
       </PageLayout>
     </Show>
   );

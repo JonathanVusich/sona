@@ -5,19 +5,27 @@ import { ConfirmDialog } from "../components/Dialog";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import Menu from "../components/Menu";
 import PageLayout from "../components/PageLayout";
-import { openPlaylistDialog } from "../components/PlaylistDialog";
+import { openEditPlaylistDialog } from "../components/PlaylistDialog";
 import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
-import { playTracks, shufflePlay } from "../player";
+import { playListedTrack, playTracks, shufflePlay } from "../player";
 import { deletePlaylist, playlistById } from "../playlists";
 import { coverSeeds } from "./Playlists";
 import { AppRoutes } from "../routes";
 
+// Whether the page is asking to confirm deleting the playlist.
+const PlaylistAction = {
+  VIEWING: "viewing",
+  CONFIRMING_DELETE: "confirming-delete",
+} as const;
+
+type PlaylistAction = (typeof PlaylistAction)[keyof typeof PlaylistAction];
+
 export default function PlaylistDetail() {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [confirmingDelete, setConfirmingDelete] = createSignal(false);
+  const [action, setAction] = createSignal<PlaylistAction>(PlaylistAction.VIEWING);
 
   return (
     <Show when={playlistById(params.id)} fallback={<PageLayout header={<p class="empty">This playlist doesn't exist.</p>} />}>
@@ -51,10 +59,14 @@ export default function PlaylistDetail() {
                       <ShuffleIcon size={16} /> Shuffle
                     </button>
                     <Menu label="More" icon={<MoreIcon size={18} />}>
-                      <button class="menu-item" role="menuitem" onClick={() => openPlaylistDialog({ playlist: playlist() })}>
+                      <button class="menu-item" role="menuitem" onClick={() => openEditPlaylistDialog(playlist())}>
                         Edit details
                       </button>
-                      <button class="menu-item danger" role="menuitem" onClick={() => setConfirmingDelete(true)}>
+                      <button
+                        class="menu-item danger"
+                        role="menuitem"
+                        onClick={() => setAction(PlaylistAction.CONFIRMING_DELETE)}
+                      >
                         Delete playlist
                       </button>
                     </Menu>
@@ -71,17 +83,18 @@ export default function PlaylistDetail() {
                 tracks={playlistTracks().map(trackRow)}
                 showContext
                 playlistId={playlist().id}
-                onPlay={(index) => playTracks(playlistTracks(), index)}
+                onPlay={(index) => playListedTrack(playlistTracks(), index)}
               />
             </Show>
-            <ConfirmDialog
-              open={confirmingDelete()}
-              title="Delete playlist?"
-              message={`"${playlist().name}" will be deleted. The songs stay in the library.`}
-              confirmLabel="Delete"
-              onConfirm={remove}
-              onClose={() => setConfirmingDelete(false)}
-            />
+            <Show when={action() === PlaylistAction.CONFIRMING_DELETE}>
+              <ConfirmDialog
+                title="Delete playlist?"
+                message={`"${playlist().name}" will be deleted. The songs stay in the library.`}
+                confirmLabel="Delete"
+                onConfirm={remove}
+                onClose={() => setAction(PlaylistAction.VIEWING)}
+              />
+            </Show>
           </PageLayout>
         );
       }}

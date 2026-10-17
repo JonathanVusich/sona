@@ -6,13 +6,21 @@ import { ApiRoutes } from "./routes";
 // travels with the auth calls. Calls never throw: a failure is returned, with Sona's ErrorResponse when it refused the
 // request.
 
-/** Why a call failed. The code is Sona's, or null when Sona couldn't answer. */
-export interface ApiFailure {
-  code: ErrorCode | null;
-  reason: string;
-}
+export const ResultKind = {
+  // Sona answered with the body asked for.
+  OK: "ok",
+  // Sona answered with an ErrorResponse, whose code clients branch on.
+  REFUSED: "refused",
+  // Sona couldn't be reached, or failed to answer.
+  FAILED: "failed",
+} as const;
 
-export type ApiResult<T> = { ok: true; body: T } | { ok: false; failure: ApiFailure };
+export type ResultKind = (typeof ResultKind)[keyof typeof ResultKind];
+
+export type ApiResult<T> =
+  | { kind: typeof ResultKind.OK; body: T }
+  | { kind: typeof ResultKind.REFUSED; code: ErrorCode; reason: string }
+  | { kind: typeof ResultKind.FAILED; reason: string };
 
 const HttpMethod = {
   GET: "GET",
@@ -21,68 +29,100 @@ const HttpMethod = {
 
 type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 
-interface RequestOptions {
-  accessToken?: string;
-  body?: LoginRequest | ChangePasswordRequest;
-}
+// What a request sends as JSON.
+type RequestBody = LoginRequest | ChangePasswordRequest;
+
+const JSON_CONTENT = { "Content-Type": "application/json" };
+
+const UNREACHABLE: ApiResult<never> = {
+  kind: ResultKind.FAILED,
+  reason: "Can't reach Sona. Check your connection and try again.",
+};
+const SERVER_ERROR: ApiResult<never> = { kind: ResultKind.FAILED, reason: "Something went wrong. Try again." };
 
 export async function login(request: LoginRequest): Promise<ApiResult<TokenResponse>> {
-  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_TOKEN, { body: request });
+  return sendForJson(ApiRoutes.AUTH_TOKEN, postJson(request));
 }
 
 export async function refreshTokens(): Promise<ApiResult<TokenResponse>> {
-  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_REFRESH);
+  return sendForJson(ApiRoutes.AUTH_REFRESH, post());
 }
 
 export async function logout(): Promise<ApiResult<void>> {
-  return sendForNothing(HttpMethod.POST, ApiRoutes.AUTH_LOGOUT);
+  return sendForNothing(ApiRoutes.AUTH_LOGOUT, post());
 }
 
 export async function fetchCurrentUser(accessToken: string): Promise<ApiResult<CurrentUserResponse>> {
-  return sendForJson(HttpMethod.GET, ApiRoutes.CURRENT_USER, { accessToken });
+  return sendForJson(ApiRoutes.CURRENT_USER, getAsUser(accessToken));
 }
 
 export async function changePassword(accessToken: string, request: ChangePasswordRequest): Promise<ApiResult<void>> {
-  return sendForNothing(HttpMethod.POST, ApiRoutes.CURRENT_USER_PASSWORD, { accessToken, body: request });
+  return sendForNothing(ApiRoutes.CURRENT_USER_PASSWORD, postJsonAsUser(accessToken, request));
 }
 
 export async function fetchRelease(accessToken: string, releaseId: string): Promise<ApiResult<ReleaseResponse>> {
-  return sendForJson(HttpMethod.GET, `${ApiRoutes.RELEASES}/${encodeURIComponent(releaseId)}`, { accessToken });
+  const path = `${ApiRoutes.RELEASES}/${encodeURIComponent(releaseId)}`;
+  return sendForJson(path, getAsUser(accessToken));
 }
 
-async function sendForJson<T>(method: HttpMethod, path: string, options?: RequestOptions): Promise<ApiResult<T>> {
-  const result = await sendRequest(method, path, options);
-  return result.ok ? { ok: true, body: await result.body.json() } : result;
+// One function per kind of request. The auth calls send no access token: the refresh cookie authenticates them if
+// anything.
+
+function post(): RequestInit {
+  return { method: HttpMethod.POST };
 }
 
-async function sendForNothing(method: HttpMethod, path: string, options?: RequestOptions): Promise<ApiResult<void>> {
-  const result = await sendRequest(method, path, options);
-  return result.ok ? { ok: true, body: undefined } : result;
+function postJson(body: RequestBody): RequestInit {
+  return { method: HttpMethod.POST, headers: JSON_CONTENT, body: JSON.stringify(body) };
 }
 
-async function sendRequest(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<ApiResult<Response>> {
-  const { accessToken, body } = options;
+function getAsUser(accessToken: string): RequestInit {
+  return { method: HttpMethod.GET, headers: authorizationHeader(accessToken) };
+}
+
+function postJsonAsUser(accessToken: string, body: RequestBody): RequestInit {
+  return {
+    method: HttpMethod.POST,
+    headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT },
+    body: JSON.stringify(body),
+  };
+}
+
+function authorizationHeader(accessToken: string): Record<string, string> {
+  return { Authorization: `Bearer ${accessToken}` };
+}
+
+async function sendForJson<T>(path: string, request: RequestInit): Promise<ApiResult<T>> {
+  const result = await sendRequest(path, request);
+  if (result.kind !== ResultKind.OK) {
+    return result;
+  }
+  return { kind: ResultKind.OK, body: await result.body.json() };
+}
+
+async function sendForNothing(path: string, request: RequestInit): Promise<ApiResult<void>> {
+  const result = await sendRequest(path, request);
+  if (result.kind !== ResultKind.OK) {
+    return result;
+  }
+  return { kind: ResultKind.OK, body: undefined };
+}
+
+async function sendRequest(path: string, request: RequestInit): Promise<ApiResult<Response>> {
   let response: Response;
   // The one place the frontend catches: fetch rejects when Sona can't be reached at all.
   try {
-    response = await fetch(path, {
-      method,
-      headers: {
-        ...(accessToken === undefined ? {} : { Authorization: `Bearer ${accessToken}` }),
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    response = await fetch(path, request);
   } catch {
-    return { ok: false, failure: { code: null, reason: "Can't reach Sona. Check your connection and try again." } };
+    return UNREACHABLE;
   }
   if (response.ok) {
-    return { ok: true, body: response };
+    return { kind: ResultKind.OK, body: response };
   }
   if (response.status < 500) {
     // Every client error Sona sends has an ErrorResponse body.
     const error: ErrorResponse = await response.json();
-    return { ok: false, failure: error };
+    return { kind: ResultKind.REFUSED, code: error.code, reason: error.reason };
   }
-  return { ok: false, failure: { code: null, reason: "Something went wrong. Try again." } };
+  return SERVER_ERROR;
 }

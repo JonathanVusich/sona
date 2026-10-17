@@ -11,13 +11,17 @@ export type Theme = (typeof Theme)[keyof typeof Theme];
 const STORAGE_KEY = "sona.theme";
 
 export function loadTheme(): Theme {
-  return parseTheme(readSetting(STORAGE_KEY));
+  const stored = readSetting(STORAGE_KEY);
+  if (stored === null) {
+    return Theme.SYSTEM;
+  }
+  return parseTheme(stored);
 }
 
 /**
  * @returns the theme the value names, or the system's when it names none
  */
-export function parseTheme(value: string | null): Theme {
+export function parseTheme(value: string): Theme {
   return Object.values(Theme).find((theme) => theme === value) ?? Theme.SYSTEM;
 }
 

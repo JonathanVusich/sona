@@ -3,68 +3,124 @@ import { addToPlaylist, createPlaylist, myPlaylists, updatePlaylist, type Playli
 import Dialog from "./Dialog";
 import { toast } from "./Toast";
 
-interface Request {
-  // Edits this playlist; otherwise creates a new one.
-  playlist?: Playlist;
-  // Tracks to put on a new playlist.
-  trackIds?: string[];
-  onCreated?: (playlist: Playlist) => void;
+// Creating a playlist puts the given tracks on it, then hands the new playlist on.
+interface NewPlaylist {
+  trackIds: string[];
+  onCreated: (playlist: Playlist) => void;
 }
 
-// One dialog instance for the whole app, opened from anywhere.
-const [request, setRequest] = createSignal<Request | null>(null);
+// One dialog for the whole app, opened from anywhere: null while no playlist is being created or edited.
+const [newPlaylist, setNewPlaylist] = createSignal<NewPlaylist | null>(null);
+const [editedPlaylist, setEditedPlaylist] = createSignal<Playlist | null>(null);
 
-export function openPlaylistDialog(next: Request) {
-  setRequest(next);
+export function openNewPlaylistDialog(trackIds: string[], onCreated: (playlist: Playlist) => void) {
+  setNewPlaylist({ trackIds, onCreated });
+}
+
+export function openEditPlaylistDialog(playlist: Playlist) {
+  setEditedPlaylist(playlist);
 }
 
 export default function PlaylistDialog() {
+  const closeNew = () => setNewPlaylist(null);
+  const closeEdited = () => setEditedPlaylist(null);
   return (
-    <Dialog
-      open={request() !== null}
-      title={request()?.playlist ? "Edit playlist" : "New playlist"}
-      onClose={() => setRequest(null)}
-    >
-      <Show when={request()}>{(current) => <PlaylistForm request={current()} onDone={() => setRequest(null)} />}</Show>
-    </Dialog>
+    <>
+      <Show when={newPlaylist()}>
+        {(request) => (
+          <Dialog title="New playlist" onClose={closeNew}>
+            <NewPlaylistForm trackIds={request().trackIds} onCreated={request().onCreated} onDone={closeNew} />
+          </Dialog>
+        )}
+      </Show>
+      <Show when={editedPlaylist()}>
+        {(playlist) => (
+          <Dialog title="Edit playlist" onClose={closeEdited}>
+            <EditPlaylistForm playlist={playlist()} onDone={closeEdited} />
+          </Dialog>
+        )}
+      </Show>
+    </>
   );
 }
 
-function PlaylistForm(props: { request: Request; onDone: () => void }) {
-  const [name, setName] = createSignal(props.request.playlist?.name ?? "");
-  const [description, setDescription] = createSignal(props.request.playlist?.description ?? "");
+function NewPlaylistForm(props: { trackIds: string[]; onCreated: (playlist: Playlist) => void; onDone: () => void }) {
+  const [name, setName] = createSignal("");
+  const [description, setDescription] = createSignal("");
 
   const submit = (event: SubmitEvent) => {
     event.preventDefault();
-    const existing = props.request.playlist;
-    if (existing !== undefined) {
-      updatePlaylist(existing.id, name().trim(), description().trim());
-    } else {
-      const created = createPlaylist(name().trim(), description().trim(), props.request.trackIds ?? []);
-      props.request.onCreated?.(created);
-    }
+    props.onCreated(createPlaylist(name().trim(), description().trim(), props.trackIds));
     props.onDone();
   };
 
   return (
     <form class="dialog-form" onSubmit={submit}>
+      <PlaylistFields name={name()} description={description()} onName={setName} onDescription={setDescription} />
+      <PlaylistActions name={name()} submitLabel="Create" onCancel={props.onDone} />
+    </form>
+  );
+}
+
+function EditPlaylistForm(props: { playlist: Playlist; onDone: () => void }) {
+  const [name, setName] = createSignal(props.playlist.name);
+  const [description, setDescription] = createSignal(props.playlist.description);
+
+  const submit = (event: SubmitEvent) => {
+    event.preventDefault();
+    updatePlaylist(props.playlist.id, name().trim(), description().trim());
+    props.onDone();
+  };
+
+  return (
+    <form class="dialog-form" onSubmit={submit}>
+      <PlaylistFields name={name()} description={description()} onName={setName} onDescription={setDescription} />
+      <PlaylistActions name={name()} submitLabel="Save" onCancel={props.onDone} />
+    </form>
+  );
+}
+
+function PlaylistFields(props: {
+  name: string;
+  description: string;
+  onName: (name: string) => void;
+  onDescription: (description: string) => void;
+}) {
+  return (
+    <>
       <label>
         Name
-        <input value={name()} onInput={(e) => setName(e.currentTarget.value)} required autofocus maxLength={100} />
+        <input
+          value={props.name}
+          onInput={(e) => props.onName(e.currentTarget.value)}
+          required
+          autofocus
+          maxLength={100}
+        />
       </label>
       <label>
         Description
-        <input value={description()} onInput={(e) => setDescription(e.currentTarget.value)} placeholder="Optional" maxLength={300} />
+        <input
+          value={props.description}
+          onInput={(e) => props.onDescription(e.currentTarget.value)}
+          placeholder="Optional"
+          maxLength={300}
+        />
       </label>
-      <div class="dialog-actions">
-        <button type="button" onClick={() => props.onDone()}>
-          Cancel
-        </button>
-        <button type="submit" class="primary" disabled={name().trim() === ""}>
-          {props.request.playlist ? "Save" : "Create"}
-        </button>
-      </div>
-    </form>
+    </>
+  );
+}
+
+function PlaylistActions(props: { name: string; submitLabel: string; onCancel: () => void }) {
+  return (
+    <div class="dialog-actions">
+      <button type="button" onClick={() => props.onCancel()}>
+        Cancel
+      </button>
+      <button type="submit" class="primary" disabled={props.name.trim() === ""}>
+        {props.submitLabel}
+      </button>
+    </div>
   );
 }
 
@@ -72,7 +128,11 @@ function PlaylistForm(props: { request: Request; onDone: () => void }) {
 export function AddToPlaylistItems(props: { trackIds: () => string[] }) {
   const add = (playlist: Playlist) => {
     const added = addToPlaylist(playlist.id, props.trackIds());
-    toast(added === 0 ? `Already on ${playlist.name}` : `Added to ${playlist.name}`);
+    if (added === 0) {
+      toast(`Already on ${playlist.name}`);
+      return;
+    }
+    toast(`Added to ${playlist.name}`);
   };
 
   return (
@@ -89,7 +149,7 @@ export function AddToPlaylistItems(props: { trackIds: () => string[] }) {
         class="menu-item"
         role="menuitem"
         onClick={() =>
-          openPlaylistDialog({ trackIds: props.trackIds(), onCreated: (created) => toast(`Added to ${created.name}`) })
+          openNewPlaylistDialog(props.trackIds(), (created) => toast(`Added to ${created.name}`))
         }
       >
         New playlist…

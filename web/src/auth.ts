@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import * as api from "./api/client";
-import type { ApiResult } from "./api/client";
+import { ResultKind, type ApiResult } from "./api/client";
 import type { ChangePasswordRequest, LoginRequest } from "./api/requests";
 import { ErrorCode, Permission, type CurrentUserResponse, type TokenResponse } from "./api/responses";
 
@@ -27,18 +27,26 @@ const SessionEvent = {
 const SESSION_CHANNEL = "sona-session";
 const REFRESH_LOCK = "sona-refresh";
 
-const SUCCEEDED: ApiResult<void> = { ok: true, body: undefined };
+const SUCCEEDED: ApiResult<void> = { kind: ResultKind.OK, body: undefined };
 const NOT_SIGNED_IN: ApiResult<never> = {
-  ok: false,
-  failure: { code: ErrorCode.NOT_SIGNED_IN, reason: "Sign in to continue." },
+  kind: ResultKind.REFUSED,
+  code: ErrorCode.NOT_SIGNED_IN,
+  reason: "Sign in to continue.",
 };
 
+// Null while nobody is signed in.
 const [session, setSession] = createSignal<Session | null>(null);
-
-export const currentUser = () => session()?.user ?? null;
-
-let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+// Refreshes the tokens before they expire, while someone is signed in.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+// The refresh in progress, which every caller that asks while it runs waits for.
 let pendingRefresh: Promise<boolean> | null = null;
+
+/**
+ * @returns the signed-in user, or null when nobody is signed in
+ */
+export function currentUser(): CurrentUserResponse | null {
+  return session()?.user ?? null;
+}
 
 // Tells the other tabs that the session changed, so they restore it from the cookie they share.
 const otherTabs = new BroadcastChannel(SESSION_CHANNEL);
@@ -53,7 +61,7 @@ export async function restoreSession(): Promise<void> {
 
 export async function logIn(request: LoginRequest): Promise<ApiResult<void>> {
   const tokens = await api.login(request);
-  if (!tokens.ok) {
+  if (tokens.kind !== ResultKind.OK) {
     return tokens;
   }
   const started = await startSession(tokens.body);
@@ -77,7 +85,7 @@ export async function changePassword(request: ChangePasswordRequest): Promise<Ap
     return NOT_SIGNED_IN;
   }
   const changed = await sendAsCurrentUser((accessToken) => api.changePassword(accessToken, request));
-  if (!changed.ok) {
+  if (changed.kind !== ResultKind.OK) {
     return changed;
   }
   return logIn({ username: current.user.username, password: request.newPassword });
@@ -92,7 +100,11 @@ export function hasPermission(permission: Permission): boolean {
  */
 export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
   const result = await sendWithSession(call);
-  if (result.ok || result.failure.code !== ErrorCode.NOT_SIGNED_IN || !(await refreshSession())) {
+  if (!isRefused(result, ErrorCode.NOT_SIGNED_IN)) {
+    return result;
+  }
+  const refreshed = await refreshSession();
+  if (!refreshed) {
     return result;
   }
   return sendWithSession(call);
@@ -100,7 +112,14 @@ export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promis
 
 async function sendWithSession<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
   const current = session();
-  return current === null ? NOT_SIGNED_IN : call(current.accessToken);
+  if (current === null) {
+    return NOT_SIGNED_IN;
+  }
+  return call(current.accessToken);
+}
+
+function isRefused(result: ApiResult<unknown>, code: ErrorCode): boolean {
+  return result.kind === ResultKind.REFUSED && result.code === code;
 }
 
 /**
@@ -126,14 +145,14 @@ async function refreshSessionLocked(): Promise<boolean> {
   }
   return await navigator.locks.request(REFRESH_LOCK, async () => {
     const tokens = await api.refreshTokens();
-    if (!tokens.ok) {
-      if (tokens.failure.code === ErrorCode.INVALID_REFRESH_TOKEN) {
-        endSession();
-      }
+    if (isRefused(tokens, ErrorCode.INVALID_REFRESH_TOKEN)) {
+      endSession();
+    }
+    if (tokens.kind !== ResultKind.OK) {
       return false;
     }
     const started = await startSession(tokens.body);
-    return started.ok;
+    return started.kind === ResultKind.OK;
   });
 }
 
@@ -151,11 +170,11 @@ async function logOutLocked(): Promise<ApiResult<void>> {
 
 async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
   const user = await api.fetchCurrentUser(tokens.accessToken);
-  if (!user.ok) {
+  if (user.kind !== ResultKind.OK) {
     return user;
   }
   setSession({ accessToken: tokens.accessToken, user: user.body });
-  clearTimeout(refreshTimer);
+  stopRefreshTimer();
   // A minute early, or halfway through for tokens that last less than two minutes.
   const refreshIn = Math.max(tokens.expiresIn - 60, tokens.expiresIn / 2);
   refreshTimer = setTimeout(refreshSession, refreshIn * 1000);
@@ -163,6 +182,13 @@ async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
 }
 
 function endSession() {
-  clearTimeout(refreshTimer);
+  stopRefreshTimer();
   setSession(null);
+}
+
+function stopRefreshTimer() {
+  if (refreshTimer !== null) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
 }
