@@ -116,6 +116,20 @@ class ReleaseGroupE2ETest {
     }
 
     @Test
+    void aReleaseGroupListsTheArtistsOtherReleaseGroupsNewestFirst(final Page page) {
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10), keane.artistId(), uuidv7()));
+        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Under the Iron Sea", ReleaseGroupType.ALBUM,
+                LocalDate.of(2006, 6, 12), keane.artistId(), uuidv7()));
+        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Perfect Symmetry", ReleaseGroupType.ALBUM,
+                LocalDate.of(2008, 10, 13), keane.artistId(), uuidv7()));
+        final var releaseGroupPage = logInAndOpen(page, group);
+
+        assertThat(releaseGroupPage.moreByTitles()).hasText(new String[]{"Perfect Symmetry", "Under the Iron Sea"});
+    }
+
+    @Test
     void anEditionOpensItsReleasesPage(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,

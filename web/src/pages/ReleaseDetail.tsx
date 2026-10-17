@@ -2,23 +2,22 @@ import { A, useParams } from "@solidjs/router";
 import { createResource, Show, type JSX } from "solid-js";
 import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
-import { ErrorCode, type ReleaseResponse } from "../api/responses";
+import { ErrorCode, type EditionResponse, type ReleaseResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
-import { CardLayout, DiscographyGrid } from "../components/Cards";
 import Cover, { CoverSize } from "../components/Cover";
 import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
+import MoreByArtist from "../components/MoreByArtist";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import { MediaTrackList } from "../components/TrackList";
 import { formatLabels, formatMedia, formatTotal, formatYear, joinDetails, plural } from "../format";
-import { placeholderEditions, placeholderGroups } from "../library";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release isn't in the library.";
 
 // One concrete edition: its details and its tracks, disc by disc, then its other editions and the rest of the artist's
-// discography, which are mocked until Sona serves them (docs/GAPS.md).
+// discography.
 export default function ReleaseDetail() {
   const params = useParams<{ id: string }>();
   const [result] = createResource(
@@ -93,16 +92,34 @@ function ReleaseView(props: { release: ReleaseResponse }) {
       </PageHead>
       <PageBody>
         <MediaTrackList media={props.release.media} artistId={props.release.artist.artistId} />
-        <Section title="Other editions">
-          <EditionList editions={placeholderEditions()} />
-        </Section>
-        <Section title={`More by ${props.release.artist.name}`}>
-          <DiscographyGrid
-            groups={placeholderGroups(props.release.artist)}
-            layout={CardLayout.ROW} />
-        </Section>
+        <OtherEditions release={props.release} />
+        <MoreByArtist artist={props.release.artist} releaseGroupId={props.release.releaseGroupId} />
       </PageBody>
     </>
+  );
+}
+
+// The release group's other releases, loaded from the release group's page after this one. Left out while they load,
+// if they fail to, and when the release is the group's only one.
+function OtherEditions(props: { release: ReleaseResponse }) {
+  const [result] = createResource(
+    () => props.release.releaseGroupId,
+    (releaseGroupId) => sendAsCurrentUser((accessToken) => api.fetchReleaseGroup(accessToken, releaseGroupId)),
+  );
+  const others = (): EditionResponse[] => {
+    const loaded = result();
+    if (loaded === undefined || loaded.kind !== ResultKind.OK) {
+      return [];
+    }
+    return loaded.body.editions.filter((edition) => edition.releaseId !== props.release.releaseId);
+  };
+
+  return (
+    <Show when={others().length > 0}>
+      <Section title="Other editions">
+        <EditionList editions={others()} />
+      </Section>
+    </Show>
   );
 }
 

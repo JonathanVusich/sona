@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 import java.util.UUID;
 
 /**
- * A release's page: its details, and its tracks disc by disc.
+ * A release's page: its details, its tracks disc by disc, its group's other editions, and the artist's other release
+ * groups.
  */
 @RequiredArgsConstructor
 public final class ReleasePage {
@@ -44,6 +45,17 @@ public final class ReleasePage {
      */
     public Locator trackArtist(final String trackName, final String artistName) {
         return track(trackName).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName(artistName));
+    }
+
+    public Locator editionTitles() {
+        return page.locator(".edition-title");
+    }
+
+    /**
+     * @return the title of each of the artist's other release groups, in order
+     */
+    public Locator moreByTitles() {
+        return page.locator(".card-title");
     }
 
     public Locator message() {
