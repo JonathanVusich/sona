@@ -8,9 +8,20 @@ import Menu, { MenuKind } from "../components/Menu";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import { AddToPlaylistItems } from "../components/PlaylistDialog";
 import Section from "../components/Section";
-import TrackList, { trackRow } from "../components/TrackList";
+import { ReleaseTrackList } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
-import { artistById, canonicalRelease, groupById, groupsOf, groupYear, releasesOf, tracksOfRelease } from "../library";
+import {
+  artistById,
+  canonicalRelease,
+  editionResponse,
+  groupById,
+  groupsOf,
+  groupYear,
+  releasesOf,
+  summaryResponse,
+  trackResponse,
+  tracksOfRelease,
+} from "../library";
 import { playListedTrack, playTracks, shufflePlay } from "../player";
 import { AppRoutes, routeTo } from "../routes";
 
@@ -26,7 +37,10 @@ export default function ReleaseGroupDetail() {
         const editions = () => releasesOf(group().id);
         const tracks = () => {
           const release = canonicalRelease(group().id);
-          return release === undefined ? [] : tracksOfRelease(release.id);
+          if (release === undefined) {
+            return [];
+          }
+          return tracksOfRelease(release.id);
         };
         const total = () => tracks().reduce((sum, track) => sum + track.duration, 0);
         const moreByArtist = () => groupsOf(group().artistId).filter((other) => other.id !== group().id);
@@ -66,18 +80,17 @@ export default function ReleaseGroupDetail() {
               </header>
             </PageHead>
             <PageBody>
-              <TrackList
-                tracks={tracks().map(trackRow)}
-                showContext={false}
+              <ReleaseTrackList
+                tracks={tracks().map(trackResponse)}
                 artistId={group().artistId}
                 onPlay={(index) => playListedTrack(tracks(), index)}
               />
-              <Section title={editions().length === 1 ? "Edition" : "Editions"}>
-                <EditionList releases={editions()} />
+              <Section title={editionsTitle(editions().length)}>
+                <EditionList editions={editions().map(editionResponse)} />
               </Section>
               <Show when={moreByArtist().length > 0}>
                 <Section title={`More by ${artist()?.name ?? "this artist"}`}>
-                  <DiscographyGrid groups={moreByArtist()} layout={CardLayout.ROW} />
+                  <DiscographyGrid groups={moreByArtist().map(summaryResponse)} layout={CardLayout.ROW} />
                 </Section>
               </Show>
             </PageBody>
@@ -86,4 +99,11 @@ export default function ReleaseGroupDetail() {
       }}
     </Show>
   );
+}
+
+function editionsTitle(count: number): string {
+  if (count === 1) {
+    return "Edition";
+  }
+  return "Editions";
 }

@@ -80,7 +80,7 @@ class ReleaseE2ETest {
 
         assertThat(releasePage.title()).hasText("Britpop");
         assertThat(releasePage.link("Various Artists")).isVisible();
-        assertThat(releasePage.details()).hasText("2002 · CD · Parlophone · GB · 2 songs · 10 min");
+        assertThat(releasePage.details()).hasText("2002 · 2×CD · Parlophone · GB · 2 songs · 10 min");
         assertThat(releasePage.link("All editions"))
                 .hasAttribute("href", "/release-groups/" + release.releaseGroupId());
         assertThat(releasePage.disc("Disc 1 · CD")).isVisible();

@@ -35,7 +35,10 @@ export async function fromDataTransfer(transfer: DataTransfer): Promise<PickedFi
 async function walk(entry: FileSystemEntry): Promise<PickedFile[]> {
   if (entry instanceof FileSystemFileEntry) {
     const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
-    return isAudio(file.name) ? [{ file, path: entry.fullPath.replace(/^\//, "") }] : [];
+    if (!isAudio(file.name)) {
+      return [];
+    }
+    return [{ file, path: entry.fullPath.replace(/^\//, "") }];
   }
   if (entry instanceof FileSystemDirectoryEntry) {
     const children = await readAll(entry.createReader());

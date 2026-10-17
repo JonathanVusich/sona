@@ -2,19 +2,23 @@ import { A, useParams } from "@solidjs/router";
 import { createResource, For, Show, type JSX } from "solid-js";
 import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
-import { ErrorCode, type MediumResponse, type ReleaseResponse, type TrackResponse } from "../api/responses";
+import { ErrorCode, type MediumResponse, type ReleaseResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
+import { CardLayout, DiscographyGrid } from "../components/Cards";
 import Cover, { CoverSize } from "../components/Cover";
+import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
-import TrackList, { type TrackRow } from "../components/TrackList";
-import { formatTotal, plural } from "../format";
+import { ReleaseTrackList } from "../components/TrackList";
+import { formatLabels, formatMedia, formatTotal, formatYear, joinDetails, plural } from "../format";
+import { placeholderEditions, placeholderGroups } from "../library";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release isn't in the library.";
 
-// One concrete edition: its details and its tracks, disc by disc. Its other editions are on its release group's page.
+// One concrete edition: its details and its tracks, disc by disc, then its other editions and the rest of the artist's
+// discography, which are mocked until Sona serves them (docs/GAPS.md).
 export default function ReleaseDetail() {
   const params = useParams<{ id: string }>();
   const [result] = createResource(
@@ -45,11 +49,17 @@ function loadedPage(result: ApiResult<ReleaseResponse>): JSX.Element {
 }
 
 function ReleaseView(props: { release: ReleaseResponse }) {
-  const year = () => props.release.date?.slice(0, 4);
-  const formats = () => [...new Set(props.release.media.flatMap((medium) => medium.format ?? []))].join(", ");
-  const labels = () => props.release.labels.map((label) => label.name).join(", ");
   const total = () =>
     props.release.media.flatMap((medium) => medium.tracks).reduce((sum, track) => sum + track.duration, 0);
+  const details = () =>
+    joinDetails([
+      formatYear(props.release.date),
+      formatMedia(props.release.media.map((medium) => medium.format)),
+      formatLabels(props.release.labels),
+      props.release.country,
+      plural(props.release.trackCount, "song"),
+      formatTotal(total()),
+    ]);
 
   return (
     <>
@@ -62,11 +72,7 @@ function ReleaseView(props: { release: ReleaseResponse }) {
             <A href={routeTo(AppRoutes.ARTIST, props.release.artist.artistId)} class="detail-artist">
               {props.release.artist.name}
             </A>
-            <p class="detail-meta">
-              {[year(), formats(), labels(), props.release.country, plural(props.release.trackCount, "song"), formatTotal(total())]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+            <p class="detail-meta">{details()}</p>
             <p class="detail-meta">
               <A href={routeTo(AppRoutes.RELEASE_GROUP, props.release.releaseGroupId)}>All editions</A>
             </p>
@@ -94,12 +100,20 @@ function ReleaseView(props: { release: ReleaseResponse }) {
         >
           <For each={props.release.media}>
             {(medium) => (
-              <Section title={[`Disc ${medium.position}`, medium.format].filter(Boolean).join(" · ")}>
+              <Section title={joinDetails([`Disc ${medium.position}`, medium.format])}>
                 <MediumTracks medium={medium} release={props.release} />
               </Section>
             )}
           </For>
         </Show>
+        <Section title="Other editions">
+          <EditionList editions={placeholderEditions()} />
+        </Section>
+        <Section title={`More by ${props.release.artist.name}`}>
+          <DiscographyGrid
+            groups={placeholderGroups(props.release.artist)}
+            layout={CardLayout.ROW} />
+        </Section>
       </PageBody>
     </>
   );
@@ -107,25 +121,8 @@ function ReleaseView(props: { release: ReleaseResponse }) {
 
 function MediumTracks(props: { medium: MediumResponse; release: ReleaseResponse }) {
   return (
-    <TrackList
-      tracks={props.medium.tracks.map(trackRow)}
-      showContext={false}
-      artistId={props.release.artist.artistId}
-      canAddToPlaylist={false}
-      onPlay={() => {}}
-    />
+    <ReleaseTrackList tracks={props.medium.tracks} artistId={props.release.artist.artistId} onPlay={() => {}} />
   );
-}
-
-function trackRow(track: TrackResponse): TrackRow {
-  return {
-    id: track.trackId,
-    number: track.position,
-    title: track.name,
-    duration: track.duration,
-    artist: { id: track.artist.artistId, name: track.artist.name },
-    release: undefined,
-  };
 }
 
 function refusalMessage(code: ErrorCode, reason: string): string {

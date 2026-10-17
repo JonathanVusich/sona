@@ -1082,9 +1082,6 @@ a.edition:hover {
   background: var(--surface-2);
 }
 
-.edition.current {
-  color: var(--accent);
-}
 
 .edition-title {
   font-weight: 550;

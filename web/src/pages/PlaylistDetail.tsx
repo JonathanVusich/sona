@@ -6,11 +6,11 @@ import { PlayIcon, ShuffleIcon } from "../components/Icons";
 import Menu, { MenuKind } from "../components/Menu";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import { openEditPlaylistDialog } from "../components/PlaylistDialog";
-import TrackList, { trackRow } from "../components/TrackList";
+import { PlaylistTrackList } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
 import { playListedTrack, playTracks, shufflePlay } from "../player";
-import { deletePlaylist, playlistById } from "../playlists";
+import { deletePlaylist, playlistById, playlistEntries } from "../playlists";
 import { coverSeeds } from "./Playlists";
 import { AppRoutes } from "../routes";
 
@@ -79,9 +79,8 @@ export default function PlaylistDetail() {
                 when={playlistTracks().length > 0}
                 fallback={<p class="empty">Add songs from any album with the ⋯ button on a track.</p>}
               >
-                <TrackList
-                  tracks={playlistTracks().map(trackRow)}
-                  showContext
+                <PlaylistTrackList
+                  tracks={playlistEntries(playlist())}
                   playlistId={playlist().id}
                   onPlay={(index) => playListedTrack(playlistTracks(), index)}
                 />

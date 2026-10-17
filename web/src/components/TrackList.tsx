@@ -1,133 +1,152 @@
 import { A } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { For, Show, type JSX } from "solid-js";
+import type { TrackResponse } from "../api/responses";
 import { formatTime } from "../format";
-import { trackContext, type Track } from "../library";
 import { current, Playback, playback } from "../player";
-import { removeFromPlaylist } from "../playlists";
+import { removeFromPlaylist, type PlaylistTrack } from "../playlists";
+import { AppRoutes, routeTo } from "../routes";
 import { PlayIcon } from "./Icons";
 import Menu, { MenuKind } from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
-import { AppRoutes, routeTo } from "../routes";
 
-/** What a row shows and links to. */
-export interface TrackRow {
-  id: string;
-  number: number;
-  title: string;
-  /** In seconds. */
-  duration: number;
-  artist: { id: string; name: string } | undefined;
-  release: { id: string; title: string } | undefined;
+// One release's tracks, numbered by their position on their medium. A row names its artist only when it isn't the
+// release's own (artistId), as on a compilation. Playlists are still mocked, so these tracks can't go on them.
+export function ReleaseTrackList(props: { tracks: TrackResponse[]; artistId: string; onPlay: (index: number) => void }) {
+  return (
+    <ol class="tracklist">
+      <For each={props.tracks}>
+        {(track, index) => (
+          <ReleaseTrackRow track={track} artistId={props.artistId} onPlay={() => props.onPlay(index())} />
+        )}
+      </For>
+    </ol>
+  );
 }
 
-export function trackRow(track: Track): TrackRow {
-  const context = trackContext(track);
-  return {
-    id: track.id,
-    number: track.number,
-    title: track.title,
-    duration: track.duration,
-    artist: context?.artist,
-    release: context?.release,
-  };
-}
-
-// Rows play on click. With showContext each row also names and links its artist and release, for lists that mix
-// releases such as playlists. Without it, a row names its artist only when it isn't the page's (artistId), as on a
-// compilation. Passing playlistId offers removing tracks from that playlist.
-export default function TrackList(props: {
-  tracks: TrackRow[];
-  showContext: boolean;
-  artistId?: string;
-  // Tracks that aren't in the mocked library can't go on its playlists.
-  canAddToPlaylist?: boolean;
-  playlistId?: string;
+// A playlist's tracks, numbered in the playlist's order, each naming and linking its artist and release, and offering
+// to remove it from the playlist.
+export function PlaylistTrackList(props: {
+  tracks: PlaylistTrack[];
+  playlistId: string;
   onPlay: (index: number) => void;
 }) {
   return (
-    <ol class="tracklist" classList={{ "with-context": props.showContext }}>
+    <ol class="tracklist with-context">
       <For each={props.tracks}>
-        {(track, index) => {
-          const isCurrent = () => current()?.id === track.id;
-          // Links and buttons inside the row do their own thing.
-          const onRowClick = (event: MouseEvent) => {
-            if (!(event.target instanceof Element && event.target.closest("a, button, .menu"))) {
-              props.onPlay(index());
-            }
-          };
-          return (
-            <li class="track-row" classList={{ current: isCurrent() }} onClick={onRowClick}>
-              <button class="track-play" aria-label={`Play ${track.title}`} onClick={() => props.onPlay(index())}>
-                <Show
-                  when={isCurrent() && playback() === Playback.PLAYING}
-                  fallback={<span class="track-number">{props.showContext ? index() + 1 : track.number}</span>}
-                >
-                  <span class="bars" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                </Show>
-                <span class="track-play-icon">
-                  <PlayIcon size={14} />
-                </span>
-              </button>
-              <span class="track-main">
-                <span class="track-title">{track.title}</span>
-                <Show when={(props.showContext || track.artist?.id !== props.artistId) && track.artist}>
-                  {(artist) => (
-                    <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="track-sub">
-                      {artist().name}
-                    </A>
-                  )}
-                </Show>
-              </span>
-              <Show when={props.showContext}>
-                <span class="track-release">
-                  <Show when={track.release}>
-                    {(release) => <A href={routeTo(AppRoutes.RELEASE, release().id)}>{release().title}</A>}
-                  </Show>
-                </span>
-              </Show>
-              <span class="track-duration">{formatTime(track.duration)}</span>
-              <Menu kind={MenuKind.TRACK} label={`More for ${track.title}`}>
-                <Show when={props.canAddToPlaylist !== false}>
-                  <AddToPlaylistItems trackIds={() => [track.id]} />
-                  <hr class="menu-divider" />
-                </Show>
-                <Show when={track.artist}>
-                  {(artist) => (
-                    <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="menu-item" role="menuitem">
-                      Go to artist
-                    </A>
-                  )}
-                </Show>
-                <Show when={props.showContext && track.release}>
-                  {(release) => (
-                    <A href={routeTo(AppRoutes.RELEASE, release().id)} class="menu-item" role="menuitem">
-                      Go to release
-                    </A>
-                  )}
-                </Show>
-                <Show when={props.playlistId}>
-                  {(playlistId) => (
-                    <>
-                      <hr class="menu-divider" />
-                      <button
-                        class="menu-item danger"
-                        role="menuitem"
-                        onClick={() => removeFromPlaylist(playlistId(), track.id)}
-                      >
-                        Remove from this playlist
-                      </button>
-                    </>
-                  )}
-                </Show>
-              </Menu>
-            </li>
-          );
-        }}
+        {(track, index) => (
+          <PlaylistTrackRow
+            track={track}
+            number={index() + 1}
+            playlistId={props.playlistId}
+            onPlay={() => props.onPlay(index())}
+          />
+        )}
       </For>
     </ol>
+  );
+}
+
+function ReleaseTrackRow(props: { track: TrackResponse; artistId: string; onPlay: () => void }) {
+  return (
+    <TrackRow track={props.track} onPlay={props.onPlay}>
+      <TrackPlayButton track={props.track} number={props.track.position} onPlay={props.onPlay} />
+      <span class="track-main">
+        <span class="track-title">{props.track.name}</span>
+        <Show when={props.track.artist.artistId !== props.artistId}>
+          <ArtistLink track={props.track} />
+        </Show>
+      </span>
+      <TrackDuration track={props.track} />
+      <Menu kind={MenuKind.TRACK} label={`More for ${props.track.name}`}>
+        <ArtistMenuItem track={props.track} />
+      </Menu>
+    </TrackRow>
+  );
+}
+
+function PlaylistTrackRow(props: { track: PlaylistTrack; number: number; playlistId: string; onPlay: () => void }) {
+  const releasePath = () => routeTo(AppRoutes.RELEASE, props.track.release.releaseId);
+  return (
+    <TrackRow track={props.track} onPlay={props.onPlay}>
+      <TrackPlayButton track={props.track} number={props.number} onPlay={props.onPlay} />
+      <span class="track-main">
+        <span class="track-title">{props.track.name}</span>
+        <ArtistLink track={props.track} />
+      </span>
+      <span class="track-release">
+        <A href={releasePath()}>{props.track.release.name}</A>
+      </span>
+      <TrackDuration track={props.track} />
+      <Menu kind={MenuKind.TRACK} label={`More for ${props.track.name}`}>
+        <AddToPlaylistItems trackIds={() => [props.track.trackId]} />
+        <hr class="menu-divider" />
+        <ArtistMenuItem track={props.track} />
+        <A href={releasePath()} class="menu-item" role="menuitem">
+          Go to release
+        </A>
+        <hr class="menu-divider" />
+        <button
+          class="menu-item danger"
+          role="menuitem"
+          onClick={() => removeFromPlaylist(props.playlistId, props.track.trackId)}
+        >
+          Remove from this playlist
+        </button>
+      </Menu>
+    </TrackRow>
+  );
+}
+
+// A track's row, which plays it on click and is marked while it's the player's.
+function TrackRow(props: { track: TrackResponse; onPlay: () => void; children: JSX.Element }) {
+  // Links and buttons inside the row do their own thing.
+  const onRowClick = (event: MouseEvent) => {
+    if (!(event.target instanceof Element && event.target.closest("a, button, .menu"))) {
+      props.onPlay();
+    }
+  };
+  return (
+    <li class="track-row" classList={{ current: current()?.id === props.track.trackId }} onClick={onRowClick}>
+      {props.children}
+    </li>
+  );
+}
+
+// The track's number, or bars while it plays, which turns into a play button on hover.
+function TrackPlayButton(props: { track: TrackResponse; number: number; onPlay: () => void }) {
+  const playing = () => current()?.id === props.track.trackId && playback() === Playback.PLAYING;
+  return (
+    <button class="track-play" aria-label={`Play ${props.track.name}`} onClick={() => props.onPlay()}>
+      <Show when={playing()} fallback={<span class="track-number">{props.number}</span>}>
+        <span class="bars" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </Show>
+      <span class="track-play-icon">
+        <PlayIcon size={14} />
+      </span>
+    </button>
+  );
+}
+
+function TrackDuration(props: { track: TrackResponse }) {
+  return <span class="track-duration">{formatTime(props.track.duration)}</span>;
+}
+
+function ArtistLink(props: { track: TrackResponse }) {
+  return (
+    <A href={routeTo(AppRoutes.ARTIST, props.track.artist.artistId)} class="track-sub">
+      {props.track.artist.name}
+    </A>
+  );
+}
+
+function ArtistMenuItem(props: { track: TrackResponse }) {
+  return (
+    <A href={routeTo(AppRoutes.ARTIST, props.track.artist.artistId)} class="menu-item" role="menuitem">
+      Go to artist
+    </A>
   );
 }

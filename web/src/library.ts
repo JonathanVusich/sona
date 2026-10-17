@@ -1,5 +1,13 @@
 import { createSignal } from "solid-js";
 import { updateById } from "./collections";
+import {
+  ReleaseGroupType as ApiReleaseGroupType,
+  type ArtistResponse,
+  type EditionResponse,
+  type LabelResponse,
+  type ReleaseGroupSummaryResponse,
+  type TrackResponse,
+} from "./api/responses";
 import type { PickedFile } from "./audioFiles";
 
 // Mocked music library held in memory; it resets on reload. Modelled on MusicBrainz: an artist has release groups
@@ -520,4 +528,97 @@ function importRelease(files: PickedFile[]) {
   }
   setReleases((all) => [...all, release]);
   setTracks((all) => ({ ...all, ...Object.fromEntries(newTracks.map((track) => [track.id, track])) }));
+}
+
+// The mocked library as Sona's API would serve it, so pages and components take the API's types whether their data is
+// real or mocked. These conversions go when the mocked library does.
+
+export function summaryResponse(group: ReleaseGroup): ReleaseGroupSummaryResponse {
+  return {
+    releaseGroupId: group.id,
+    name: group.title,
+    type: apiType(group.type),
+    firstReleaseDate: mockDate(groupYear(group.id)),
+    artist: artistResponse(artistById(group.artistId)),
+  };
+}
+
+/**
+ * @returns the track as a release's track list shows it, by its release's artist
+ */
+export function trackResponse(track: Track): TrackResponse {
+  const context = trackContext(track);
+  if (context === null) {
+    throw new Error("Only a track still in the mocked library has a response.");
+  }
+  return {
+    trackId: track.id,
+    name: track.title,
+    duration: track.duration,
+    position: track.number,
+    artist: artistResponse(context.artist),
+  };
+}
+
+function apiType(type: ReleaseGroupType): ApiReleaseGroupType {
+  switch (type) {
+    case ReleaseGroupType.ALBUM:
+      return ApiReleaseGroupType.ALBUM;
+    case ReleaseGroupType.EP:
+      return ApiReleaseGroupType.EP;
+    case ReleaseGroupType.SINGLE:
+      return ApiReleaseGroupType.SINGLE;
+  }
+}
+
+function artistResponse(artist: Artist | undefined): ArtistResponse {
+  if (artist === undefined) {
+    throw new Error("Every release group and track in the mocked library has an artist.");
+  }
+  return { artistId: artist.id, name: artist.name };
+}
+
+export function editionResponse(release: Release): EditionResponse {
+  return {
+    releaseId: release.id,
+    name: release.title,
+    date: mockDate(release.year),
+    country: release.country,
+    trackCount: tracksOfRelease(release.id).length,
+    labels: mockLabels(release.label),
+    formats: [release.format],
+  };
+}
+
+function mockDate(year: number | null): string | null {
+  if (year === null) {
+    return null;
+  }
+  return `${year}-01-01`;
+}
+
+function mockLabels(label: string | null): LabelResponse[] {
+  if (label === null) {
+    return [];
+  }
+  return [{ labelId: label, name: label }];
+}
+
+// Stand-ins for sections of real pages whose data Sona doesn't serve yet (docs/GAPS.md), so the pages keep their
+// layout. Each is drawn from the mocked library's first release group, and credited to the real page's artist.
+
+export function placeholderGroups(artist: ArtistResponse): ReleaseGroupSummaryResponse[] {
+  const group = groups()[0];
+  if (group === undefined) {
+    return [];
+  }
+  return groupsOf(group.artistId).map((other) => ({ ...summaryResponse(other), artist }));
+}
+
+export function placeholderEditions(): EditionResponse[] {
+  const group = groups()[0];
+  if (group === undefined) {
+    return [];
+  }
+  return releasesOf(group.id).map(editionResponse);
 }
