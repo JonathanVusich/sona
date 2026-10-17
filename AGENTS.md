@@ -205,7 +205,9 @@ Match the surrounding code. The conventions below are consistent across the code
   `postJson(body)` rather than `send(accessToken | null, body | null)`, `playTracks(tracks)` and
   `playListedTrack(tracks, index)` rather than `playTracks(tracks, start = 0)`, `ReleaseGroupGrid` and
   `DiscographyGrid` rather than one grid with a `subtitle` mode. Share the common work in helpers that take only what
-  every case has. `null` is for data that can genuinely be absent, never for picking a case.
+  every case has. In the frontend, `null` is for data that can genuinely be absent, never for picking a case. On the
+  backend an optional parameter may be null and passed straight through (`@RequestParam(required = false) UUID after`
+  for the first page), with its doc comment saying what null means.
 
 **Spring**
 - Interface + `Default*` / provider-named implementation (`IngestionEngine` → `DefaultIngestionEngine`,
