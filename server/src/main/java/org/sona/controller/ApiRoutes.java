@@ -37,6 +37,8 @@ public final class ApiRoutes {
     public static final String RELEASE = RELEASES + "/{releaseId}";
     public static final String RELEASE_GROUPS = API + "/release-groups";
     public static final String RELEASE_GROUP = RELEASE_GROUPS + "/{releaseGroupId}";
+    public static final String ARTISTS = API + "/artists";
+    public static final String ARTIST = ARTISTS + "/{artistId}";
 
     public static final String JWKS = "/.well-known/jwks.json";
 }

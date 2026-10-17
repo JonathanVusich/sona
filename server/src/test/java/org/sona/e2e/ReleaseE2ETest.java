@@ -68,9 +68,9 @@ class ReleaseE2ETest {
 
     @Test
     void aReleaseListsItsTracksDiscByDiscWithEachTracksArtist(final Page page) {
-        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, uuidv7()));
-        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
-        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, uuidv7()));
+        final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, 0, uuidv7()));
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var release = insertRelease(various, "Britpop", "Parlophone");
         final var disc1 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
         final var disc2 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD"))).getFirst();
@@ -91,7 +91,7 @@ class ReleaseE2ETest {
 
     @Test
     void aSingleDiscReleaseNamesNeitherTheDiscNorTheReleasesOwnArtistOnEachTrack(final Page page) {
-        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, uuidv7()));
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
         final var disc = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
         insertTrack(disc, coldplay, "Yellow");

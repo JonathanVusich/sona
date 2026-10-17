@@ -4,8 +4,10 @@ import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.sona.exception.ClientException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
@@ -22,6 +24,15 @@ public final class ApiExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch() {
+        return handleClientException(new ClientException(ErrorCode.INVALID_PARAMETER));
+    }
+
+    /**
+     * A parameter that breaks the endpoint's Jakarta validation constraints ({@code @Min}, {@code @Max}, ...), or a
+     * {@code @Valid} request body whose fields break theirs.
+     */
+    @ExceptionHandler({HandlerMethodValidationException.class, MethodArgumentNotValidException.class})
+    public ResponseEntity<ErrorResponse> handleConstraintViolation() {
         return handleClientException(new ClientException(ErrorCode.INVALID_PARAMETER));
     }
 }

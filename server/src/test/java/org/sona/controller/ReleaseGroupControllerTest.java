@@ -164,7 +164,7 @@ class ReleaseGroupControllerTest {
     }
 
     private Artist insertArtist(final String name) {
-        return artistDao.upsert(new Artist(uuidv7(), name, "GB", null, uuidv7()));
+        return artistDao.upsert(new Artist(uuidv7(), name, "GB", null, 0, uuidv7()));
     }
 
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name) {

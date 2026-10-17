@@ -1,16 +1,21 @@
 package org.sona.db;
 
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.sona.mappers.ArtistMapper;
 import org.sona.model.tables.pojos.Artist;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.jooq.impl.DSL.excluded;
+import static org.jooq.impl.DSL.noCondition;
+import static org.jooq.impl.DSL.row;
+import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.ARTIST;
 
 @Component
@@ -42,5 +47,43 @@ public class ArtistDao {
         return dsl.selectFrom(ARTIST)
                 .where(ARTIST.MUSICBRAINZ_ARTIST_ID.eq(musicbrainzArtistId))
                 .fetchOptional(mapper::fromRecord);
+    }
+
+    /**
+     * Only artists with a release group in the library are listed: one credited only on a track has no page of
+     * their own yet.
+     *
+     * @return the first {@code size} listed artists, by name
+     */
+    public List<Artist> loadFirstPage(final int size) {
+        return loadPage(noCondition(), size);
+    }
+
+    /**
+     * Names repeat, so IDs break ties, and the page picks up after the name and ID of the last artist on the page
+     * before.
+     *
+     * @param after the last artist of the page before; an artist who isn't stored has no page after them
+     * @return up to {@code size} listed artists, by name, who come after {@code after}
+     */
+    public List<Artist> loadNextPage(final UUID after, final int size) {
+        return loadPage(afterArtist(after), size);
+    }
+
+    private List<Artist> loadPage(final Condition start, final int size) {
+        return dsl.selectFrom(ARTIST)
+                .where(ARTIST.RELEASE_GROUP_COUNT.gt(0))
+                .and(start)
+                .orderBy(ARTIST.NAME, ARTIST.ARTIST_ID)
+                .limit(size)
+                .fetch(mapper::fromRecord);
+    }
+
+    private static Condition afterArtist(final UUID after) {
+        final var last = ARTIST.as("last");
+        final var lastKey = select(last.NAME, last.ARTIST_ID)
+                .from(last)
+                .where(last.ARTIST_ID.eq(after));
+        return row(ARTIST.NAME, ARTIST.ARTIST_ID).gt(lastKey);
     }
 }

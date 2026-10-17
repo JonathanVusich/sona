@@ -6,10 +6,12 @@ create table if not exists artist (
     country text,
     -- Null when there's no image of the artist.
     thumbnail_path text,
+    -- How many of the artist's release groups are in the library, kept up to date by a trigger on release_group.
+    release_group_count integer not null default 0,
 
     -- Null when the artist isn't in MusicBrainz.
     musicbrainz_artist_id uuid unique
 );
 
--- Lists artists by name.
-create index if not exists artist_name_idx on artist (name, artist_id);
+-- Lists artists by name. Only those with a release group in the library are listed.
+create index if not exists artist_name_idx on artist (name, artist_id) where release_group_count > 0;

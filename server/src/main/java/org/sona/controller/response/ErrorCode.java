@@ -35,6 +35,7 @@ public enum ErrorCode {
 
     RELEASE_NOT_FOUND(300, HttpStatus.NOT_FOUND, "This release isn't in the library."),
     RELEASE_GROUP_NOT_FOUND(301, HttpStatus.NOT_FOUND, "This release group isn't in the library."),
+    ARTIST_NOT_FOUND(302, HttpStatus.NOT_FOUND, "This artist isn't in the library."),
 
     INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter Sona can't read.");
 
