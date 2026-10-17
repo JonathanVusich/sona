@@ -1,9 +1,9 @@
 import { A, useNavigate } from "@solidjs/router";
 import { For, Show } from "solid-js";
-import { Mosaic } from "../components/Cover";
-import PageLayout from "../components/PageLayout";
+import { CoverSize, Mosaic } from "../components/Cover";
+import { PageBody, PageHead } from "../components/PageLayout";
 import { openNewPlaylistDialog } from "../components/PlaylistDialog";
-import { PageHeader } from "../components/Section";
+import { PageAction, PageHeader, PageMeta } from "../components/Section";
 import { plural } from "../format";
 import { trackContext, tracksOf } from "../library";
 import { myPlaylists, type Playlist } from "../playlists";
@@ -26,28 +26,30 @@ export default function Playlists() {
   const create = () => openNewPlaylistDialog([], (created) => navigate(routeTo(AppRoutes.PLAYLIST, created.id)));
 
   return (
-    <PageLayout
-      header={
-        <PageHeader
-          title="Playlists"
-          meta={plural(myPlaylists().length, "playlist")}
-          action={<button onClick={create}>New playlist</button>}
-        />
-      }
-    >
-      <Show when={myPlaylists().length > 0} fallback={<p class="empty">You haven't made any playlists yet.</p>}>
-        <div class="card-grid">
-          <For each={myPlaylists()}>
-            {(playlist) => (
-              <A href={routeTo(AppRoutes.PLAYLIST, playlist.id)} class="card-link">
-                <Mosaic seeds={coverSeeds(playlist)} />
-                <div class="card-title">{playlist.name}</div>
-                <div class="card-subtitle">{plural(tracksOf(playlist.trackIds).length, "song")}</div>
-              </A>
-            )}
-          </For>
-        </div>
-      </Show>
-    </PageLayout>
+    <>
+      <PageHead>
+        <PageHeader title="Playlists">
+          <PageMeta>{plural(myPlaylists().length, "playlist")}</PageMeta>
+          <PageAction>
+            <button onClick={create}>New playlist</button>
+          </PageAction>
+        </PageHeader>
+      </PageHead>
+      <PageBody>
+        <Show when={myPlaylists().length > 0} fallback={<p class="empty">You haven't made any playlists yet.</p>}>
+          <div class="card-grid">
+            <For each={myPlaylists()}>
+              {(playlist) => (
+                <A href={routeTo(AppRoutes.PLAYLIST, playlist.id)} class="card-link">
+                  <Mosaic seeds={coverSeeds(playlist)} size={CoverSize.CARD} />
+                  <div class="card-title">{playlist.name}</div>
+                  <div class="card-subtitle">{plural(tracksOf(playlist.trackIds).length, "song")}</div>
+                </A>
+              )}
+            </For>
+          </div>
+        </Show>
+      </PageBody>
+    </>
   );
 }

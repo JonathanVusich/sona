@@ -1,11 +1,11 @@
 import { A, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { CardLayout, DiscographyGrid } from "../components/Cards";
-import Cover from "../components/Cover";
+import Cover, { CoverSize } from "../components/Cover";
 import EditionList from "../components/EditionList";
-import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
-import Menu from "../components/Menu";
-import PageLayout from "../components/PageLayout";
+import { PlayIcon, ShuffleIcon } from "../components/Icons";
+import Menu, { MenuKind } from "../components/Menu";
+import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import { AddToPlaylistItems } from "../components/PlaylistDialog";
 import Section from "../components/Section";
 import TrackList, { trackRow } from "../components/TrackList";
@@ -20,7 +20,7 @@ export default function ReleaseGroupDetail() {
   const params = useParams<{ id: string }>();
 
   return (
-    <Show when={groupById(params.id)} fallback={<PageLayout header={<p class="empty">This release isn't in the library.</p>} />}>
+    <Show when={groupById(params.id)} fallback={<PageMessage message="This release isn't in the library." />}>
       {(group) => {
         const artist = () => artistById(group().artistId);
         const editions = () => releasesOf(group().id);
@@ -32,10 +32,10 @@ export default function ReleaseGroupDetail() {
         const moreByArtist = () => groupsOf(group().artistId).filter((other) => other.id !== group().id);
 
         return (
-          <PageLayout
-            header={
+          <>
+            <PageHead>
               <header class="detail-header">
-                <Cover seed={group().title} class="detail-cover" />
+                <Cover seed={group().title} size={CoverSize.DETAIL} />
                 <div class="detail-info">
                   <span class="eyebrow">{group().type}</span>
                   <h1>{group().title}</h1>
@@ -58,29 +58,30 @@ export default function ReleaseGroupDetail() {
                     <button onClick={() => shufflePlay(tracks())}>
                       <ShuffleIcon size={16} /> Shuffle
                     </button>
-                    <Menu label="More" icon={<MoreIcon size={18} />}>
+                    <Menu kind={MenuKind.ACTIONS} label="More">
                       <AddToPlaylistItems trackIds={() => tracks().map((track) => track.id)} />
                     </Menu>
                   </div>
                 </div>
               </header>
-            }
-          >
-            <TrackList
-              tracks={tracks().map(trackRow)}
-              showContext={false}
-              artistId={group().artistId}
-              onPlay={(index) => playListedTrack(tracks(), index)}
-            />
-            <Section title={editions().length === 1 ? "Edition" : "Editions"}>
-              <EditionList releases={editions()} />
-            </Section>
-            <Show when={moreByArtist().length > 0}>
-              <Section title={`More by ${artist()?.name ?? "this artist"}`}>
-                <DiscographyGrid groups={moreByArtist()} layout={CardLayout.ROW} />
+            </PageHead>
+            <PageBody>
+              <TrackList
+                tracks={tracks().map(trackRow)}
+                showContext={false}
+                artistId={group().artistId}
+                onPlay={(index) => playListedTrack(tracks(), index)}
+              />
+              <Section title={editions().length === 1 ? "Edition" : "Editions"}>
+                <EditionList releases={editions()} />
               </Section>
-            </Show>
-          </PageLayout>
+              <Show when={moreByArtist().length > 0}>
+                <Section title={`More by ${artist()?.name ?? "this artist"}`}>
+                  <DiscographyGrid groups={moreByArtist()} layout={CardLayout.ROW} />
+                </Section>
+              </Show>
+            </PageBody>
+          </>
         );
       }}
     </Show>

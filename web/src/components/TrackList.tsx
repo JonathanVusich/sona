@@ -4,8 +4,8 @@ import { formatTime } from "../format";
 import { trackContext, type Track } from "../library";
 import { current, Playback, playback } from "../player";
 import { removeFromPlaylist } from "../playlists";
-import { MoreIcon, PlayIcon } from "./Icons";
-import Menu from "./Menu";
+import { PlayIcon } from "./Icons";
+import Menu, { MenuKind } from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
 import { AppRoutes, routeTo } from "../routes";
 
@@ -90,7 +90,7 @@ export default function TrackList(props: {
                 </span>
               </Show>
               <span class="track-duration">{formatTime(track.duration)}</span>
-              <Menu label={`More for ${track.title}`} icon={<MoreIcon size={18} />} class="track-menu">
+              <Menu kind={MenuKind.TRACK} label={`More for ${track.title}`}>
                 <Show when={props.canAddToPlaylist !== false}>
                   <AddToPlaylistItems trackIds={() => [track.id]} />
                   <hr class="menu-divider" />

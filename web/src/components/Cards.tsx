@@ -12,7 +12,7 @@ import {
   type ReleaseGroup,
 } from "../library";
 import { playTracks } from "../player";
-import Cover, { ArtistAvatar } from "./Cover";
+import Cover, { ArtistAvatar, CoverSize } from "./Cover";
 import { PlayIcon } from "./Icons";
 import { AppRoutes, routeTo } from "../routes";
 
@@ -63,7 +63,7 @@ function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: string }) {
   return (
     <div class="card">
       <A href={routeTo(AppRoutes.RELEASE_GROUP, props.group.id)} class="card-link">
-        <Cover seed={props.group.title} />
+        <Cover seed={props.group.title} size={CoverSize.CARD} />
         <div class="card-title">{props.group.title}</div>
         <div class="card-subtitle">{props.subtitle}</div>
       </A>
@@ -80,7 +80,7 @@ export function ArtistGrid(props: { artists: Artist[] }) {
       <For each={props.artists}>
         {(artist) => (
           <A href={routeTo(AppRoutes.ARTIST, artist.id)} class="card-link artist-card">
-            <ArtistAvatar name={artist.name} />
+            <ArtistAvatar name={artist.name} size={CoverSize.CARD} />
             <div class="card-title">{artist.name}</div>
             <div class="card-subtitle">{plural(groupsOf(artist.id).length, "release")}</div>
           </A>

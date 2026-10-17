@@ -1,9 +1,9 @@
 import { useParams } from "@solidjs/router";
 import { For, Show } from "solid-js";
 import { CardLayout, DiscographyGrid } from "../components/Cards";
-import { ArtistAvatar } from "../components/Cover";
+import { ArtistAvatar, CoverSize } from "../components/Cover";
 import { ShuffleIcon } from "../components/Icons";
-import PageLayout from "../components/PageLayout";
+import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import { irregularPlural, plural } from "../format";
 import { artistById, canonicalRelease, groupsOf, isAlbum, tracksOfRelease, type ReleaseGroup } from "../library";
@@ -18,14 +18,17 @@ export default function ArtistDetail() {
   const params = useParams<{ id: string }>();
 
   return (
-    <Show when={artistById(params.id)} fallback={<PageLayout header={<p class="empty">This artist isn't in the library.</p>} />}>
+    <Show when={artistById(params.id)} fallback={<PageMessage message="This artist isn't in the library." />}>
       {(artist) => {
         const discography = () => groupsOf(artist().id);
         // Every song once: the original edition of each album, EP and single.
         const allTracks = () =>
           discography().flatMap((group) => {
             const release = canonicalRelease(group.id);
-            return release === undefined ? [] : tracksOfRelease(release.id);
+            if (release === undefined) {
+              return [];
+            }
+            return tracksOfRelease(release.id);
           });
         const albumCount = () => discography().filter(isAlbum).length;
         const counts = () => [
@@ -34,10 +37,10 @@ export default function ArtistDetail() {
         ];
 
         return (
-          <PageLayout
-            header={
+          <>
+            <PageHead>
               <header class="detail-header">
-                <ArtistAvatar name={artist().name} class="detail-cover" />
+                <ArtistAvatar name={artist().name} size={CoverSize.DETAIL} />
                 <div class="detail-info">
                   <span class="eyebrow">Artist</span>
                   <h1>{artist().name}</h1>
@@ -51,21 +54,22 @@ export default function ArtistDetail() {
                   </div>
                 </div>
               </header>
-            }
-          >
-            <For each={SECTIONS}>
-              {({ title, include }) => {
-                const ofType = () => discography().filter(include);
-                return (
-                  <Show when={ofType().length > 0}>
-                    <Section title={title}>
-                      <DiscographyGrid groups={ofType()} layout={CardLayout.GRID} />
-                    </Section>
-                  </Show>
-                );
-              }}
-            </For>
-          </PageLayout>
+            </PageHead>
+            <PageBody>
+              <For each={SECTIONS}>
+                {({ title, include }) => {
+                  const ofType = () => discography().filter(include);
+                  return (
+                    <Show when={ofType().length > 0}>
+                      <Section title={title}>
+                        <DiscographyGrid groups={ofType()} layout={CardLayout.GRID} />
+                      </Section>
+                    </Show>
+                  );
+                }}
+              </For>
+            </PageBody>
+          </>
         );
       }}
     </Show>

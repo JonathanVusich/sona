@@ -1,10 +1,10 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { Mosaic } from "../components/Cover";
+import { CoverSize, Mosaic } from "../components/Cover";
 import { ConfirmDialog } from "../components/Dialog";
-import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
-import Menu from "../components/Menu";
-import PageLayout from "../components/PageLayout";
+import { PlayIcon, ShuffleIcon } from "../components/Icons";
+import Menu, { MenuKind } from "../components/Menu";
+import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import { openEditPlaylistDialog } from "../components/PlaylistDialog";
 import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
@@ -28,7 +28,7 @@ export default function PlaylistDetail() {
   const [action, setAction] = createSignal<PlaylistAction>(PlaylistAction.VIEWING);
 
   return (
-    <Show when={playlistById(params.id)} fallback={<PageLayout header={<p class="empty">This playlist doesn't exist.</p>} />}>
+    <Show when={playlistById(params.id)} fallback={<PageMessage message="This playlist doesn't exist." />}>
       {(playlist) => {
         const playlistTracks = () => tracksOf(playlist().trackIds);
         const total = () => playlistTracks().reduce((sum, track) => sum + track.duration, 0);
@@ -38,10 +38,10 @@ export default function PlaylistDetail() {
           deletePlaylist(id);
         };
         return (
-          <PageLayout
-            header={
+          <>
+            <PageHead>
               <header class="detail-header">
-                <Mosaic seeds={coverSeeds(playlist())} class="detail-cover" />
+                <Mosaic seeds={coverSeeds(playlist())} size={CoverSize.DETAIL} />
                 <div class="detail-info">
                   <span class="eyebrow">Playlist</span>
                   <h1>{playlist().name}</h1>
@@ -58,7 +58,7 @@ export default function PlaylistDetail() {
                     <button disabled={playlistTracks().length === 0} onClick={() => shufflePlay(playlistTracks())}>
                       <ShuffleIcon size={16} /> Shuffle
                     </button>
-                    <Menu label="More" icon={<MoreIcon size={18} />}>
+                    <Menu kind={MenuKind.ACTIONS} label="More">
                       <button class="menu-item" role="menuitem" onClick={() => openEditPlaylistDialog(playlist())}>
                         Edit details
                       </button>
@@ -73,29 +73,30 @@ export default function PlaylistDetail() {
                   </div>
                 </div>
               </header>
-            }
-          >
-            <Show
-              when={playlistTracks().length > 0}
-              fallback={<p class="empty">Add songs from any album with the ⋯ button on a track.</p>}
-            >
-              <TrackList
-                tracks={playlistTracks().map(trackRow)}
-                showContext
-                playlistId={playlist().id}
-                onPlay={(index) => playListedTrack(playlistTracks(), index)}
-              />
-            </Show>
-            <Show when={action() === PlaylistAction.CONFIRMING_DELETE}>
-              <ConfirmDialog
-                title="Delete playlist?"
-                message={`"${playlist().name}" will be deleted. The songs stay in the library.`}
-                confirmLabel="Delete"
-                onConfirm={remove}
-                onClose={() => setAction(PlaylistAction.VIEWING)}
-              />
-            </Show>
-          </PageLayout>
+            </PageHead>
+            <PageBody>
+              <Show
+                when={playlistTracks().length > 0}
+                fallback={<p class="empty">Add songs from any album with the ⋯ button on a track.</p>}
+              >
+                <TrackList
+                  tracks={playlistTracks().map(trackRow)}
+                  showContext
+                  playlistId={playlist().id}
+                  onPlay={(index) => playListedTrack(playlistTracks(), index)}
+                />
+              </Show>
+              <Show when={action() === PlaylistAction.CONFIRMING_DELETE}>
+                <ConfirmDialog
+                  title="Delete playlist?"
+                  message={`"${playlist().name}" will be deleted. The songs stay in the library.`}
+                  confirmLabel="Delete"
+                  onConfirm={remove}
+                  onClose={() => setAction(PlaylistAction.VIEWING)}
+                />
+              </Show>
+            </PageBody>
+          </>
         );
       }}
     </Show>
