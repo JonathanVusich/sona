@@ -6,4 +6,5 @@ export const ApiRoutes = {
   CURRENT_USER: "/api/users/me",
   CURRENT_USER_PASSWORD: "/api/users/me/password",
   RELEASES: "/api/releases",
+  RELEASE_GROUPS: "/api/release-groups",
 } as const;

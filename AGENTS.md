@@ -253,6 +253,10 @@ Match the surrounding code. The conventions below are consistent across the code
 - User-facing flows get an `@E2ETest` (see *Adding a feature*).
 
 **Frontend (`web/`)**
+- Lists Sona serves a page at a time load the next page as the user scrolls, through `InfiniteScroll` at the end of
+  the list, everywhere in the app; never a "Show more" button.
+- When a page moves to Sona's API, sections whose data Sona doesn't serve yet stay on the page, filled from the
+  mocked library (the `placeholder…` functions in `library.ts`), and each is listed in [docs/GAPS.md](docs/GAPS.md).
 - Name API types, constants and functions after their backend counterparts: `ApiRoutes`, `ErrorCode`,
   `*Request` / `*Response` types in `web/src/api/`, verb-noun functions (`refreshSession`, `hasPermission`).
 - Every closed set of values is an enum, written as a const object with a type of the same name, and code uses its

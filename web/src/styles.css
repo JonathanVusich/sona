@@ -197,6 +197,10 @@ select {
   padding: 8px 0;
 }
 
+.infinite-scroll-end {
+  height: 1px;
+}
+
 /* Login */
 
 .login {
