@@ -29,27 +29,8 @@ const HttpMethod = {
 
 type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 
-const CredentialsKind = {
-  // Auth calls, which the refresh cookie authenticates if anything.
-  NONE: "none",
-  ACCESS_TOKEN: "access-token",
-} as const;
-
-type Credentials =
-  | { kind: typeof CredentialsKind.NONE }
-  | { kind: typeof CredentialsKind.ACCESS_TOKEN; accessToken: string };
-
-const BodyKind = {
-  NONE: "none",
-  JSON: "json",
-} as const;
-
-type RequestBody =
-  | { kind: typeof BodyKind.NONE }
-  | { kind: typeof BodyKind.JSON; json: LoginRequest | ChangePasswordRequest };
-
-const NO_CREDENTIALS: Credentials = { kind: CredentialsKind.NONE };
-const NO_BODY: RequestBody = { kind: BodyKind.NONE };
+// What a request sends as JSON.
+type RequestBody = LoginRequest | ChangePasswordRequest;
 
 const UNREACHABLE: ApiFailure = {
   kind: FailureKind.FAILED,
@@ -58,45 +39,37 @@ const UNREACHABLE: ApiFailure = {
 const SERVER_ERROR: ApiFailure = { kind: FailureKind.FAILED, reason: "Something went wrong. Try again." };
 
 export async function login(request: LoginRequest): Promise<ApiResult<TokenResponse>> {
-  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_TOKEN, NO_CREDENTIALS, jsonBody(request));
+  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_TOKEN, null, request);
 }
 
 export async function refreshTokens(): Promise<ApiResult<TokenResponse>> {
-  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_REFRESH, NO_CREDENTIALS, NO_BODY);
+  return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_REFRESH, null, null);
 }
 
 export async function logout(): Promise<ApiResult<void>> {
-  return sendForNothing(HttpMethod.POST, ApiRoutes.AUTH_LOGOUT, NO_CREDENTIALS, NO_BODY);
+  return sendForNothing(HttpMethod.POST, ApiRoutes.AUTH_LOGOUT, null, null);
 }
 
 export async function fetchCurrentUser(accessToken: string): Promise<ApiResult<CurrentUserResponse>> {
-  return sendForJson(HttpMethod.GET, ApiRoutes.CURRENT_USER, bearer(accessToken), NO_BODY);
+  return sendForJson(HttpMethod.GET, ApiRoutes.CURRENT_USER, accessToken, null);
 }
 
 export async function changePassword(accessToken: string, request: ChangePasswordRequest): Promise<ApiResult<void>> {
-  return sendForNothing(HttpMethod.POST, ApiRoutes.CURRENT_USER_PASSWORD, bearer(accessToken), jsonBody(request));
+  return sendForNothing(HttpMethod.POST, ApiRoutes.CURRENT_USER_PASSWORD, accessToken, request);
 }
 
 export async function fetchRelease(accessToken: string, releaseId: string): Promise<ApiResult<ReleaseResponse>> {
   const path = `${ApiRoutes.RELEASES}/${encodeURIComponent(releaseId)}`;
-  return sendForJson(HttpMethod.GET, path, bearer(accessToken), NO_BODY);
-}
-
-function bearer(accessToken: string): Credentials {
-  return { kind: CredentialsKind.ACCESS_TOKEN, accessToken };
-}
-
-function jsonBody(json: LoginRequest | ChangePasswordRequest): RequestBody {
-  return { kind: BodyKind.JSON, json };
+  return sendForJson(HttpMethod.GET, path, accessToken, null);
 }
 
 async function sendForJson<T>(
   method: HttpMethod,
   path: string,
-  credentials: Credentials,
-  body: RequestBody,
+  accessToken: string | null,
+  body: RequestBody | null,
 ): Promise<ApiResult<T>> {
-  const result = await sendRequest(method, path, credentials, body);
+  const result = await sendRequest(method, path, accessToken, body);
   if (!result.ok) {
     return result;
   }
@@ -106,10 +79,10 @@ async function sendForJson<T>(
 async function sendForNothing(
   method: HttpMethod,
   path: string,
-  credentials: Credentials,
-  body: RequestBody,
+  accessToken: string | null,
+  body: RequestBody | null,
 ): Promise<ApiResult<void>> {
-  const result = await sendRequest(method, path, credentials, body);
+  const result = await sendRequest(method, path, accessToken, body);
   if (!result.ok) {
     return result;
   }
@@ -119,15 +92,15 @@ async function sendForNothing(
 async function sendRequest(
   method: HttpMethod,
   path: string,
-  credentials: Credentials,
-  body: RequestBody,
+  accessToken: string | null,
+  body: RequestBody | null,
 ): Promise<ApiResult<Response>> {
   let response: Response;
   // The one place the frontend catches: fetch rejects when Sona can't be reached at all.
   try {
     response = await fetch(path, {
       method,
-      headers: { ...authorizationHeader(credentials), ...contentTypeHeader(body) },
+      headers: { ...authorizationHeader(accessToken), ...contentTypeHeader(body) },
       body: requestBodyText(body),
     });
   } catch {
@@ -144,30 +117,26 @@ async function sendRequest(
   return { ok: false, failure: SERVER_ERROR };
 }
 
-function authorizationHeader(credentials: Credentials): Record<string, string> {
-  switch (credentials.kind) {
-    case CredentialsKind.NONE:
-      return {};
-    case CredentialsKind.ACCESS_TOKEN:
-      return { Authorization: `Bearer ${credentials.accessToken}` };
+/**
+ * @param accessToken null for the auth calls, which the refresh cookie authenticates if anything
+ */
+function authorizationHeader(accessToken: string | null): Record<string, string> {
+  if (accessToken === null) {
+    return {};
   }
+  return { Authorization: `Bearer ${accessToken}` };
 }
 
-function contentTypeHeader(body: RequestBody): Record<string, string> {
-  switch (body.kind) {
-    case BodyKind.NONE:
-      return {};
-    case BodyKind.JSON:
-      return { "Content-Type": "application/json" };
+function contentTypeHeader(body: RequestBody | null): Record<string, string> {
+  if (body === null) {
+    return {};
   }
+  return { "Content-Type": "application/json" };
 }
 
-function requestBodyText(body: RequestBody): string | null {
-  switch (body.kind) {
-    case BodyKind.NONE:
-      // fetch's own way of sending no body.
-      return null;
-    case BodyKind.JSON:
-      return JSON.stringify(body.json);
+function requestBodyText(body: RequestBody | null): string | null {
+  if (body === null) {
+    return null;
   }
+  return JSON.stringify(body);
 }

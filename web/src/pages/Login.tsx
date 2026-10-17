@@ -2,13 +2,14 @@ import { Navigate } from "@solidjs/router";
 import { createSignal, onMount, Show } from "solid-js";
 import { currentUser, logIn } from "../auth";
 import FormError from "../components/FormError";
-import { EDITING, FormStatus, SUBMITTING, submittedForm, type FormState } from "../forms";
+import { failureReason, FormStatus } from "../forms";
 import { AppRoutes } from "../routes";
 
 export default function Login() {
   const [username, setUsername] = createSignal("");
   const [password, setPassword] = createSignal("");
-  const [form, setForm] = createSignal<FormState>(EDITING);
+  const [error, setError] = createSignal<string | null>(null);
+  const [status, setStatus] = createSignal<FormStatus>(FormStatus.EDITING);
   let usernameInput: HTMLInputElement | undefined;
 
   // Focused here rather than with autofocus, which WebKit applies late enough to move focus away from a field already
@@ -18,9 +19,10 @@ export default function Login() {
   // Once logged in, the fallback below leaves this page.
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
-    setForm(SUBMITTING);
+    setStatus(FormStatus.SUBMITTING);
     const result = await logIn({ username: username().trim(), password: password() });
-    setForm(submittedForm(result));
+    setStatus(FormStatus.EDITING);
+    setError(failureReason(result));
   };
 
   return (
@@ -48,8 +50,8 @@ export default function Login() {
               required
             />
           </label>
-          <FormError form={form()} />
-          <button type="submit" class="primary" disabled={form().status === FormStatus.SUBMITTING}>
+          <FormError error={error()} />
+          <button type="submit" class="primary" disabled={status() === FormStatus.SUBMITTING}>
             Log in
           </button>
         </form>

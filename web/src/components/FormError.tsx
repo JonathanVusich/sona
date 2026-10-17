@@ -1,17 +1,10 @@
-import type { JSX } from "solid-js";
-import { FormStatus, type FormState } from "../forms";
+import { Show } from "solid-js";
 
 // Why a form's request failed, when it did.
-export default function FormError(props: { form: FormState }) {
-  return <>{formError(props.form)}</>;
-}
-
-function formError(form: FormState): JSX.Element {
-  switch (form.status) {
-    case FormStatus.FAILED:
-      return <p class="error">{form.reason}</p>;
-    case FormStatus.EDITING:
-    case FormStatus.SUBMITTING:
-      return <></>;
-  }
+export default function FormError(props: { error: string | null }) {
+  return (
+    <Show when={props.error}>
+      <p class="error">{props.error}</p>
+    </Show>
+  );
 }

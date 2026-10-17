@@ -1,42 +1,26 @@
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 
-const ToastStatus = {
-  HIDDEN: "hidden",
-  SHOWN: "shown",
-} as const;
-
-// A shown toast hides itself on a timer, which a newer toast replaces.
-type ToastState =
-  | { status: typeof ToastStatus.HIDDEN }
-  | { status: typeof ToastStatus.SHOWN; message: string; hideTimer: number };
-
-const HIDDEN: ToastState = { status: ToastStatus.HIDDEN };
-
-const [shown, setShown] = createSignal<ToastState>(HIDDEN);
+// Null while no toast is shown.
+const [message, setMessage] = createSignal<string | null>(null);
+// Hides the toast, while one is shown; a newer toast replaces it.
+let hideTimer: number | null = null;
 
 export function toast(text: string) {
-  const current = shown();
-  if (current.status === ToastStatus.SHOWN) {
-    window.clearTimeout(current.hideTimer);
+  setMessage(text);
+  if (hideTimer !== null) {
+    window.clearTimeout(hideTimer);
   }
-  const hideTimer = window.setTimeout(() => setShown(HIDDEN), 2400);
-  setShown({ status: ToastStatus.SHOWN, message: text, hideTimer });
+  hideTimer = window.setTimeout(() => {
+    setMessage(null);
+    hideTimer = null;
+  }, 2400);
 }
 
 export default function Toast() {
   // Always rendered so screen readers announce changes to it.
   return (
-    <div class="toast" classList={{ visible: shown().status === ToastStatus.SHOWN }} role="status">
-      {toastMessage(shown())}
+    <div class="toast" classList={{ visible: message() !== null }} role="status">
+      <Show when={message()}>{(shown) => shown()}</Show>
     </div>
   );
-}
-
-function toastMessage(toast: ToastState): string {
-  switch (toast.status) {
-    case ToastStatus.HIDDEN:
-      return "";
-    case ToastStatus.SHOWN:
-      return toast.message;
-  }
 }

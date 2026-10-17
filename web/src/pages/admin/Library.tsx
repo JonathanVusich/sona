@@ -1,5 +1,5 @@
 import { A, Navigate } from "@solidjs/router";
-import { createSignal, For, Show, type JSX } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import Cover from "../../components/Cover";
 import Dialog, { ConfirmDialog } from "../../components/Dialog";
 import PageLayout from "../../components/PageLayout";
@@ -30,23 +30,11 @@ function rowFor(release: Release) {
   return { release, group, artist };
 }
 
-const ReleaseAction = {
-  BROWSING: "browsing",
-  EDITING: "editing",
-  REMOVING: "removing",
-} as const;
-
-// What the admin is doing to a release, if anything.
-type ReleaseActionState =
-  | { status: typeof ReleaseAction.BROWSING }
-  | { status: typeof ReleaseAction.EDITING; release: Release }
-  | { status: typeof ReleaseAction.REMOVING; release: Release };
-
-const BROWSING: ReleaseActionState = { status: ReleaseAction.BROWSING };
-
 export default function Library() {
   const [query, setQuery] = createSignal("");
-  const [action, setAction] = createSignal<ReleaseActionState>(BROWSING);
+  // Null while no release is being edited or removed.
+  const [editing, setEditing] = createSignal<Release | null>(null);
+  const [removing, setRemoving] = createSignal<Release | null>(null);
 
   const rows = () => {
     const needle = query().trim().toLowerCase();
@@ -128,12 +116,12 @@ export default function Library() {
                     <td>{release.label ?? <span class="muted">—</span>}</td>
                     <td class="numeric">{tracksOfRelease(release.id).length}</td>
                     <td class="admin-actions">
-                      <button class="quiet" onClick={() => setAction({ status: ReleaseAction.EDITING, release })}>
+                      <button class="quiet" onClick={() => setEditing(release)}>
                         Edit
                       </button>
                       <button
                         class="quiet danger"
-                        onClick={() => setAction({ status: ReleaseAction.REMOVING, release })}
+                        onClick={() => setRemoving(release)}
                       >
                         Remove
                       </button>
@@ -145,33 +133,27 @@ export default function Library() {
           </table>
         </div>
 
-        {releaseDialog(action(), () => setAction(BROWSING))}
+        <Show when={editing()}>
+          {(release) => (
+            <Dialog title="Edit release" onClose={() => setEditing(null)}>
+              <EditReleaseForm release={release()} onDone={() => setEditing(null)} />
+            </Dialog>
+          )}
+        </Show>
+        <Show when={removing()}>
+          {(release) => (
+            <ConfirmDialog
+              title="Remove release?"
+              message={`"${release().title}" and its tracks will be removed from the library for everyone.`}
+              confirmLabel="Remove"
+              onConfirm={() => removeRelease(release().id)}
+              onClose={() => setRemoving(null)}
+            />
+          )}
+        </Show>
       </PageLayout>
     </Show>
   );
-}
-
-function releaseDialog(action: ReleaseActionState, close: () => void): JSX.Element {
-  switch (action.status) {
-    case ReleaseAction.BROWSING:
-      return <></>;
-    case ReleaseAction.EDITING:
-      return (
-        <Dialog title="Edit release" onClose={close}>
-          <EditReleaseForm release={action.release} onDone={close} />
-        </Dialog>
-      );
-    case ReleaseAction.REMOVING:
-      return (
-        <ConfirmDialog
-          title="Remove release?"
-          message={`"${action.release.title}" and its tracks will be removed from the library for everyone.`}
-          confirmLabel="Remove"
-          onConfirm={() => removeRelease(action.release.id)}
-          onClose={close}
-        />
-      );
-  }
 }
 
 function EditReleaseForm(props: { release: Release; onDone: () => void }) {

@@ -7,30 +7,10 @@ import { ErrorCode, Permission, type CurrentUserResponse, type TokenResponse } f
 // The access token is kept in memory only. The refresh token is in an HttpOnly cookie that scripts can't read, so a
 // reload restores the session by refreshing it.
 
-const SessionStatus = {
-  SIGNED_OUT: "signed-out",
-  SIGNED_IN: "signed-in",
-} as const;
-
-// A signed-in session refreshes its tokens on a timer before they expire.
-type Session =
-  | { status: typeof SessionStatus.SIGNED_OUT }
-  | {
-      status: typeof SessionStatus.SIGNED_IN;
-      accessToken: string;
-      user: CurrentUserResponse;
-      refreshTimer: ReturnType<typeof setTimeout>;
-    };
-
-const RefreshStatus = {
-  IDLE: "idle",
-  REFRESHING: "refreshing",
-} as const;
-
-// A refresh in progress, which every caller that asks while it runs waits for.
-type Refresh =
-  | { status: typeof RefreshStatus.IDLE }
-  | { status: typeof RefreshStatus.REFRESHING; refreshed: Promise<boolean> };
+interface Session {
+  accessToken: string;
+  user: CurrentUserResponse;
+}
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.LIBRARY_READ]: "read",
@@ -52,23 +32,19 @@ const NOT_SIGNED_IN: ApiResult<never> = {
   ok: false,
   failure: { kind: FailureKind.REFUSED, code: ErrorCode.NOT_SIGNED_IN, reason: "Sign in to continue." },
 };
-const SIGNED_OUT: Session = { status: SessionStatus.SIGNED_OUT };
-const IDLE: Refresh = { status: RefreshStatus.IDLE };
 
-const [session, setSession] = createSignal<Session>(SIGNED_OUT);
-let refresh: Refresh = IDLE;
+// Null while nobody is signed in.
+const [session, setSession] = createSignal<Session | null>(null);
+// Refreshes the tokens before they expire, while someone is signed in.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+// The refresh in progress, which every caller that asks while it runs waits for.
+let pendingRefresh: Promise<boolean> | null = null;
 
 /**
  * @returns the signed-in user, or null when nobody is signed in
  */
 export function currentUser(): CurrentUserResponse | null {
-  const current = session();
-  switch (current.status) {
-    case SessionStatus.SIGNED_OUT:
-      return null;
-    case SessionStatus.SIGNED_IN:
-      return current.user;
-  }
+  return session()?.user ?? null;
 }
 
 // Tells the other tabs that the session changed, so they restore it from the cookie they share.
@@ -104,7 +80,7 @@ export async function logOut(): Promise<void> {
  */
 export async function changePassword(request: ChangePasswordRequest): Promise<ApiResult<void>> {
   const current = session();
-  if (current.status === SessionStatus.SIGNED_OUT) {
+  if (current === null) {
     return NOT_SIGNED_IN;
   }
   const changed = await sendAsCurrentUser((accessToken) => api.changePassword(accessToken, request));
@@ -135,12 +111,10 @@ export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promis
 
 async function sendWithSession<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
   const current = session();
-  switch (current.status) {
-    case SessionStatus.SIGNED_OUT:
-      return NOT_SIGNED_IN;
-    case SessionStatus.SIGNED_IN:
-      return call(current.accessToken);
+  if (current === null) {
+    return NOT_SIGNED_IN;
   }
+  return call(current.accessToken);
 }
 
 function isNotSignedIn(failure: ApiFailure): boolean {
@@ -153,20 +127,9 @@ function isNotSignedIn(failure: ApiFailure): boolean {
  * @returns whether the session is still going
  */
 async function refreshSession(): Promise<boolean> {
-  const refreshed = await runningRefresh();
-  refresh = IDLE;
-  return refreshed;
-}
-
-/**
- * @returns the refresh in progress, starting one if none is
- */
-function runningRefresh(): Promise<boolean> {
-  if (refresh.status === RefreshStatus.REFRESHING) {
-    return refresh.refreshed;
-  }
-  const refreshed = refreshSessionLocked();
-  refresh = { status: RefreshStatus.REFRESHING, refreshed };
+  pendingRefresh ??= refreshSessionLocked();
+  const refreshed = await pendingRefresh;
+  pendingRefresh = null;
   return refreshed;
 }
 
@@ -210,22 +173,22 @@ async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
   if (!user.ok) {
     return user;
   }
+  setSession({ accessToken: tokens.accessToken, user: user.body });
   stopRefreshTimer();
   // A minute early, or halfway through for tokens that last less than two minutes.
   const refreshIn = Math.max(tokens.expiresIn - 60, tokens.expiresIn / 2);
-  const refreshTimer = setTimeout(refreshSession, refreshIn * 1000);
-  setSession({ status: SessionStatus.SIGNED_IN, accessToken: tokens.accessToken, user: user.body, refreshTimer });
+  refreshTimer = setTimeout(refreshSession, refreshIn * 1000);
   return SUCCEEDED;
 }
 
 function endSession() {
   stopRefreshTimer();
-  setSession(SIGNED_OUT);
+  setSession(null);
 }
 
 function stopRefreshTimer() {
-  const current = session();
-  if (current.status === SessionStatus.SIGNED_IN) {
-    clearTimeout(current.refreshTimer);
+  if (refreshTimer !== null) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
   }
 }

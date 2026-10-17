@@ -9,18 +9,9 @@ import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, V
 import Slider, { SliderSize, SliderStatus } from "./Slider";
 import { AppRoutes, routeTo } from "../routes";
 
-const ScrubStatus = {
-  IDLE: "idle",
-  // While the scrub thumb is held, the bar shows where it is instead of the playback position.
-  HELD: "held",
-} as const;
-
-type Scrub = { status: typeof ScrubStatus.IDLE } | { status: typeof ScrubStatus.HELD; seconds: number };
-
-const IDLE: Scrub = { status: ScrubStatus.IDLE };
-
 export default function PlayerBar() {
-  const [scrub, setScrub] = createSignal<Scrub>(IDLE);
+  // While the scrub thumb is held, where it is, which the bar shows instead of the playback position; null otherwise.
+  const [scrub, setScrub] = createSignal<number | null>(null);
   const track = player.current;
   const context = () => {
     const playingTrack = track();
@@ -30,15 +21,7 @@ export default function PlayerBar() {
     return contextOf(playingTrack);
   };
   const duration = () => track()?.duration ?? 0;
-  const shownPosition = () => {
-    const current = scrub();
-    switch (current.status) {
-      case ScrubStatus.IDLE:
-        return player.position();
-      case ScrubStatus.HELD:
-        return current.seconds;
-    }
-  };
+  const shownPosition = () => scrub() ?? player.position();
   const shownVolume = () => {
     switch (player.sound()) {
       case Sound.ON:
@@ -74,10 +57,10 @@ export default function PlayerBar() {
           step={5}
           status={seekStatus(track())}
           valueText={`${formatTime(shownPosition())} of ${formatTime(duration())}`}
-          onInput={(seconds) => setScrub({ status: ScrubStatus.HELD, seconds })}
+          onInput={setScrub}
           onCommit={(seconds) => {
             player.seek(seconds);
-            setScrub(IDLE);
+            setScrub(null);
           }}
         />
       </div>

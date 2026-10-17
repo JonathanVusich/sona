@@ -1,54 +1,47 @@
-import { createSignal, For, type JSX } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { addToPlaylist, createPlaylist, myPlaylists, updatePlaylist, type Playlist } from "../playlists";
 import Dialog from "./Dialog";
 import { toast } from "./Toast";
 
-export const PlaylistDialogStatus = {
-  CLOSED: "closed",
-  CREATING: "creating",
-  EDITING: "editing",
-} as const;
-
 // Creating a playlist puts the given tracks on it, then hands the new playlist on.
-export type PlaylistDialogState =
-  | { status: typeof PlaylistDialogStatus.CLOSED }
-  | {
-      status: typeof PlaylistDialogStatus.CREATING;
-      trackIds: string[];
-      onCreated: (playlist: Playlist) => void;
-    }
-  | { status: typeof PlaylistDialogStatus.EDITING; playlist: Playlist };
+interface NewPlaylist {
+  trackIds: string[];
+  onCreated: (playlist: Playlist) => void;
+}
 
-const CLOSED: PlaylistDialogState = { status: PlaylistDialogStatus.CLOSED };
+// One dialog for the whole app, opened from anywhere: null while no playlist is being created or edited.
+const [newPlaylist, setNewPlaylist] = createSignal<NewPlaylist | null>(null);
+const [editedPlaylist, setEditedPlaylist] = createSignal<Playlist | null>(null);
 
-// One dialog instance for the whole app, opened from anywhere.
-const [dialog, setDialog] = createSignal<PlaylistDialogState>(CLOSED);
+export function openNewPlaylistDialog(trackIds: string[], onCreated: (playlist: Playlist) => void) {
+  setNewPlaylist({ trackIds, onCreated });
+}
 
-export function openPlaylistDialog(next: PlaylistDialogState) {
-  setDialog(next);
+export function openEditPlaylistDialog(playlist: Playlist) {
+  setEditedPlaylist(playlist);
 }
 
 export default function PlaylistDialog() {
-  return <>{playlistDialog(dialog(), () => setDialog(CLOSED))}</>;
-}
-
-function playlistDialog(state: PlaylistDialogState, close: () => void): JSX.Element {
-  switch (state.status) {
-    case PlaylistDialogStatus.CLOSED:
-      return <></>;
-    case PlaylistDialogStatus.CREATING:
-      return (
-        <Dialog title="New playlist" onClose={close}>
-          <NewPlaylistForm trackIds={state.trackIds} onCreated={state.onCreated} onDone={close} />
-        </Dialog>
-      );
-    case PlaylistDialogStatus.EDITING:
-      return (
-        <Dialog title="Edit playlist" onClose={close}>
-          <EditPlaylistForm playlist={state.playlist} onDone={close} />
-        </Dialog>
-      );
-  }
+  const closeNew = () => setNewPlaylist(null);
+  const closeEdited = () => setEditedPlaylist(null);
+  return (
+    <>
+      <Show when={newPlaylist()}>
+        {(request) => (
+          <Dialog title="New playlist" onClose={closeNew}>
+            <NewPlaylistForm trackIds={request().trackIds} onCreated={request().onCreated} onDone={closeNew} />
+          </Dialog>
+        )}
+      </Show>
+      <Show when={editedPlaylist()}>
+        {(playlist) => (
+          <Dialog title="Edit playlist" onClose={closeEdited}>
+            <EditPlaylistForm playlist={playlist()} onDone={closeEdited} />
+          </Dialog>
+        )}
+      </Show>
+    </>
+  );
 }
 
 function NewPlaylistForm(props: { trackIds: string[]; onCreated: (playlist: Playlist) => void; onDone: () => void }) {
@@ -156,11 +149,7 @@ export function AddToPlaylistItems(props: { trackIds: () => string[] }) {
         class="menu-item"
         role="menuitem"
         onClick={() =>
-          openPlaylistDialog({
-            status: PlaylistDialogStatus.CREATING,
-            trackIds: props.trackIds(),
-            onCreated: (created) => toast(`Added to ${created.name}`),
-          })
+          openNewPlaylistDialog(props.trackIds(), (created) => toast(`Added to ${created.name}`))
         }
       >
         New playlist…

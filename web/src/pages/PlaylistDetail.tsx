@@ -5,7 +5,7 @@ import { ConfirmDialog } from "../components/Dialog";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
 import Menu from "../components/Menu";
 import PageLayout from "../components/PageLayout";
-import { openPlaylistDialog, PlaylistDialogStatus } from "../components/PlaylistDialog";
+import { openEditPlaylistDialog } from "../components/PlaylistDialog";
 import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
@@ -59,7 +59,7 @@ export default function PlaylistDetail() {
                       <ShuffleIcon size={16} /> Shuffle
                     </button>
                     <Menu label="More" icon={<MoreIcon size={18} />}>
-                      <button class="menu-item" role="menuitem" onClick={() => openPlaylistDialog({ status: PlaylistDialogStatus.EDITING, playlist: playlist() })}>
+                      <button class="menu-item" role="menuitem" onClick={() => openEditPlaylistDialog(playlist())}>
                         Edit details
                       </button>
                       <button

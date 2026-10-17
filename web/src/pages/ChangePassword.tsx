@@ -3,7 +3,7 @@ import { createSignal, onMount, Show } from "solid-js";
 import { SessionState } from "../api/responses";
 import { changePassword, currentUser, logOut } from "../auth";
 import FormError from "../components/FormError";
-import { EDITING, failedForm, FormStatus, SUBMITTING, submittedForm, type FormState } from "../forms";
+import { failureReason, FormStatus } from "../forms";
 import { AppRoutes } from "../routes";
 
 // Users who must change their password (such as the first admin) land here, and can do nothing else until they do.
@@ -12,7 +12,8 @@ export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = createSignal("");
   const [newPassword, setNewPassword] = createSignal("");
   const [confirmedPassword, setConfirmedPassword] = createSignal("");
-  const [form, setForm] = createSignal<FormState>(EDITING);
+  const [error, setError] = createSignal<string | null>(null);
+  const [status, setStatus] = createSignal<FormStatus>(FormStatus.EDITING);
   let currentPasswordInput: HTMLInputElement | undefined;
 
   // Focused here rather than with autofocus, which WebKit applies late enough to move focus away from a field already
@@ -22,12 +23,13 @@ export default function ChangePassword() {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
     if (newPassword() !== confirmedPassword()) {
-      setForm(failedForm("The new passwords don't match."));
+      setError("The new passwords don't match.");
       return;
     }
-    setForm(SUBMITTING);
+    setStatus(FormStatus.SUBMITTING);
     const result = await changePassword({ currentPassword: currentPassword(), newPassword: newPassword() });
-    setForm(submittedForm(result));
+    setStatus(FormStatus.EDITING);
+    setError(failureReason(result));
   };
 
   return (
@@ -67,8 +69,8 @@ export default function ChangePassword() {
               required
             />
           </label>
-          <FormError form={form()} />
-          <button type="submit" class="primary" disabled={form().status === FormStatus.SUBMITTING}>
+          <FormError error={error()} />
+          <button type="submit" class="primary" disabled={status() === FormStatus.SUBMITTING}>
             Change password
           </button>
           <button type="button" class="link" onClick={logOut}>
