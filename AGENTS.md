@@ -200,6 +200,12 @@ Match the surrounding code. The conventions below are consistent across the code
   into a method for it to fill in or modify.
 - Prefer immutable collections (`List.of`, `toList()`, `toUnmodifiableMap`) and immutable jOOQ pojos.
 - Return `Optional` for "may not be found" results from resolvers/lookups.
+- **Avoid combinatorial explosion.** Give each case callers need its own method, function or component, rather than
+  one that takes nullable, optional or mode arguments and branches on which it was given: `getAsUser(accessToken)` and
+  `postJson(body)` rather than `send(accessToken | null, body | null)`, `playTracks(tracks)` and
+  `playListedTrack(tracks, index)` rather than `playTracks(tracks, start = 0)`, `ReleaseGroupGrid` and
+  `DiscographyGrid` rather than one grid with a `subtitle` mode. Share the common work in helpers that take only what
+  every case has. `null` is for data that can genuinely be absent, never for picking a case.
 
 **Spring**
 - Interface + `Default*` / provider-named implementation (`IngestionEngine` → `DefaultIngestionEngine`,

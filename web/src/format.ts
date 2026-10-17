@@ -8,6 +8,11 @@ export function formatTotal(seconds: number): string {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
 }
 
-export function plural(count: number, word: string, pluralWord = `${word}s`): string {
+export function plural(count: number, word: string): string {
+  return irregularPlural(count, word, `${word}s`);
+}
+
+// For a word whose plural isn't the word with an s.
+export function irregularPlural(count: number, word: string, pluralWord: string): string {
   return `${count} ${count === 1 ? word : pluralWord}`;
 }

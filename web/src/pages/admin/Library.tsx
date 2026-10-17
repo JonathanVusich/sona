@@ -8,11 +8,10 @@ import { Permission } from "../../api/responses";
 import { hasPermission } from "../../auth";
 import { plural } from "../../format";
 import {
-  artistById,
   artists,
   FORMATS,
-  groupById,
   groups,
+  releaseContext,
   releases,
   removeRelease,
   trackCount,
@@ -24,12 +23,6 @@ import { AppRoutes } from "../../routes";
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
-function rowFor(release: Release) {
-  const group = groupById(release.groupId);
-  const artist = group === undefined ? undefined : artistById(group.artistId);
-  return { release, group, artist };
-}
-
 export default function Library() {
   const [query, setQuery] = createSignal("");
   // Null while no release is being edited or removed.
@@ -39,14 +32,14 @@ export default function Library() {
   const rows = () => {
     const needle = query().trim().toLowerCase();
     return releases()
-      .map(rowFor)
+      .map(releaseContext)
       .filter(({ release, group, artist }) =>
-        [release.title, group?.title, artist?.name, release.label].some((text) => text?.toLowerCase().includes(needle)),
+        [release.title, group.title, artist.name, release.label].some((text) => text?.toLowerCase().includes(needle)),
       )
       .sort(
         (a, b) =>
-          collator.compare(a.artist?.name ?? "", b.artist?.name ?? "") ||
-          collator.compare(a.group?.title ?? "", b.group?.title ?? "") ||
+          collator.compare(a.artist.name, b.artist.name) ||
+          collator.compare(a.group.title, b.group.title) ||
           (a.release.year ?? 0) - (b.release.year ?? 0),
       );
   };
@@ -103,13 +96,13 @@ export default function Library() {
                   <tr>
                     <td>
                       <div class="admin-release">
-                        <Cover seed={group?.title ?? release.title} class="admin-thumb" />
+                        <Cover seed={group.title} class="admin-thumb" />
                         <span>{release.title}</span>
                       </div>
                     </td>
-                    <td>{artist?.name}</td>
+                    <td>{artist.name}</td>
                     <td>
-                      {group?.title} <span class="muted">{group?.type}</span>
+                      {group.title} <span class="muted">{group.type}</span>
                     </td>
                     <td>{release.year ?? <span class="muted">—</span>}</td>
                     <td>{release.format}</td>

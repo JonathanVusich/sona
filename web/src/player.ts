@@ -65,7 +65,14 @@ export function current(): Track | null {
   return queue()[index] ?? null;
 }
 
-export function playTracks(tracks: Track[], start = 0) {
+export function playTracks(tracks: Track[]) {
+  playListedTrack(tracks, 0);
+}
+
+/**
+ * Plays the track at the index, queueing the rest of the list around it.
+ */
+export function playListedTrack(tracks: Track[], start: number) {
   if (tracks.length === 0) {
     return;
   }
@@ -85,7 +92,7 @@ export function playTracks(tracks: Track[], start = 0) {
 
 export function shufflePlay(tracks: Track[]) {
   setShuffleMode(ShuffleMode.ON);
-  playTracks(tracks, Math.floor(Math.random() * tracks.length));
+  playListedTrack(tracks, Math.floor(Math.random() * tracks.length));
 }
 
 export function togglePlay() {

@@ -1,6 +1,6 @@
 import { A, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
-import { CardLayout, CardSubtitle, ReleaseGroupGrid } from "../components/Cards";
+import { CardLayout, DiscographyGrid } from "../components/Cards";
 import Cover from "../components/Cover";
 import EditionList from "../components/EditionList";
 import { MoreIcon, PlayIcon, ShuffleIcon } from "../components/Icons";
@@ -11,7 +11,7 @@ import Section from "../components/Section";
 import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { artistById, canonicalRelease, groupById, groupsOf, groupYear, releasesOf, tracksOfRelease } from "../library";
-import { playTracks, shufflePlay } from "../player";
+import { playListedTrack, playTracks, shufflePlay } from "../player";
 import { AppRoutes, routeTo } from "../routes";
 
 // The album as an idea: shows its original edition's tracks, lists every edition, and links the rest of the
@@ -70,14 +70,14 @@ export default function ReleaseGroupDetail() {
               tracks={tracks().map(trackRow)}
               showContext={false}
               artistId={group().artistId}
-              onPlay={(index) => playTracks(tracks(), index)}
+              onPlay={(index) => playListedTrack(tracks(), index)}
             />
             <Section title={editions().length === 1 ? "Edition" : "Editions"}>
               <EditionList releases={editions()} />
             </Section>
             <Show when={moreByArtist().length > 0}>
               <Section title={`More by ${artist()?.name ?? "this artist"}`}>
-                <ReleaseGroupGrid groups={moreByArtist()} layout={CardLayout.ROW} subtitle={CardSubtitle.YEAR} />
+                <DiscographyGrid groups={moreByArtist()} layout={CardLayout.ROW} />
               </Section>
             </Show>
           </PageLayout>

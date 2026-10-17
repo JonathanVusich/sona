@@ -11,7 +11,13 @@ import { AppRoutes, routeTo } from "../routes";
 
 // Titles of the first release groups a playlist draws from, for its mosaic cover.
 export function coverSeeds(playlist: Playlist): string[] {
-  const titles = tracksOf(playlist.trackIds).map((track) => contextOf(track).group?.title ?? "");
+  const titles = tracksOf(playlist.trackIds).flatMap((track) => {
+    const context = contextOf(track);
+    if (context === null) {
+      return [];
+    }
+    return [context.group.title];
+  });
   return [...new Set(titles)].slice(0, 4);
 }
 

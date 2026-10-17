@@ -24,32 +24,35 @@ export const CardLayout = {
 
 export type CardLayout = (typeof CardLayout)[keyof typeof CardLayout];
 
-// What a card's subtitle names: the artist, or the year and type when the artist is already known.
-export const CardSubtitle = {
-  ARTIST: "artist",
-  YEAR: "year",
-} as const;
-
-export type CardSubtitle = (typeof CardSubtitle)[keyof typeof CardSubtitle];
-
-// Release groups as cards.
-export function ReleaseGroupGrid(props: { groups: ReleaseGroup[]; layout: CardLayout; subtitle: CardSubtitle }) {
+// Release groups as cards, each naming its artist.
+export function ReleaseGroupGrid(props: { groups: ReleaseGroup[]; layout: CardLayout }) {
   return (
     <div class={props.layout}>
-      <For each={props.groups}>{(group) => <ReleaseGroupCard group={group} subtitle={props.subtitle} />}</For>
+      <For each={props.groups}>{(group) => <ReleaseGroupCard group={group} subtitle={artistSubtitle(group)} />}</For>
     </div>
   );
 }
 
-function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: CardSubtitle }) {
-  const subtitle = () => {
-    if (props.subtitle === CardSubtitle.ARTIST) {
-      const artist = artistById(props.group.artistId)?.name ?? "";
-      return props.group.type === ReleaseGroupType.ALBUM ? artist : `${artist} · ${props.group.type}`;
-    }
-    const year = groupYear(props.group.id);
-    return props.group.type === ReleaseGroupType.ALBUM ? String(year ?? "") : [year, props.group.type].filter(Boolean).join(" · ");
-  };
+// One artist's release groups as cards, each naming its year instead, since the artist is already known.
+export function DiscographyGrid(props: { groups: ReleaseGroup[]; layout: CardLayout }) {
+  return (
+    <div class={props.layout}>
+      <For each={props.groups}>{(group) => <ReleaseGroupCard group={group} subtitle={yearSubtitle(group)} />}</For>
+    </div>
+  );
+}
+
+function artistSubtitle(group: ReleaseGroup): string {
+  const artist = artistById(group.artistId)?.name ?? "";
+  return group.type === ReleaseGroupType.ALBUM ? artist : `${artist} · ${group.type}`;
+}
+
+function yearSubtitle(group: ReleaseGroup): string {
+  const year = groupYear(group.id);
+  return group.type === ReleaseGroupType.ALBUM ? String(year ?? "") : [year, group.type].filter(Boolean).join(" · ");
+}
+
+function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: string }) {
   const play = () => {
     const release = canonicalRelease(props.group.id);
     if (release !== undefined) {
@@ -62,7 +65,7 @@ function ReleaseGroupCard(props: { group: ReleaseGroup; subtitle: CardSubtitle }
       <A href={routeTo(AppRoutes.RELEASE_GROUP, props.group.id)} class="card-link">
         <Cover seed={props.group.title} />
         <div class="card-title">{props.group.title}</div>
-        <div class="card-subtitle">{subtitle()}</div>
+        <div class="card-subtitle">{props.subtitle}</div>
       </A>
       <button class="card-play" aria-label={`Play ${props.group.title}`} onClick={play}>
         <PlayIcon size={18} />

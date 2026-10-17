@@ -9,7 +9,7 @@ import { openEditPlaylistDialog } from "../components/PlaylistDialog";
 import TrackList, { trackRow } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
-import { playTracks, shufflePlay } from "../player";
+import { playListedTrack, playTracks, shufflePlay } from "../player";
 import { deletePlaylist, playlistById } from "../playlists";
 import { coverSeeds } from "./Playlists";
 import { AppRoutes } from "../routes";
@@ -83,7 +83,7 @@ export default function PlaylistDetail() {
                 tracks={playlistTracks().map(trackRow)}
                 showContext
                 playlistId={playlist().id}
-                onPlay={(index) => playTracks(playlistTracks(), index)}
+                onPlay={(index) => playListedTrack(playlistTracks(), index)}
               />
             </Show>
             <Show when={action() === PlaylistAction.CONFIRMING_DELETE}>

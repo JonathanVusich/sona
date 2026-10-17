@@ -13,13 +13,6 @@ export default function PlayerBar() {
   // While the scrub thumb is held, where it is, which the bar shows instead of the playback position; null otherwise.
   const [scrub, setScrub] = createSignal<number | null>(null);
   const track = player.current;
-  const context = () => {
-    const playingTrack = track();
-    if (playingTrack === null) {
-      return { release: undefined, group: undefined, artist: undefined };
-    }
-    return contextOf(playingTrack);
-  };
   const duration = () => track()?.duration ?? 0;
   const shownPosition = () => scrub() ?? player.position();
   const shownVolume = () => {
@@ -65,23 +58,9 @@ export default function PlayerBar() {
         />
       </div>
       <div class="player-now">
-        <Show when={context().release} fallback={<div class="cover player-cover empty-cover" />}>
-          {(release) => (
-            <A href={routeTo(AppRoutes.RELEASE, release().id)} aria-label={`Go to ${release().title}`}>
-              <Cover seed={context().group?.title ?? release().title} class="player-cover" />
-            </A>
-          )}
+        <Show when={track()} fallback={<NothingPlaying />}>
+          {(playing) => <NowPlaying track={playing()} />}
         </Show>
-        <div class="player-meta">
-          <div class="player-title">{track()?.title ?? "Not playing"}</div>
-          <Show when={context().artist} fallback={<div class="player-artist">Pick something to play</div>}>
-            {(artist) => (
-              <A href={routeTo(AppRoutes.ARTIST, artist().id)} class="player-artist">
-                {artist().name}
-              </A>
-            )}
-          </Show>
-        </div>
       </div>
 
       <div class="player-controls">
@@ -141,6 +120,43 @@ export default function PlayerBar() {
         />
       </div>
     </div>
+  );
+}
+
+function NowPlaying(props: { track: Track }) {
+  const context = () => contextOf(props.track);
+  return (
+    <>
+      <Show when={context()} fallback={<div class="cover player-cover empty-cover" />}>
+        {(playing) => (
+          <A href={routeTo(AppRoutes.RELEASE, playing().release.id)} aria-label={`Go to ${playing().release.title}`}>
+            <Cover seed={playing().group.title} class="player-cover" />
+          </A>
+        )}
+      </Show>
+      <div class="player-meta">
+        <div class="player-title">{props.track.title}</div>
+        <Show when={context()}>
+          {(playing) => (
+            <A href={routeTo(AppRoutes.ARTIST, playing().artist.id)} class="player-artist">
+              {playing().artist.name}
+            </A>
+          )}
+        </Show>
+      </div>
+    </>
+  );
+}
+
+function NothingPlaying() {
+  return (
+    <>
+      <div class="cover player-cover empty-cover" />
+      <div class="player-meta">
+        <div class="player-title">Not playing</div>
+        <div class="player-artist">Pick something to play</div>
+      </div>
+    </>
   );
 }
 

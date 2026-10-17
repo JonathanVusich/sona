@@ -21,14 +21,14 @@ export interface TrackRow {
 }
 
 export function trackRow(track: Track): TrackRow {
-  const { release, artist } = contextOf(track);
+  const context = contextOf(track);
   return {
     id: track.id,
     number: track.number,
     title: track.title,
     duration: track.duration,
-    artist,
-    release,
+    artist: context?.artist,
+    release: context?.release,
   };
 }
 
