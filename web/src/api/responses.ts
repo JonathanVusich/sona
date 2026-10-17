@@ -117,6 +117,43 @@ export interface ReleaseResponse {
   media: MediumResponse[];
 }
 
+/** MusicBrainz's primary release group types. */
+export const ReleaseGroupType = {
+  ALBUM: "ALBUM",
+  SINGLE: "SINGLE",
+  EP: "EP",
+  BROADCAST: "BROADCAST",
+  OTHER: "OTHER",
+} as const;
+
+export type ReleaseGroupType = (typeof ReleaseGroupType)[keyof typeof ReleaseGroupType];
+
+/** A release group as lists of them show it. */
+export interface ReleaseGroupSummaryResponse {
+  releaseGroupId: string;
+  name: string;
+  /** Null when MusicBrainz gives the release group no primary type. */
+  type: ReleaseGroupType | null;
+  /** The group's earliest release anywhere, as an ISO date; null when unknown. */
+  firstReleaseDate: string | null;
+  artist: ArtistResponse;
+}
+
+/** One of a release group's releases, as its page lists them. */
+export interface EditionResponse {
+  releaseId: string;
+  name: string;
+  /** An ISO date, null when unknown, as on ReleaseResponse. */
+  date: string | null;
+  /** Null when unknown, as on ReleaseResponse. */
+  country: string | null;
+  /** How many of the release's tracks are in the library. */
+  trackCount: number;
+  labels: LabelResponse[];
+  /** Each medium's format in order, null where MusicBrainz doesn't know it. */
+  formats: (string | null)[];
+}
+
 /** The body of every client error Sona sends. */
 export interface ErrorResponse {
   code: ErrorCode;

@@ -1,7 +1,8 @@
 import { createSignal } from "solid-js";
 import { currentUser } from "./auth";
 import { updateById } from "./collections";
-import { trackIdByTitle } from "./library";
+import type { TrackResponse } from "./api/responses";
+import { trackContext, trackIdByTitle, trackResponse, tracksOf } from "./library";
 
 // Playlists are personal: each belongs to one user, and anyone can make their own, whatever their library permissions.
 
@@ -11,6 +12,25 @@ export interface Playlist {
   name: string;
   description: string;
   trackIds: string[];
+}
+
+/** A playlist's track with the release it's from, as the playlist page lists it. */
+export interface PlaylistTrack extends TrackResponse {
+  release: { releaseId: string; name: string };
+}
+
+/**
+ * @returns the playlist's tracks in order, each with its release
+ */
+export function playlistEntries(playlist: Playlist): PlaylistTrack[] {
+  return tracksOf(playlist.trackIds).flatMap((track) => {
+    const context = trackContext(track);
+    if (context === null) {
+      return [];
+    }
+    const release = context.release;
+    return [{ ...trackResponse(track), release: { releaseId: release.id, name: release.title } }];
+  });
 }
 
 function seedPlaylist(id: string, owner: string, name: string, description: string, titles: string[]): Playlist {

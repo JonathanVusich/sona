@@ -6,7 +6,7 @@ import { ShuffleIcon } from "../components/Icons";
 import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import { irregularPlural, plural } from "../format";
-import { artistById, canonicalRelease, groupsOf, isAlbum, tracksOfRelease, type ReleaseGroup } from "../library";
+import { artistById, canonicalRelease, groupsOf, isAlbum, summaryResponse, tracksOfRelease, type ReleaseGroup } from "../library";
 import { shufflePlay } from "../player";
 
 const SECTIONS: { title: string; include: (group: ReleaseGroup) => boolean }[] = [
@@ -62,7 +62,7 @@ export default function ArtistDetail() {
                   return (
                     <Show when={ofType().length > 0}>
                       <Section title={title}>
-                        <DiscographyGrid groups={ofType()} layout={CardLayout.GRID} />
+                        <DiscographyGrid groups={ofType().map(summaryResponse)} layout={CardLayout.GRID} />
                       </Section>
                     </Show>
                   );
