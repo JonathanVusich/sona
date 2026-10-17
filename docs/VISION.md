@@ -41,7 +41,9 @@ There is no deadline. Done when it's good.
 - **Sona owns the files.** Everything ingested is moved into Sona's managed library; Sona does not index
   folders in place.
 - **Editions:** releases of the same album (remaster, deluxe, regional) are **grouped under one album
-  (release group), with every edition listed inside it**.
+  (release group), with every edition listed inside it**. Each album has a **default edition**, its first
+  release, so the original stands for it rather than a later deluxe or instrumental version; **letting users
+  choose the default** comes later.
 - **Duplicates:** when the same recording is ingested twice, **keep the best-quality file** (lossless /
   higher bitrate) and discard the other.
 - **Multi-user, admin-managed storage:** music is **deduplicated behind the scenes and managed by admins**.

@@ -8,11 +8,14 @@ import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
 import org.sona.controller.response.ArtistResponse;
+import org.sona.controller.response.DefaultReleaseResponse;
 import org.sona.controller.response.EditionResponse;
 import org.sona.controller.response.LabelResponse;
+import org.sona.controller.response.MediumResponse;
 import org.sona.controller.response.ReleaseGroupPageResponse;
 import org.sona.controller.response.ReleaseGroupResponse;
 import org.sona.controller.response.ReleaseGroupSummaryResponse;
+import org.sona.controller.response.TrackResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
@@ -93,7 +96,7 @@ class ReleaseGroupControllerTest {
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var disc = insertMedia(original, "CD").getFirst();
         linkLabels(original, island, interscope);
-        insertTrack(disc, keane, "Somewhere Only We Know");
+        final var track = insertTrack(disc, keane, "Somewhere Only We Know");
 
         final var response = api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
                 .expectStatus().isOk()
@@ -101,11 +104,36 @@ class ReleaseGroupControllerTest {
                 .returnResult().getResponseBody();
 
         assertThat(response).isEqualTo(new ReleaseGroupResponse(group.releaseGroupId(), "Hopes and Fears",
-                ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10), artist(keane), List.of(
+                ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10), artist(keane),
+                // The earliest edition stands for the group, though the deluxe one was stored first.
+                new DefaultReleaseResponse(original.releaseId(), List.of(new MediumResponse(1, "CD", List.of(
+                        new TrackResponse(track.trackId(), "Somewhere Only We Know", 300, 1, artist(keane)))))),
+                List.of(
                 edition(original, 1, List.of(label(interscope), label(island)), List.of("CD")),
                 edition(deluxe, 0, List.of(label(island)), List.of("CD", "CD")),
                 // A medium whose format isn't known still counts.
                 edition(undated, 0, List.of(), Arrays.asList((String) null)))));
+    }
+
+    @Test
+    void aGroupWhoseReleasesAreAllUndatedHasTheFirstStoredAsItsDefault() {
+        final var group = insertReleaseGroup(insertArtist("Keane"), "Hopes and Fears");
+        final var first = insertRelease(group, "Hopes and Fears", null);
+        insertRelease(group, "Hopes and Fears (Deluxe Edition)", null);
+
+        final var response = loadReleaseGroup(group);
+
+        assertThat(response.defaultRelease()).isEqualTo(new DefaultReleaseResponse(first.releaseId(), List.of()));
+    }
+
+    @Test
+    void aGroupWithNoStoredReleasesHasNoDefault() {
+        final var group = insertReleaseGroup(insertArtist("Keane"), "Hopes and Fears");
+
+        final var response = loadReleaseGroup(group);
+
+        assertThat(response.defaultRelease()).isNull();
+        assertThat(response.editions()).isEmpty();
     }
 
     @Test
@@ -156,6 +184,13 @@ class ReleaseGroupControllerTest {
                 .jsonPath("$.code").isEqualTo(400);
     }
 
+    private ReleaseGroupResponse loadReleaseGroup(final ReleaseGroup group) {
+        return api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
+                .expectStatus().isOk()
+                .expectBody(ReleaseGroupResponse.class)
+                .returnResult().getResponseBody();
+    }
+
     private ReleaseGroupPageResponse loadPage(final String uri) {
         return api.getWithToken(uri, token)
                 .expectStatus().isOk()
@@ -194,11 +229,13 @@ class ReleaseGroupControllerTest {
         return mediumDao.upsertAll(media);
     }
 
-    private void insertTrack(final Medium medium, final Artist artist, final String name) {
+    private Track insertTrack(final Medium medium, final Artist artist, final String name) {
         final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
-                artist.artistId(), ingest.trackIngestId()));
+        final var track = new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
+                artist.artistId(), ingest.trackIngestId());
+        trackDao.insert(track);
+        return track;
     }
 
     private static EditionResponse edition(final Release release, final int trackCount,
