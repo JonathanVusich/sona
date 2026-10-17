@@ -56,6 +56,9 @@ IngestionEngine.processTrack ◄────────────────
         └─ move fails ──► state = MOVE_FAILED, and processing it again retries only the move
 ```
 
+A track is only in the library once its ingest is `COMPLETED`, as its row is stored before its file is moved: the
+pages list only those tracks, and `release.track_count` counts only them.
+
 Each row commits on its own, and the upserts are idempotent, so processing an ingest again after a failure reuses
 what was stored. A release's media are stored after the release and its labels, so a stored release without the
 track's medium is one whose ingest stopped part-way: the engine looks the release up again and stores its labels and

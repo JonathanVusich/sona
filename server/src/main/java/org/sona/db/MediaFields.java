@@ -7,6 +7,7 @@ import org.sona.mappers.MediumMapper;
 import org.sona.mappers.MediumWithTracksMapper;
 import org.sona.mappers.TrackMapper;
 import org.sona.mappers.TrackWithArtistMapper;
+import org.sona.model.enums.IngestState;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.MEDIUM;
 import static org.sona.model.Tables.TRACK;
+import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 /**
  * Reads a release's media with their tracks inside the query of each page that lists them, the release page and the
@@ -45,6 +47,10 @@ public final class MediaFields {
                         medium.value2())));
     }
 
+    /**
+     * Only the tracks whose file is in the library: a track's row is stored before its file is moved there, and a move
+     * that fails leaves its ingest {@code MOVE_FAILED}.
+     */
     private Field<List<TrackWithArtist>> tracks() {
         // Aliased apart from the release's artist, which the outer query joins as ARTIST.
         final var trackArtist = ARTIST.as("track_artist");
@@ -52,7 +58,9 @@ public final class MediaFields {
                         trackArtist.convertFrom(artistMapper::fromRecord))
                 .from(TRACK)
                 .join(trackArtist).on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
+                .join(TRACK_TO_INGEST).on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
                 .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
+                .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
                 .orderBy(TRACK.POSITION))
                 .convertFrom(tracks -> tracks.map(track -> trackWithArtistMapper.fromPojos(track.value1(),
                         track.value2())));

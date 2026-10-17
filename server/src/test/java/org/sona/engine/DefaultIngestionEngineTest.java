@@ -207,11 +207,14 @@ class DefaultIngestionEngineTest {
         assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(IOException.class);
         final var failed = reloadIngest(ingest);
         assertThat(failed.state()).isEqualTo(IngestState.MOVE_FAILED);
+        // The track's file isn't in the library yet.
+        assertThat(loadRelease().trackCount()).isZero();
 
         Files.delete(blocker);
         engine.processTrack(failed);
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(loadRelease().trackCount()).isEqualTo(1);
         try (final var imported = library.readTrack(loadTrack(ingest))) {
             assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisperMetadata()));
         }
@@ -246,6 +249,13 @@ class DefaultIngestionEngineTest {
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {
         return trackToIngestDao.loadById(ingest.trackIngestId());
+    }
+
+    /**
+     * @return the release A Whisper is on, as stored
+     */
+    private Release loadRelease() {
+        return releaseDao.loadByMusicBrainzId(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")).orElseThrow();
     }
 
     private Track loadTrack(final TrackToIngest ingest) {
