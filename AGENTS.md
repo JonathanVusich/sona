@@ -251,6 +251,9 @@ Match the surrounding code. The conventions below are consistent across the code
   members, never the raw strings:
   `export const Theme = { SYSTEM: "system", ... } as const;` then
   `export type Theme = (typeof Theme)[keyof typeof Theme];`. No string-literal union types.
+- Discriminated unions are flat: one variant per case, each a `kind` from an enum plus its own fields, never a variant
+  that wraps another union. `ApiResult<T>` is `OK` with a `body`, `REFUSED` with Sona's `code` and `reason`, or `FAILED`
+  with a `reason`, rather than a success or a failure holding a union of failures.
 - Page paths come from `AppRoutes` in `web/src/routes.ts`, and paths with an ID from
   `routeTo(AppRoutes.ARTIST, artist.id)`, never from string literals.
 - No casts (`as T`) or non-null assertions (`!`); narrow instead.

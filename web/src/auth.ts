@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import * as api from "./api/client";
-import { FailureKind, type ApiFailure, type ApiResult } from "./api/client";
+import { ResultKind, type ApiResult } from "./api/client";
 import type { ChangePasswordRequest, LoginRequest } from "./api/requests";
 import { ErrorCode, Permission, type CurrentUserResponse, type TokenResponse } from "./api/responses";
 
@@ -27,10 +27,11 @@ const SessionEvent = {
 const SESSION_CHANNEL = "sona-session";
 const REFRESH_LOCK = "sona-refresh";
 
-const SUCCEEDED: ApiResult<void> = { ok: true, body: undefined };
+const SUCCEEDED: ApiResult<void> = { kind: ResultKind.OK, body: undefined };
 const NOT_SIGNED_IN: ApiResult<never> = {
-  ok: false,
-  failure: { kind: FailureKind.REFUSED, code: ErrorCode.NOT_SIGNED_IN, reason: "Sign in to continue." },
+  kind: ResultKind.REFUSED,
+  code: ErrorCode.NOT_SIGNED_IN,
+  reason: "Sign in to continue.",
 };
 
 // Null while nobody is signed in.
@@ -60,7 +61,7 @@ export async function restoreSession(): Promise<void> {
 
 export async function logIn(request: LoginRequest): Promise<ApiResult<void>> {
   const tokens = await api.login(request);
-  if (!tokens.ok) {
+  if (tokens.kind !== ResultKind.OK) {
     return tokens;
   }
   const started = await startSession(tokens.body);
@@ -84,7 +85,7 @@ export async function changePassword(request: ChangePasswordRequest): Promise<Ap
     return NOT_SIGNED_IN;
   }
   const changed = await sendAsCurrentUser((accessToken) => api.changePassword(accessToken, request));
-  if (!changed.ok) {
+  if (changed.kind !== ResultKind.OK) {
     return changed;
   }
   return logIn({ username: current.user.username, password: request.newPassword });
@@ -99,7 +100,7 @@ export function hasPermission(permission: Permission): boolean {
  */
 export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
   const result = await sendWithSession(call);
-  if (result.ok || !isNotSignedIn(result.failure)) {
+  if (!isRefused(result, ErrorCode.NOT_SIGNED_IN)) {
     return result;
   }
   const refreshed = await refreshSession();
@@ -117,8 +118,8 @@ async function sendWithSession<T>(call: (accessToken: string) => Promise<ApiResu
   return call(current.accessToken);
 }
 
-function isNotSignedIn(failure: ApiFailure): boolean {
-  return failure.kind === FailureKind.REFUSED && failure.code === ErrorCode.NOT_SIGNED_IN;
+function isRefused(result: ApiResult<unknown>, code: ErrorCode): boolean {
+  return result.kind === ResultKind.REFUSED && result.code === code;
 }
 
 /**
@@ -144,15 +145,14 @@ async function refreshSessionLocked(): Promise<boolean> {
   }
   return await navigator.locks.request(REFRESH_LOCK, async () => {
     const tokens = await api.refreshTokens();
-    if (!tokens.ok) {
-      const failure = tokens.failure;
-      if (failure.kind === FailureKind.REFUSED && failure.code === ErrorCode.INVALID_REFRESH_TOKEN) {
-        endSession();
-      }
+    if (isRefused(tokens, ErrorCode.INVALID_REFRESH_TOKEN)) {
+      endSession();
+    }
+    if (tokens.kind !== ResultKind.OK) {
       return false;
     }
     const started = await startSession(tokens.body);
-    return started.ok;
+    return started.kind === ResultKind.OK;
   });
 }
 
@@ -170,7 +170,7 @@ async function logOutLocked(): Promise<ApiResult<void>> {
 
 async function startSession(tokens: TokenResponse): Promise<ApiResult<void>> {
   const user = await api.fetchCurrentUser(tokens.accessToken);
-  if (!user.ok) {
+  if (user.kind !== ResultKind.OK) {
     return user;
   }
   setSession({ accessToken: tokens.accessToken, user: user.body });

@@ -1,7 +1,7 @@
 import { A, useParams } from "@solidjs/router";
-import { createResource, For, Show } from "solid-js";
+import { createResource, For, Show, type JSX } from "solid-js";
 import * as api from "../api/client";
-import { FailureKind, type ApiFailure } from "../api/client";
+import { ResultKind, type ApiResult } from "../api/client";
 import { ErrorCode, type MediumResponse, type ReleaseResponse, type TrackResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
 import Cover from "../components/Cover";
@@ -24,15 +24,24 @@ export default function ReleaseDetail() {
 
   return (
     <Show when={result()} keyed>
-      {(loaded) =>
-        loaded.ok ? (
-          <ReleaseView release={loaded.body} />
-        ) : (
-          <PageLayout header={<p class="empty">{failureMessage(loaded.failure)}</p>} />
-        )
-      }
+      {(loaded) => loadedPage(loaded)}
     </Show>
   );
+}
+
+function loadedPage(result: ApiResult<ReleaseResponse>): JSX.Element {
+  switch (result.kind) {
+    case ResultKind.OK:
+      return <ReleaseView release={result.body} />;
+    case ResultKind.REFUSED:
+      return <PageLayout header={<p class="empty">{refusalMessage(result.code, result.reason)}</p>} />;
+    case ResultKind.FAILED:
+      return <PageLayout header={<p class="empty">{result.reason}</p>} />;
+    default: {
+      const unknown: never = result;
+      throw new Error(`Unknown result: ${JSON.stringify(unknown)}`);
+    }
+  }
 }
 
 function ReleaseView(props: { release: ReleaseResponse }) {
@@ -118,16 +127,13 @@ function trackRow(track: TrackResponse): TrackRow {
   };
 }
 
-function failureMessage(failure: ApiFailure): string {
+function refusalMessage(code: ErrorCode, reason: string): string {
   // An ID that isn't one of Sona's can't be a release in the library either.
-  if (failure.kind !== FailureKind.REFUSED) {
-    return failure.reason;
-  }
-  switch (failure.code) {
+  switch (code) {
     case ErrorCode.RELEASE_NOT_FOUND:
     case ErrorCode.INVALID_PARAMETER:
       return NOT_IN_LIBRARY;
     default:
-      return failure.reason;
+      return reason;
   }
 }

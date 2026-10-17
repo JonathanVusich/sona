@@ -6,21 +6,21 @@ import { ApiRoutes } from "./routes";
 // travels with the auth calls. Calls never throw: a failure is returned, with Sona's ErrorResponse when it refused the
 // request.
 
-export const FailureKind = {
+export const ResultKind = {
+  // Sona answered with the body asked for.
+  OK: "ok",
   // Sona answered with an ErrorResponse, whose code clients branch on.
   REFUSED: "refused",
   // Sona couldn't be reached, or failed to answer.
   FAILED: "failed",
 } as const;
 
-export type FailureKind = (typeof FailureKind)[keyof typeof FailureKind];
+export type ResultKind = (typeof ResultKind)[keyof typeof ResultKind];
 
-/** Why a call failed. */
-export type ApiFailure =
-  | { kind: typeof FailureKind.REFUSED; code: ErrorCode; reason: string }
-  | { kind: typeof FailureKind.FAILED; reason: string };
-
-export type ApiResult<T> = { ok: true; body: T } | { ok: false; failure: ApiFailure };
+export type ApiResult<T> =
+  | { kind: typeof ResultKind.OK; body: T }
+  | { kind: typeof ResultKind.REFUSED; code: ErrorCode; reason: string }
+  | { kind: typeof ResultKind.FAILED; reason: string };
 
 const HttpMethod = {
   GET: "GET",
@@ -32,11 +32,11 @@ type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 // What a request sends as JSON.
 type RequestBody = LoginRequest | ChangePasswordRequest;
 
-const UNREACHABLE: ApiFailure = {
-  kind: FailureKind.FAILED,
+const UNREACHABLE: ApiResult<never> = {
+  kind: ResultKind.FAILED,
   reason: "Can't reach Sona. Check your connection and try again.",
 };
-const SERVER_ERROR: ApiFailure = { kind: FailureKind.FAILED, reason: "Something went wrong. Try again." };
+const SERVER_ERROR: ApiResult<never> = { kind: ResultKind.FAILED, reason: "Something went wrong. Try again." };
 
 export async function login(request: LoginRequest): Promise<ApiResult<TokenResponse>> {
   return sendForJson(HttpMethod.POST, ApiRoutes.AUTH_TOKEN, null, request);
@@ -70,10 +70,10 @@ async function sendForJson<T>(
   body: RequestBody | null,
 ): Promise<ApiResult<T>> {
   const result = await sendRequest(method, path, accessToken, body);
-  if (!result.ok) {
+  if (result.kind !== ResultKind.OK) {
     return result;
   }
-  return { ok: true, body: await result.body.json() };
+  return { kind: ResultKind.OK, body: await result.body.json() };
 }
 
 async function sendForNothing(
@@ -83,10 +83,10 @@ async function sendForNothing(
   body: RequestBody | null,
 ): Promise<ApiResult<void>> {
   const result = await sendRequest(method, path, accessToken, body);
-  if (!result.ok) {
+  if (result.kind !== ResultKind.OK) {
     return result;
   }
-  return { ok: true, body: undefined };
+  return { kind: ResultKind.OK, body: undefined };
 }
 
 async function sendRequest(
@@ -104,17 +104,17 @@ async function sendRequest(
       body: requestBodyText(body),
     });
   } catch {
-    return { ok: false, failure: UNREACHABLE };
+    return UNREACHABLE;
   }
   if (response.ok) {
-    return { ok: true, body: response };
+    return { kind: ResultKind.OK, body: response };
   }
   if (response.status < 500) {
     // Every client error Sona sends has an ErrorResponse body.
     const error: ErrorResponse = await response.json();
-    return { ok: false, failure: { kind: FailureKind.REFUSED, code: error.code, reason: error.reason } };
+    return { kind: ResultKind.REFUSED, code: error.code, reason: error.reason };
   }
-  return { ok: false, failure: SERVER_ERROR };
+  return SERVER_ERROR;
 }
 
 /**
