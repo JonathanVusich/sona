@@ -76,6 +76,24 @@ class ArtistsE2ETest {
     }
 
     @Test
+    void artistsWithNoReleaseGroupInTheLibraryArentListed(final Page page) {
+        final var coldplay = insertArtist("Coldplay", "GB");
+        insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
+        // Ingests that stopped part-way, after storing the album, its release, or its track's row.
+        final var keane = insertArtist("Keane", "GB");
+        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM, null,
+                keane.artistId(), 0, uuidv7()));
+        insertRelease(insertArtist("Blur", "GB"), "Parklife", ReleaseGroupType.ALBUM, LocalDate.of(1994, 4, 25));
+        insertTrackInState(insertRelease(insertArtist("Oasis", "GB"), "Definitely Maybe", ReleaseGroupType.ALBUM,
+                LocalDate.of(1994, 8, 29)), IngestState.MOVE_FAILED);
+
+        final var artists = logInAndOpenArtists(page);
+
+        assertThat(artists.names()).hasText(new String[]{"Coldplay"});
+        assertThat(artists.subtitle("Coldplay")).hasText("1 release");
+    }
+
+    @Test
     void anArtistOpensTheirPage(final Page page) {
         final var keane = insertArtist("Keane", "GB");
         insertReleaseGroup(keane, "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
@@ -124,6 +142,17 @@ class ArtistsE2ETest {
         assertThat(artistPage.releaseGroupTitles("Albums"))
                 .hasText(new String[]{"A Rush of Blood to the Head", "Parachutes"});
         assertThat(artistPage.releaseGroupTitles("Singles & EPs")).hasText(new String[]{"Yellow"});
+    }
+
+    @Test
+    void anArtistsPageLeavesOutReleaseGroupsNotInTheLibrary(final Page page) {
+        final var coldplay = insertArtist("Coldplay", "GB");
+        insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
+        insertRelease(coldplay, "Viva la Vida", ReleaseGroupType.ALBUM, LocalDate.of(2008, 6, 12));
+        final var artistPage = logInAndOpenArtist(page, coldplay);
+
+        assertThat(artistPage.details()).hasText("GB · 1 album");
+        assertThat(artistPage.releaseGroupTitles("Albums")).hasText(new String[]{"Parachutes"});
     }
 
     @Test
@@ -178,20 +207,32 @@ class ArtistsE2ETest {
      */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type,
                                             final LocalDate firstReleaseDate) {
+        final var release = insertRelease(artist, name, type, firstReleaseDate);
+        insertTrack(release);
+        return releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
+    }
+
+    /**
+     * @return the only release of a new release group, with no track, so neither is in the library
+     */
+    private Release insertRelease(final Artist artist, final String name, final ReleaseGroupType type,
+                                  final LocalDate firstReleaseDate) {
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate,
                 artist.artistId(), 0, uuidv7()));
-        final var release = releaseDao.upsert(new Release(uuidv7(), name, null, firstReleaseDate, "GB", 0,
-                group.releaseGroupId(), artist.artistId(), uuidv7()));
-        insertTrack(release);
-        return group;
+        return releaseDao.upsert(new Release(uuidv7(), name, null, firstReleaseDate, "GB", 0, group.releaseGroupId(),
+                artist.artistId(), uuidv7()));
     }
 
     /**
      * Gives the release a track, so it's in the library.
      */
     private void insertTrack(final Release release) {
+        insertTrackInState(release, IngestState.COMPLETED);
+    }
+
+    private void insertTrackInState(final Release release, final IngestState state) {
         final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", state);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
                 release.artistId(), ingest.trackIngestId()));

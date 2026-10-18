@@ -74,6 +74,21 @@ class AlbumsE2ETest {
     }
 
     @Test
+    void albumsNotInTheLibraryArentListed(final Page page) {
+        final var coldplay = insertArtist("Coldplay");
+        insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM);
+        // An ingest that stopped part-way, after storing the album, its release, or its track's row.
+        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "X&Y", ReleaseGroupType.ALBUM, null, coldplay.artistId(), 0,
+                uuidv7()));
+        insertRelease(coldplay, "Viva la Vida", ReleaseGroupType.ALBUM);
+        insertTrackInState(insertRelease(coldplay, "Mylo Xyloto", ReleaseGroupType.ALBUM), IngestState.MOVE_FAILED);
+
+        final var albums = logInAndOpen(page);
+
+        assertThat(albums.titles()).hasText(new String[]{"Parachutes"});
+    }
+
+    @Test
     void anAlbumOpensItsReleaseGroupsPage(final Page page) {
         final var parachutes = insertReleaseGroup(insertArtist("Coldplay"), "Parachutes", ReleaseGroupType.ALBUM);
         final var albums = logInAndOpen(page);
@@ -124,20 +139,31 @@ class AlbumsE2ETest {
      * @return a release group in the library, with a release that has a track
      */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type) {
+        final var release = insertRelease(artist, name, type);
+        insertTrack(release);
+        return releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
+    }
+
+    /**
+     * @return the only release of a new release group, with no track, so neither is in the library
+     */
+    private Release insertRelease(final Artist artist, final String name, final ReleaseGroupType type) {
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, null, artist.artistId(), 0,
                 uuidv7()));
-        final var release = releaseDao.upsert(new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(),
+        return releaseDao.upsert(new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(),
                 artist.artistId(), uuidv7()));
-        insertTrack(release);
-        return group;
     }
 
     /**
      * Gives the release a track, so it's in the library.
      */
     private void insertTrack(final Release release) {
+        insertTrackInState(release, IngestState.COMPLETED);
+    }
+
+    private void insertTrackInState(final Release release, final IngestState state) {
         final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", state);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
                 release.artistId(), ingest.trackIngestId()));

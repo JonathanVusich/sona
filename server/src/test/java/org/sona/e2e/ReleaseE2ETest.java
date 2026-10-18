@@ -136,6 +136,30 @@ class ReleaseE2ETest {
     }
 
     @Test
+    void aTrackWhoseFileIsntInTheLibraryIsLeftOut(final Page page) {
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
+        final var disc = insertMedium(release, 1, "CD");
+        insertTrack(disc, coldplay, "Yellow");
+        insertTrackInState(disc, coldplay, "Shiver", IngestState.MOVE_FAILED);
+        final var releasePage = logInAndOpen(page, release);
+
+        assertThat(releasePage.track("Yellow")).isVisible();
+        assertThat(releasePage.track("Shiver")).hasCount(0);
+        assertThat(releasePage.details()).containsText("1 song");
+    }
+
+    @Test
+    void aReleaseWithNoTrackInTheLibraryIsReported(final Page page) {
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
+        insertTrackInState(insertMedium(release, 1, "CD"), coldplay, "Yellow", IngestState.MOVE_FAILED);
+        final var releasePage = logInAndOpen(page, release);
+
+        assertThat(releasePage.message()).hasText("This release isn't in the library.");
+    }
+
+    @Test
     void aReleaseThatIsntInTheLibraryIsReported(final Page page) {
         new LoginPage(page).logIn("alice", "alice");
         assertThat(page).hasURL(Pattern.compile("/discover$"));
@@ -170,7 +194,12 @@ class ReleaseE2ETest {
     }
 
     private void insertTrack(final Medium medium, final Artist artist, final String name) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
+        insertTrackInState(medium, artist, name, IngestState.COMPLETED);
+    }
+
+    private void insertTrackInState(final Medium medium, final Artist artist, final String name,
+                                    final IngestState state) {
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", state);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
                 artist.artistId(), ingest.trackIngestId()));
