@@ -96,7 +96,8 @@ class ReleaseGroupControllerTest {
         // Not in the library, as none of its tracks is.
         insertMedia(insertRelease(group, "Hopes and Fears (Japan)", LocalDate.of(2004, 5, 12)), "CD");
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
-        final var disc = insertMedia(original, "CD").getFirst();
+        // None of the DVD's tracks is in the library.
+        final var disc = insertMedia(original, "CD", "DVD").getFirst();
         linkLabels(original, island, interscope);
         final var track = insertTrack(disc, keane, "Somewhere Only We Know");
 
@@ -111,7 +112,7 @@ class ReleaseGroupControllerTest {
                 new DefaultReleaseResponse(original.releaseId(), List.of(new MediumResponse(1, "CD", List.of(
                         new TrackResponse(track.trackId(), "Somewhere Only We Know", 300, 1, artist(keane)))))),
                 List.of(
-                edition(original, 1, List.of(label(interscope), label(island)), List.of("CD")),
+                edition(original, 1, List.of(label(interscope), label(island)), List.of("CD", "DVD")),
                 edition(deluxe, 1, List.of(label(island)), List.of("CD", "CD")),
                 // A medium whose format isn't known still counts.
                 edition(undated, 1, List.of(), Arrays.asList((String) null)))));
