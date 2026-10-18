@@ -10,19 +10,20 @@ import Menu, { MenuKind } from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
 import Section from "./Section";
 
-// A release's tracks, disc by disc, each disc under its own heading when there is more than one. Nothing plays until
-// Sona streams (docs/GAPS.md).
+// A release's tracks, disc by disc, each disc under its own heading when the release has more than one. Discs none of
+// whose tracks are in the library are left out. Nothing plays until Sona streams (docs/GAPS.md).
 export function MediaTrackList(props: { media: MediumResponse[]; artistId: string }) {
+  const withTracks = () => props.media.filter((medium) => medium.tracks.length > 0);
   return (
     <Show
       when={props.media.length > 1}
       fallback={
-        <For each={props.media}>
+        <For each={withTracks()}>
           {(medium) => <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />}
         </For>
       }
     >
-      <For each={props.media}>
+      <For each={withTracks()}>
         {(medium) => (
           <Section title={joinDetails([`Disc ${medium.position}`, medium.format])}>
             <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />

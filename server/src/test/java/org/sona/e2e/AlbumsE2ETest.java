@@ -5,18 +5,27 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
+import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
+import org.sona.db.TrackDao;
+import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
@@ -37,6 +46,12 @@ class AlbumsE2ETest {
     ReleaseGroupDao releaseGroupDao;
     @Autowired
     ReleaseDao releaseDao;
+    @Autowired
+    MediumDao mediumDao;
+    @Autowired
+    TrackDao trackDao;
+    @Autowired
+    TrackToIngestDao trackToIngestDao;
 
     @BeforeEach
     void setUp() {
@@ -106,13 +121,25 @@ class AlbumsE2ETest {
     }
 
     /**
-     * @return a release group in the library, with a release stored
+     * @return a release group in the library, with a release that has a track
      */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type) {
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, null, artist.artistId(), 0,
                 uuidv7()));
-        releaseDao.upsert(new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(), artist.artistId(),
-                uuidv7()));
+        final var release = releaseDao.upsert(new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(),
+                artist.artistId(), uuidv7()));
+        insertTrack(release);
         return group;
+    }
+
+    /**
+     * Gives the release a track, so it's in the library.
+     */
+    private void insertTrack(final Release release) {
+        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        trackToIngestDao.insert(ingest);
+        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
+                release.artistId(), ingest.trackIngestId()));
     }
 }

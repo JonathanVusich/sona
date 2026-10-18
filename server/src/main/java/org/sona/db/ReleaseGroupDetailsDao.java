@@ -65,8 +65,8 @@ public class ReleaseGroupDetailsDao {
     }
 
     /**
-     * The group's earliest release, in the order {@link #editions()} lists them, so a later deluxe or instrumental
-     * edition doesn't stand for the group. {@link #loadById} only loads a group with a release stored.
+     * The group's earliest release in the library, in the order {@link #editions()} lists them, so a later deluxe or
+     * instrumental edition doesn't stand for the group. {@link #loadById} only loads a group with a release stored.
      */
     // TODO: Let users choose a group's default release, which this then prefers.
     private Field<DefaultRelease> defaultRelease() {
@@ -75,6 +75,7 @@ public class ReleaseGroupDetailsDao {
                         mediaFields.releaseMedia(release.RELEASE_ID))
                 .from(release)
                 .where(release.RELEASE_GROUP_ID.eq(RELEASE_GROUP.RELEASE_GROUP_ID))
+                .and(release.TRACK_COUNT.gt(0))
                 .orderBy(release.DATE.asc().nullsLast(), release.RELEASE_ID)
                 .limit(1))
                 .convertFrom(releases -> releases.map(found -> defaultReleaseMapper.fromPojos(found.value1(),
@@ -82,12 +83,13 @@ public class ReleaseGroupDetailsDao {
     }
 
     /**
-     * Earliest first, and those with no known date last.
+     * The group's releases in the library, those with a track, earliest first, and those with no known date last.
      */
     private Field<List<Edition>> editions() {
         return multiset(select(RELEASE.convertFrom(releaseMapper::fromRecord), labels(), media())
                 .from(RELEASE)
                 .where(RELEASE.RELEASE_GROUP_ID.eq(RELEASE_GROUP.RELEASE_GROUP_ID))
+                .and(RELEASE.TRACK_COUNT.gt(0))
                 .orderBy(RELEASE.DATE.asc().nullsLast(), RELEASE.RELEASE_ID))
                 .convertFrom(editions -> editions.map(edition -> editionMapper.fromPojos(edition.value1(),
                         edition.value2(), edition.value3())));

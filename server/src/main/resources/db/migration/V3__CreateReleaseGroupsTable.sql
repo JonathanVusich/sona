@@ -10,8 +10,9 @@ create table if not exists release_group (
     -- The group's earliest release anywhere. Like release.date, parts MusicBrainz doesn't know are the first.
     first_release_date date,
     artist_id uuid not null references artist (artist_id),
-    -- How many of the group's releases are stored, kept up to date by a trigger on release. A group is only in the
-    -- library once it has one: an ingest that stops part-way can store the group without its release.
+    -- How many of the group's releases are in the library, those with a track, kept up to date by a trigger on
+    -- release. A group is only in the library once it has one: an ingest that stops part-way can store the group
+    -- without its release, or the release without its track.
     release_count integer not null default 0,
 
     -- Null when the release group isn't in MusicBrainz.

@@ -39,6 +39,9 @@ public class ReleaseDetailsDao {
     private final ReleaseDetailsMapper detailsMapper;
     private final MediaFields mediaFields;
 
+    /**
+     * @return the release, if it's in the library: a release is only once one of its tracks is
+     */
     public Optional<ReleaseDetails> loadById(final UUID releaseId) {
         return dsl.select(RELEASE.convertFrom(releaseMapper::fromRecord),
                         ARTIST.convertFrom(artistMapper::fromRecord), labels(),
@@ -46,6 +49,7 @@ public class ReleaseDetailsDao {
                 .from(RELEASE)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
+                .and(RELEASE.TRACK_COUNT.gt(0))
                 .fetchOptional(release -> detailsMapper.fromPojos(release.value1(), release.value2(),
                         release.value3(), release.value4()));
     }

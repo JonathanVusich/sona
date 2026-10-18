@@ -89,10 +89,12 @@ class ReleaseGroupControllerTest {
         final var island = insertLabel("Island");
         final var interscope = insertLabel("Interscope");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
-        insertMedia(deluxe, "CD", "CD");
+        insertTrack(insertMedia(deluxe, "CD", "CD").getFirst(), keane, "Snowed Under");
         linkLabels(deluxe, island);
         final var undated = insertRelease(group, "Hopes and Fears", null);
-        insertMedia(undated, (String) null);
+        insertTrack(insertMedia(undated, (String) null).getFirst(), keane, "Bend and Break");
+        // Not in the library, as none of its tracks is.
+        insertMedia(insertRelease(group, "Hopes and Fears (Japan)", LocalDate.of(2004, 5, 12)), "CD");
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var disc = insertMedia(original, "CD").getFirst();
         linkLabels(original, island, interscope);
@@ -110,25 +112,43 @@ class ReleaseGroupControllerTest {
                         new TrackResponse(track.trackId(), "Somewhere Only We Know", 300, 1, artist(keane)))))),
                 List.of(
                 edition(original, 1, List.of(label(interscope), label(island)), List.of("CD")),
-                edition(deluxe, 0, List.of(label(island)), List.of("CD", "CD")),
+                edition(deluxe, 1, List.of(label(island)), List.of("CD", "CD")),
                 // A medium whose format isn't known still counts.
-                edition(undated, 0, List.of(), Arrays.asList((String) null)))));
+                edition(undated, 1, List.of(), Arrays.asList((String) null)))));
     }
 
     @Test
     void aGroupWhoseReleasesAreAllUndatedHasTheFirstStoredAsItsDefault() {
-        final var group = insertReleaseGroup(insertArtist("Keane"), "Hopes and Fears");
+        final var keane = insertArtist("Keane");
+        final var group = insertReleaseGroup(keane, "Hopes and Fears");
         final var first = insertRelease(group, "Hopes and Fears", null);
-        insertRelease(group, "Hopes and Fears (Deluxe Edition)", null);
+        insertTrack(insertMedia(first, "CD").getFirst(), keane, "Somewhere Only We Know");
+        final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", null);
+        insertTrack(insertMedia(deluxe, "CD").getFirst(), keane, "Snowed Under");
 
         final var response = loadReleaseGroup(group);
 
-        assertThat(response.defaultRelease()).isEqualTo(new DefaultReleaseResponse(first.releaseId(), List.of()));
+        assertThat(response.defaultRelease().releaseId()).isEqualTo(first.releaseId());
     }
 
     @Test
-    void aGroupWithNoStoredReleaseIsNotFound() {
+    void anEarlierReleaseWithNoTrackInTheLibraryDoesntStandForTheGroup() {
+        final var keane = insertArtist("Keane");
+        final var group = insertReleaseGroup(keane, "Hopes and Fears");
+        insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
+        final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
+        insertTrack(insertMedia(deluxe, "CD").getFirst(), keane, "Snowed Under");
+
+        final var response = loadReleaseGroup(group);
+
+        assertThat(response.defaultRelease().releaseId()).isEqualTo(deluxe.releaseId());
+        assertThat(response.editions()).extracting(EditionResponse::releaseId).containsExactly(deluxe.releaseId());
+    }
+
+    @Test
+    void aGroupWithNoReleaseInTheLibraryIsNotFound() {
         final var group = insertReleaseGroup(insertArtist("Keane"), "Hopes and Fears");
+        insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
 
         api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
                 .expectStatus().isNotFound()
@@ -176,10 +196,11 @@ class ReleaseGroupControllerTest {
     }
 
     @Test
-    void releaseGroupsWithNoStoredReleaseArentListed() {
+    void releaseGroupsWithNoReleaseInTheLibraryArentListed() {
         final var coldplay = insertArtist("Coldplay");
         final var parachutes = insertReleaseGroupWithRelease(coldplay, "Parachutes");
         insertReleaseGroup(coldplay, "X&Y");
+        insertRelease(insertReleaseGroup(coldplay, "Viva la Vida"), "Viva la Vida", LocalDate.of(2008, 6, 12));
 
         assertThat(loadPage(ApiRoutes.RELEASE_GROUPS)).isEqualTo(new ReleaseGroupPageResponse(
                 List.of(summary(parachutes, coldplay)), null));
@@ -217,9 +238,13 @@ class ReleaseGroupControllerTest {
                 LocalDate.of(2004, 5, 10), artist.artistId(), 0, uuidv7()));
     }
 
+    /**
+     * @return a release group in the library, with a release that has a track
+     */
     private ReleaseGroup insertReleaseGroupWithRelease(final Artist artist, final String name) {
         final var group = insertReleaseGroup(artist, name);
-        insertRelease(group, name, group.firstReleaseDate());
+        final var release = insertRelease(group, name, group.firstReleaseDate());
+        insertTrack(insertMedia(release, "CD").getFirst(), artist, name);
         return group;
     }
 

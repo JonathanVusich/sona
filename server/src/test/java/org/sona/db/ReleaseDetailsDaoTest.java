@@ -45,15 +45,18 @@ class ReleaseDetailsDaoTest {
     @Test
     void loadReadsTheArtistLabelsByNameAndMediaInOrder() {
         final var artist = storeArtist("Coldplay");
+        final var keane = storeArtist("Keane");
         final var release = storeRelease(artist);
         final var parlophone = storeLabel(release, "Parlophone");
         final var capitol = storeLabel(release, "Capitol");
         final var disc2 = storeMedium(release, 2);
         final var disc1 = storeMedium(release, 1);
+        final var track = storeTrack(disc1, keane, 1);
 
-        assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(release,
+        assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(withOneTrack(release),
                 withOneReleaseGroup(artist), List.of(capitol, parlophone),
-                List.of(new MediumWithTracks(disc1, List.of()), new MediumWithTracks(disc2, List.of()))));
+                List.of(new MediumWithTracks(disc1, List.of(new TrackWithArtist(track, keane))),
+                        new MediumWithTracks(disc2, List.of()))));
     }
 
     @Test
@@ -114,12 +117,21 @@ class ReleaseDetailsDaoTest {
         final var track = storeTrackInState(storeMedium(release, 1), artist, 1, IngestState.PENDING);
 
         trackToIngestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
-        final var failed = dao.loadById(release.releaseId()).orElseThrow().release().trackCount();
+        final var failed = trackCount(release);
         trackToIngestDao.updateState(track.trackIngestId(), IngestState.COMPLETED);
-        final var completed = dao.loadById(release.releaseId()).orElseThrow().release().trackCount();
+        final var completed = trackCount(release);
 
         assertThat(failed).isZero();
         assertThat(completed).isEqualTo(1);
+    }
+
+    @Test
+    void loadFindsNoReleaseWithoutATrackInTheLibrary() {
+        final var artist = storeArtist("Coldplay");
+        final var release = storeRelease(artist);
+        storeTrackInState(storeMedium(release, 1), artist, 1, IngestState.MOVE_FAILED);
+
+        assertThat(dao.loadById(release.releaseId())).isEmpty();
     }
 
     @Test
@@ -137,6 +149,18 @@ class ReleaseDetailsDaoTest {
     private static Artist withOneReleaseGroup(final Artist artist) {
         return new Artist(artist.artistId(), artist.name(), artist.country(), artist.thumbnailPath(), 1,
                 artist.musicbrainzArtistId());
+    }
+
+    /**
+     * @return the release as stored once one track of it has been
+     */
+    private static Release withOneTrack(final Release release) {
+        return new Release(release.releaseId(), release.name(), release.thumbnailPath(), release.date(),
+                release.country(), 1, release.releaseGroupId(), release.artistId(), release.musicbrainzReleaseId());
+    }
+
+    private int trackCount(final Release release) {
+        return releaseDao.loadByMusicBrainzId(release.musicbrainzReleaseId()).orElseThrow().trackCount();
     }
 
     private Release storeRelease(final Artist artist) {
