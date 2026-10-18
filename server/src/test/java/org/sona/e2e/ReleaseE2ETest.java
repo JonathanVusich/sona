@@ -110,7 +110,10 @@ class ReleaseE2ETest {
         insertMedium(release, 2, "DVD");
         final var releasePage = logInAndOpen(page, release);
 
-        assertThat(releasePage.disc("Disc 1 · CD")).isVisible();
+        assertThat(releasePage.track("Clocks")).isVisible();
+        // The DVD still describes the release, but only one disc is shown, so it needs no heading.
+        assertThat(releasePage.details()).containsText("CD + DVD");
+        assertThat(releasePage.disc("Disc 1 · CD")).isHidden();
         assertThat(releasePage.disc("Disc 2 · DVD")).isHidden();
     }
 

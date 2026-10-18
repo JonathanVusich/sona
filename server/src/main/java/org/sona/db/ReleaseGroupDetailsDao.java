@@ -7,12 +7,10 @@ import org.sona.mappers.ArtistMapper;
 import org.sona.mappers.DefaultReleaseMapper;
 import org.sona.mappers.EditionMapper;
 import org.sona.mappers.LabelMapper;
-import org.sona.mappers.MediumMapper;
 import org.sona.mappers.ReleaseGroupDetailsMapper;
 import org.sona.mappers.ReleaseGroupMapper;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.Label;
-import org.sona.model.tables.pojos.Medium;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +23,6 @@ import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.LABEL;
-import static org.sona.model.Tables.MEDIUM;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
 import static org.sona.model.Tables.RELEASE_LABEL;
@@ -44,7 +41,6 @@ public class ReleaseGroupDetailsDao {
     private final ArtistMapper artistMapper;
     private final ReleaseMapper releaseMapper;
     private final LabelMapper labelMapper;
-    private final MediumMapper mediumMapper;
     private final ReleaseGroupDetailsMapper detailsMapper;
     private final EditionMapper editionMapper;
     private final DefaultReleaseMapper defaultReleaseMapper;
@@ -86,7 +82,8 @@ public class ReleaseGroupDetailsDao {
      * The group's releases in the library, those with a track, earliest first, and those with no known date last.
      */
     private Field<List<Edition>> editions() {
-        return multiset(select(RELEASE.convertFrom(releaseMapper::fromRecord), labels(), media())
+        return multiset(select(RELEASE.convertFrom(releaseMapper::fromRecord), labels(),
+                        mediaFields.allReleaseMedia(RELEASE.RELEASE_ID))
                 .from(RELEASE)
                 .where(RELEASE.RELEASE_GROUP_ID.eq(RELEASE_GROUP.RELEASE_GROUP_ID))
                 .and(RELEASE.TRACK_COUNT.gt(0))
@@ -101,10 +98,5 @@ public class ReleaseGroupDetailsDao {
                 .where(RELEASE_LABEL.RELEASE_ID.eq(RELEASE.RELEASE_ID));
         return multiset(selectFrom(LABEL).where(LABEL.LABEL_ID.in(releaseLabelIds)).orderBy(LABEL.NAME))
                 .convertFrom(labels -> labels.map(labelMapper::fromRecord));
-    }
-
-    private Field<List<Medium>> media() {
-        return multiset(selectFrom(MEDIUM).where(MEDIUM.RELEASE_ID.eq(RELEASE.RELEASE_ID)).orderBy(MEDIUM.POSITION))
-                .convertFrom(media -> media.map(mediumMapper::fromRecord));
     }
 }

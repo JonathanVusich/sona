@@ -115,6 +115,12 @@ export interface ReleaseResponse {
   releaseGroupId: string;
   artist: ArtistResponse;
   labels: LabelResponse[];
+  /**
+   * Each medium's format in order, whether or not any of its tracks is in the library; null where MusicBrainz doesn't
+   * know it.
+   */
+  formats: (string | null)[];
+  /** Those with a track in the library, each with those tracks. */
   media: MediumResponse[];
 }
 

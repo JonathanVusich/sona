@@ -53,10 +53,10 @@ class ReleaseDetailsDaoTest {
         final var disc1 = storeMedium(release, 1);
         final var track = storeTrack(disc1, keane, 1);
 
+        // Disc 2 has no track in the library, so only its format is read.
         assertThat(dao.loadById(release.releaseId())).contains(new ReleaseDetails(withOneTrack(release),
-                withOneReleaseGroup(artist), List.of(capitol, parlophone),
-                List.of(new MediumWithTracks(disc1, List.of(new TrackWithArtist(track, keane))),
-                        new MediumWithTracks(disc2, List.of()))));
+                withOneReleaseGroup(artist), List.of(capitol, parlophone), List.of(disc1, disc2),
+                List.of(new MediumWithTracks(disc1, List.of(new TrackWithArtist(track, keane))))));
     }
 
     @Test

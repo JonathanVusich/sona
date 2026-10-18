@@ -74,7 +74,7 @@ class ReleaseControllerTest {
     }
 
     @Test
-    void aReleaseComesWithItsArtistLabelsAndMediaEachWithItsTracks() {
+    void aReleaseComesWithItsArtistLabelsFormatsAndMediaEachWithItsTracks() {
         final var various = artistDao.upsert(new Artist(uuidv7(), "Various Artists", null, null, 0, uuidv7()));
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
@@ -88,6 +88,8 @@ class ReleaseControllerTest {
         final var disc2 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD"))).getFirst();
         final var yellow = insertTrack(disc1, coldplay, "Yellow");
         final var somewhereOnlyWeKnow = insertTrack(disc2, keane, "Somewhere Only We Know");
+        // None of its tracks is in the library.
+        mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 3, "DVD")));
 
         final var response = api.getWithToken(ApiRoutes.RELEASES + "/" + release.releaseId(), token)
                 .expectStatus().isOk()
@@ -96,7 +98,7 @@ class ReleaseControllerTest {
 
         assertThat(response).isEqualTo(new ReleaseResponse(release.releaseId(), "Britpop", LocalDate.of(2002, 8, 26),
                 "GB", 2, release.releaseGroupId(), artist(various),
-                List.of(new LabelResponse(parlophone.labelId(), "Parlophone")),
+                List.of(new LabelResponse(parlophone.labelId(), "Parlophone")), List.of("CD", "CD", "DVD"),
                 List.of(new MediumResponse(1, "CD", List.of(track(yellow, coldplay))),
                         new MediumResponse(2, "CD", List.of(track(somewhereOnlyWeKnow, keane))))));
     }

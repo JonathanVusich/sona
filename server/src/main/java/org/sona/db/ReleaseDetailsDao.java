@@ -45,13 +45,13 @@ public class ReleaseDetailsDao {
     public Optional<ReleaseDetails> loadById(final UUID releaseId) {
         return dsl.select(RELEASE.convertFrom(releaseMapper::fromRecord),
                         ARTIST.convertFrom(artistMapper::fromRecord), labels(),
-                        mediaFields.releaseMedia(RELEASE.RELEASE_ID))
+                        mediaFields.allReleaseMedia(RELEASE.RELEASE_ID), mediaFields.releaseMedia(RELEASE.RELEASE_ID))
                 .from(RELEASE)
                 .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
                 .and(RELEASE.TRACK_COUNT.gt(0))
                 .fetchOptional(release -> detailsMapper.fromPojos(release.value1(), release.value2(),
-                        release.value3(), release.value4()));
+                        release.value3(), release.value4(), release.value5()));
     }
 
     private Field<List<Label>> labels() {

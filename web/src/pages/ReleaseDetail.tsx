@@ -53,7 +53,7 @@ function ReleaseView(props: { release: ReleaseResponse }) {
   const details = () =>
     joinDetails([
       formatYear(props.release.date),
-      formatMedia(props.release.media.map((medium) => medium.format)),
+      formatMedia(props.release.formats),
       formatLabels(props.release.labels),
       props.release.country,
       plural(props.release.trackCount, "song"),

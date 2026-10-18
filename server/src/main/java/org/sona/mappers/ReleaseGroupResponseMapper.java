@@ -10,7 +10,6 @@ import org.sona.db.DefaultRelease;
 import org.sona.db.Edition;
 import org.sona.db.ReleaseGroupDetails;
 import org.sona.db.ReleaseGroupSummary;
-import org.sona.model.tables.pojos.Medium;
 
 @Mapper(componentModel = "spring", uses = ReleaseResponseMapper.class)
 public interface ReleaseGroupResponseMapper {
@@ -27,11 +26,4 @@ public interface ReleaseGroupResponseMapper {
 
     @Mapping(target = ".", source = "releaseGroup")
     ReleaseGroupSummaryResponse toResponse(ReleaseGroupSummary summary);
-
-    /**
-     * @return what an edition lists for the medium
-     */
-    default String mediumFormat(final Medium medium) {
-        return medium.format();
-    }
 }
