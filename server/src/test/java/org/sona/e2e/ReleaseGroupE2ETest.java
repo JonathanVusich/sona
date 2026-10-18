@@ -136,6 +136,30 @@ class ReleaseGroupE2ETest {
     }
 
     @Test
+    void anEarlierEditionWithNoTrackInTheLibraryDoesntStandForTheReleaseGroup(final Page page) {
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
+        insertReleaseWithTrack(group, keane, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
+        final var releaseGroupPage = logInAndOpen(page, group);
+
+        assertThat(releaseGroupPage.track("Hopes and Fears (Deluxe Edition)")).isVisible();
+        assertThat(releaseGroupPage.editionTitles()).hasText(new String[]{"Hopes and Fears (Deluxe Edition)"});
+    }
+
+    @Test
+    void aReleaseGroupWithNoTrackInTheLibraryIsReported(final Page page) {
+        final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
+        final var releaseGroupPage = logInAndOpen(page, group);
+
+        assertThat(releaseGroupPage.message()).hasText("This release group isn't in the library.");
+    }
+
+    @Test
     void anEditionOpensItsReleasesPage(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
