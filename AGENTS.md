@@ -137,7 +137,9 @@ Test notes:
   through a `FakeOidcProvider`, a WireMock OIDC provider that signs ID tokens and answers token requests). Tests
   commit, and `TruncateTablesExtension` empties every table afterwards. `TestQueryPlanConfig` EXPLAINs every jOOQ
   query with sequential scans off, and `IndexedQueryListener` fails the test if any table of Sona's is scanned in
-  full, so a query without an index fails the first test that runs it. Needs Docker.
+  full, so a query without an index fails the first test that runs it. `TestSingleQueryConfig` fails any `GET` under
+  `/api` (except `/api/auth`, where signing in writes) that runs a second query (`SingleQueryListener`), in the E2E tests
+  too, so every page is read in one. Needs Docker.
 - HTTP tests call the real port through `ApiClient` (a Spring `RestTestClient`), so they pass through the security
   filters. `TestTokens` signs access tokens as Sona does, and `TestUsers` creates local users whose password is their
   username.
@@ -239,7 +241,7 @@ Match the surrounding code. The conventions below are consistent across the code
   for single rows, `multiset` for lists (`ReleaseDetailsDao.loadById`). Don't chain lookups by ID and stitch the
   results together in Java. Secondary sections and menus (a release's **More by** and **Other editions**) load after
   it, from the endpoints that already serve that data (the artist's, the release group's), rather than slowing the
-  page's own query.
+  page's own query. The tests enforce one query per read (`SingleQueryListener`).
 - Only a table's own mapper sees its jOOQ records. A composite read converts every table it selects to its pojo as
   it's read (`RELEASE.convertFrom(releaseMapper::fromRecord)`, and `multiset(...).convertFrom(rows -> rows.map(...))`
   for lists), and its composite mappers build their results from pojos only (`fromPojos(Medium medium,
