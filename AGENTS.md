@@ -138,8 +138,8 @@ Test notes:
   commit, and `TruncateTablesExtension` empties every table afterwards. `TestQueryPlanConfig` EXPLAINs every jOOQ
   query with sequential scans off, and `IndexedQueryListener` fails the test if any table of Sona's is scanned in
   full, so a query without an index fails the first test that runs it. `TestSingleQueryConfig` fails any `GET` under
-  `/api` (except `/api/auth`, where signing in writes) that runs a second query (`SingleQueryListener`), in the E2E tests
-  too, so every page is read in one. Needs Docker.
+  `/api` (except `/api/auth`, where signing in writes) that runs a second query (`SingleQueryListener`), in the E2E
+  tests too, so every page is read in one. Needs Docker.
 - HTTP tests call the real port through `ApiClient` (a Spring `RestTestClient`), so they pass through the security
   filters. `TestTokens` signs access tokens as Sona does, and `TestUsers` creates local users whose password is their
   username.
