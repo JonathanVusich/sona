@@ -91,6 +91,38 @@ class ReleaseDetailsDaoTest {
     }
 
     @Test
+    void loadLeavesOutTracksWhoseFileIsntInTheLibrary() {
+        final var artist = storeArtist("Coldplay");
+        final var keane = storeArtist("Keane");
+        final var release = storeRelease(artist);
+        final var disc = storeMedium(release, 1);
+        final var imported = storeTrack(disc, keane, 1);
+        storeTrackInState(disc, keane, 2, IngestState.MOVE_FAILED);
+        storeTrackInState(disc, keane, 3, IngestState.PENDING);
+
+        final var details = dao.loadById(release.releaseId()).orElseThrow();
+
+        assertThat(details.media()).containsExactly(
+                new MediumWithTracks(disc, List.of(new TrackWithArtist(imported, keane))));
+        assertThat(details.release().trackCount()).isEqualTo(1);
+    }
+
+    @Test
+    void trackCountFollowsTheTracksIngest() {
+        final var artist = storeArtist("Coldplay");
+        final var release = storeRelease(artist);
+        final var track = storeTrackInState(storeMedium(release, 1), artist, 1, IngestState.PENDING);
+
+        trackToIngestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
+        final var failed = dao.loadById(release.releaseId()).orElseThrow().release().trackCount();
+        trackToIngestDao.updateState(track.trackIngestId(), IngestState.COMPLETED);
+        final var completed = dao.loadById(release.releaseId()).orElseThrow().release().trackCount();
+
+        assertThat(failed).isZero();
+        assertThat(completed).isEqualTo(1);
+    }
+
+    @Test
     void loadFindsNoUnknownRelease() {
         assertThat(dao.loadById(uuidv7())).isEmpty();
     }
@@ -125,7 +157,12 @@ class ReleaseDetailsDaoTest {
     }
 
     private Track storeTrack(final Medium medium, final Artist artist, final int position) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        return storeTrackInState(medium, artist, position, IngestState.COMPLETED);
+    }
+
+    private Track storeTrackInState(final Medium medium, final Artist artist, final int position,
+                                    final IngestState state) {
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", state);
         trackToIngestDao.insert(ingest);
         final var track = new Track(uuidv7(), "Track", 300, AudioFormat.FLAC, "track.flac", medium.mediumId(),
                 position, artist.artistId(), ingest.trackIngestId());
