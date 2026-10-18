@@ -103,12 +103,32 @@ class ReleaseE2ETest {
     }
 
     @Test
+    void aDiscWithNoTrackInTheLibraryIsLeftOut(final Page page) {
+        final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
+        final var release = insertRelease(coldplay, "Live 2003", "Parlophone");
+        insertTrack(insertMedium(release, 1, "CD"), coldplay, "Clocks");
+        insertMedium(release, 2, "DVD");
+        final var releasePage = logInAndOpen(page, release);
+
+        assertThat(releasePage.track("Clocks")).isVisible();
+        // The DVD still describes the release, but only one disc is shown, so it needs no heading.
+        assertThat(releasePage.details()).containsText("CD + DVD");
+        assertThat(releasePage.disc("Disc 1 · CD")).isHidden();
+        assertThat(releasePage.disc("Disc 2 · DVD")).isHidden();
+    }
+
+    @Test
     void aReleaseListsItsGroupsOtherEditionsAndTheArtistsOtherReleaseGroups(final Page page) {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var original = insertRelease(coldplay, "A Rush of Blood to the Head", "Parlophone");
-        releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Japan)", null, LocalDate.of(2002, 8, 27),
-                "JP", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
-        insertRelease(coldplay, "Parachutes", "Parlophone");
+        insertTrack(insertMedium(original, 1, "CD"), coldplay, "Clocks");
+        final var japan = releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Japan)", null,
+                LocalDate.of(2002, 8, 27), "JP", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
+        insertTrack(insertMedium(japan, 1, "CD"), coldplay, "The Scientist");
+        // Not in the library, as it has no track.
+        releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Deluxe)", null,
+                LocalDate.of(2002, 8, 28), "GB", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
+        insertTrack(insertMedium(insertRelease(coldplay, "Parachutes", "Parlophone"), 1, "CD"), coldplay, "Yellow");
         final var releasePage = logInAndOpen(page, original);
 
         assertThat(releasePage.editionTitles()).hasText(new String[]{"A Rush of Blood to the Head (Japan)"});
@@ -143,6 +163,10 @@ class ReleaseE2ETest {
         final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7()))).getFirst();
         releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
         return release;
+    }
+
+    private Medium insertMedium(final Release release, final int position, final String format) {
+        return mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), position, format))).getFirst();
     }
 
     private void insertTrack(final Medium medium, final Artist artist, final String name) {

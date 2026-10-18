@@ -2,13 +2,19 @@ package org.sona.db;
 
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +30,12 @@ class ArtistDaoTest {
     ReleaseGroupDao releaseGroupDao;
     @Autowired
     ReleaseDao releaseDao;
+    @Autowired
+    MediumDao mediumDao;
+    @Autowired
+    TrackDao trackDao;
+    @Autowired
+    TrackToIngestDao trackToIngestDao;
 
     @Test
     void upsertInsertsNewArtist() {
@@ -47,10 +59,11 @@ class ArtistDaoTest {
         final var coldplay = dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var keane = dao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var musicbrainzId = uuidv7();
-        insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7()));
-        insertRelease(upsertReleaseGroup(coldplay, "Hopes and Fears", musicbrainzId));
-        // Not in the library until a release of it is stored.
+        insertTrack(insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7())));
+        insertTrack(insertRelease(upsertReleaseGroup(coldplay, "Hopes and Fears", musicbrainzId)));
+        // Not in the library until a release of it with a track is stored.
         upsertReleaseGroup(coldplay, "X&Y", uuidv7());
+        insertRelease(upsertReleaseGroup(coldplay, "Viva la Vida", uuidv7()));
 
         // MusicBrainz credits the group to another artist now.
         upsertReleaseGroup(keane, "Hopes and Fears", musicbrainzId);
@@ -62,7 +75,7 @@ class ArtistDaoTest {
     @Test
     void loadNextPageFindsNoPageAfterAnUnknownArtist() {
         final var coldplay = dao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
-        insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7()));
+        insertTrack(insertRelease(upsertReleaseGroup(coldplay, "Parachutes", uuidv7())));
 
         assertThat(dao.loadNextPage(uuidv7(), 10)).isEmpty();
     }
@@ -72,8 +85,19 @@ class ArtistDaoTest {
                 LocalDate.of(2000, 7, 10), artist.artistId(), 0, musicbrainzId));
     }
 
-    private void insertRelease(final ReleaseGroup group) {
-        releaseDao.upsert(new Release(uuidv7(), group.name(), null, group.firstReleaseDate(), "GB", 0,
+    private Release insertRelease(final ReleaseGroup group) {
+        return releaseDao.upsert(new Release(uuidv7(), group.name(), null, group.firstReleaseDate(), "GB", 0,
                 group.releaseGroupId(), group.artistId(), uuidv7()));
+    }
+
+    /**
+     * Gives the release a track, so it's in the library.
+     */
+    private void insertTrack(final Release release) {
+        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        trackToIngestDao.insert(ingest);
+        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
+                release.artistId(), ingest.trackIngestId()));
     }
 }

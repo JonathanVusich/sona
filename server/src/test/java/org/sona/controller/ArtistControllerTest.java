@@ -12,13 +12,21 @@ import org.sona.controller.response.ArtistPageResponse;
 import org.sona.controller.response.ArtistReleaseGroupResponse;
 import org.sona.controller.response.ArtistSummaryResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
+import org.sona.db.TrackDao;
+import org.sona.db.TrackToIngestDao;
+import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
+import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -40,6 +48,12 @@ class ArtistControllerTest {
     ReleaseGroupDao releaseGroupDao;
     @Autowired
     ReleaseDao releaseDao;
+    @Autowired
+    MediumDao mediumDao;
+    @Autowired
+    TrackDao trackDao;
+    @Autowired
+    TrackToIngestDao trackToIngestDao;
 
     @Value("${local.server.port}")
     int port;
@@ -76,11 +90,13 @@ class ArtistControllerTest {
     }
 
     @Test
-    void anArtistsReleaseGroupsWithNoReleaseArentInTheLibrary() {
+    void anArtistsReleaseGroupsNotInTheLibraryAreLeftOut() {
         final var coldplay = insertArtist("Coldplay", "GB");
         final var parachutes = insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM,
                 LocalDate.of(2000, 7, 10));
         insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
+        insertRelease(insertReleaseGroupWithoutRelease(coldplay, "Viva la Vida", ReleaseGroupType.ALBUM,
+                LocalDate.of(2008, 6, 12)));
 
         final var response = api.getWithToken(ApiRoutes.ARTISTS + "/" + coldplay.artistId(), token)
                 .expectStatus().isOk()
@@ -140,12 +156,15 @@ class ArtistControllerTest {
     }
 
     @Test
-    void artistsWhoseReleaseGroupsHaveNoReleaseArentListed() {
+    void artistsWhoseReleaseGroupsArentInTheLibraryArentListed() {
         final var coldplay = insertArtist("Coldplay", "GB");
         final var keane = insertArtist("Keane", "GB");
+        final var blur = insertArtist("Blur", "GB");
         insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
         insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
         insertReleaseGroupWithoutRelease(keane, "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
+        insertRelease(insertReleaseGroupWithoutRelease(blur, "Parklife", ReleaseGroupType.ALBUM,
+                LocalDate.of(1994, 4, 25)));
 
         assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)),
                 null));
@@ -186,14 +205,22 @@ class ArtistControllerTest {
     }
 
     /**
-     * @return a release group in the library, with a release stored
+     * @return a release group in the library, with a release that has a track
      */
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type,
                                             final LocalDate firstReleaseDate) {
         final var group = insertReleaseGroupWithoutRelease(artist, name, type, firstReleaseDate);
-        releaseDao.upsert(new Release(uuidv7(), name, null, firstReleaseDate, "GB", 0, group.releaseGroupId(),
-                artist.artistId(), uuidv7()));
+        final var release = insertRelease(group);
+        insertTrack(release);
         return group;
+    }
+
+    /**
+     * @return a release of the group with no tracks, which isn't in the library
+     */
+    private Release insertRelease(final ReleaseGroup group) {
+        return releaseDao.upsert(new Release(uuidv7(), group.name(), null, group.firstReleaseDate(), "GB", 0,
+                group.releaseGroupId(), group.artistId(), uuidv7()));
     }
 
     private ReleaseGroup insertReleaseGroupWithoutRelease(final Artist artist, final String name,
@@ -210,5 +237,16 @@ class ArtistControllerTest {
 
     private static ArtistSummaryResponse summary(final Artist artist, final int releaseGroupCount) {
         return new ArtistSummaryResponse(artist.artistId(), artist.name(), releaseGroupCount);
+    }
+
+    /**
+     * Gives the release a track, so it's in the library.
+     */
+    private void insertTrack(final Release release) {
+        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        trackToIngestDao.insert(ingest);
+        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
+                release.artistId(), ingest.trackIngestId()));
     }
 }

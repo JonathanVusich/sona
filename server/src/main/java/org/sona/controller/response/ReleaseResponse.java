@@ -12,7 +12,9 @@ import java.util.UUID;
  * @param country    ISO 3166-1 code, or a MusicBrainz code like "XW" for worldwide; null when unknown
  * @param trackCount how many of the release's tracks are in the library
  * @param labels     by name
- * @param media      in order
+ * @param formats    each medium's format in order, like "CD", whether or not any of its tracks is in the library;
+ *                   null for a medium whose format MusicBrainz doesn't know
+ * @param media      in order, those with a track in the library, each with those tracks
  */
 public record ReleaseResponse(
         UUID releaseId,
@@ -23,6 +25,7 @@ public record ReleaseResponse(
         UUID releaseGroupId,
         ArtistResponse artist,
         List<LabelResponse> labels,
+        List<String> formats,
         List<MediumResponse> media
 ) {
 }

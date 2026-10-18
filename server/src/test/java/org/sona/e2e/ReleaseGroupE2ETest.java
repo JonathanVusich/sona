@@ -76,7 +76,7 @@ class ReleaseGroupE2ETest {
                 LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
         final var island = insertLabel("Island");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
-        insertMedia(deluxe, "CD", "CD");
+        insertTrack(insertMedia(deluxe, "CD", "CD").getFirst(), keane, "Snowed Under");
         linkLabels(deluxe, island);
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var disc = insertMedia(original, "CD").getFirst();
@@ -92,7 +92,7 @@ class ReleaseGroupE2ETest {
                 .hasText(new String[]{"Hopes and Fears", "Hopes and Fears (Deluxe Edition)"});
         assertThat(releaseGroupPage.editionDetails()).hasText(new String[]{
                 "2004 · CD · Interscope, Island · GB · 1 song",
-                "2014 · 2×CD · Island · GB · 0 songs"});
+                "2014 · 2×CD · Island · GB · 1 song"});
     }
 
     @Test
@@ -120,14 +120,14 @@ class ReleaseGroupE2ETest {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
                 LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
-        insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
+        insertReleaseWithTrack(group, keane, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var underTheIronSea = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Under the Iron Sea",
                 ReleaseGroupType.ALBUM, LocalDate.of(2006, 6, 12), keane.artistId(), 0, uuidv7()));
-        insertRelease(underTheIronSea, "Under the Iron Sea", LocalDate.of(2006, 6, 12));
+        insertReleaseWithTrack(underTheIronSea, keane, "Under the Iron Sea", LocalDate.of(2006, 6, 12));
         final var perfectSymmetry = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Perfect Symmetry",
                 ReleaseGroupType.ALBUM, LocalDate.of(2008, 10, 13), keane.artistId(), 0, uuidv7()));
-        insertRelease(perfectSymmetry, "Perfect Symmetry", LocalDate.of(2008, 10, 13));
-        // Not in the library until a release of it is stored.
+        insertReleaseWithTrack(perfectSymmetry, keane, "Perfect Symmetry", LocalDate.of(2008, 10, 13));
+        // Not in the library until a release of it with a track is stored.
         releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Strangeland", ReleaseGroupType.ALBUM,
                 LocalDate.of(2012, 5, 7), keane.artistId(), 0, uuidv7()));
         final var releaseGroupPage = logInAndOpen(page, group);
@@ -140,7 +140,7 @@ class ReleaseGroupE2ETest {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
                 LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
-        final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
+        final var original = insertReleaseWithTrack(group, keane, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var releaseGroupPage = logInAndOpen(page, group);
 
         releaseGroupPage.editions().first().click();
@@ -172,6 +172,13 @@ class ReleaseGroupE2ETest {
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {
         return releaseDao.upsert(new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(),
                 group.artistId(), uuidv7()));
+    }
+
+    private Release insertReleaseWithTrack(final ReleaseGroup group, final Artist artist, final String name,
+                                           final LocalDate date) {
+        final var release = insertRelease(group, name, date);
+        insertTrack(insertMedia(release, "CD").getFirst(), artist, name);
+        return release;
     }
 
     private Label insertLabel(final String name) {
