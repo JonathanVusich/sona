@@ -57,10 +57,20 @@ public final class DefaultIngestWorker implements IngestWorker, SmartLifecycle {
                 wakeUps.acquire();
                 // One pass takes every ingest pending by then, however many uploads woke the worker.
                 wakeUps.drainPermits();
-                processPending();
+                processPendingSafely();
             }
         } catch (InterruptedException _) {
             // Sona is stopping. An ingest it was processing is still pending, and is taken again on the next start.
+        }
+    }
+
+    private void processPendingSafely() throws InterruptedException {
+        try {
+            processPending();
+        } catch (RuntimeException e) {
+            // Such as the database being out of reach. The thread must live on, or nothing would be ingested until Sona
+            // restarted; the ingests still pending are taken on the next wake-up.
+            log.error("Processing pending ingests failed", e);
         }
     }
 
