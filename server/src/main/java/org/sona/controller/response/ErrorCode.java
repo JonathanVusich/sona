@@ -34,8 +34,10 @@ public enum ErrorCode {
     RELEASE_NOT_FOUND(300, HttpStatus.NOT_FOUND, "This release isn't in the library."),
     RELEASE_GROUP_NOT_FOUND(301, HttpStatus.NOT_FOUND, "This release group isn't in the library."),
     ARTIST_NOT_FOUND(302, HttpStatus.NOT_FOUND, "This artist isn't in the library."),
+    UNSUPPORTED_FORMAT(303, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Sona can't ingest files in this format yet."),
 
-    INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid.");
+    INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid."),
+    UNSUPPORTED_CONTENT_TYPE(401, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "The request body isn't in a type this endpoint takes.");
 
     @JsonValue
     private final int code;

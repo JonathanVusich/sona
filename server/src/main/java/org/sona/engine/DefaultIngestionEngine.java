@@ -66,6 +66,11 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final TrackDao trackDao;
 
     @Override
+    public boolean supports(final String filename) {
+        return PARSERS.containsKey(extensionOf(filename));
+    }
+
+    @Override
     public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException {
         switch (trackToIngest.state()) {
             case PENDING, INPUT_REQUIRED -> ingestTrack(trackToIngest);
@@ -104,12 +109,16 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     private static Parser parserFor(final TrackToIngest trackToIngest) throws InvalidFormatException {
-        final var extension = FilenameUtils.getExtension(trackToIngest.originalFileName()).toLowerCase(Locale.ROOT);
+        final var extension = extensionOf(trackToIngest.originalFileName());
         final var parser = PARSERS.get(extension);
         if (parser == null) {
             throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
         }
         return parser;
+    }
+
+    private static String extensionOf(final String filename) {
+        return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
     private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest,

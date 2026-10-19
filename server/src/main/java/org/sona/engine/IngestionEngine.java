@@ -11,5 +11,10 @@ import java.io.IOException;
  */
 public interface IngestionEngine {
 
+    /**
+     * @return whether a file of this name is in a format Sona can ingest, going by its extension
+     */
+    boolean supports(String filename);
+
     void processTrack(TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException;
 }

@@ -7,3 +7,6 @@ create table if not exists track_to_ingest (
     original_file_name text not null,
     state ingest_state not null default 'PENDING'
 );
+
+-- The ingest worker takes pending ingests oldest first.
+create index if not exists track_to_ingest_state_idx on track_to_ingest (state, track_ingest_id);

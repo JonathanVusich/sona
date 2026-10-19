@@ -4,7 +4,9 @@ import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.sona.exception.ClientException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -24,6 +26,22 @@ public final class ApiExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch() {
+        return handleClientException(new ClientException(ErrorCode.INVALID_PARAMETER));
+    }
+
+    /**
+     * A request body whose content type the endpoint doesn't take.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedContentType() {
+        return handleClientException(new ClientException(ErrorCode.UNSUPPORTED_CONTENT_TYPE));
+    }
+
+    /**
+     * A query parameter the endpoint requires that the request leaves out.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter() {
         return handleClientException(new ClientException(ErrorCode.INVALID_PARAMETER));
     }
 

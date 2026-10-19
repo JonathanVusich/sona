@@ -8,6 +8,7 @@ import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.sona.model.Tables.TRACK_TO_INGEST;
@@ -30,6 +31,17 @@ public class TrackToIngestDao {
         return dsl.selectFrom(TRACK_TO_INGEST)
                 .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
                 .fetchSingle(mapper::fromRecord);
+    }
+
+    /**
+     * @return the oldest ingest still waiting to be processed
+     */
+    public Optional<TrackToIngest> loadOldestPending() {
+        return dsl.selectFrom(TRACK_TO_INGEST)
+                .where(TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
+                .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
+                .limit(1)
+                .fetchOptional(mapper::fromRecord);
     }
 
     public void updateState(final UUID trackToIngestId, final IngestState state) {

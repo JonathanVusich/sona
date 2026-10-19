@@ -1,6 +1,7 @@
 package org.sona.client;
 
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.Artist;
 import org.sona.client.model.EntityType;
@@ -25,6 +26,8 @@ public class MusicBrainzClient {
     private final RestClient restClient;
 
     // MusicBrainz allows about one request a second per client; see resilience4j.ratelimiter.instances.musicbrainz.
+    // It answers 503 when it's busy, or a client goes faster, and each retry waits its turn again.
+    @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public TrackResponse searchRecordings(RecordingQuery query) {
         return restClient.get()
@@ -37,6 +40,7 @@ public class MusicBrainzClient {
     /**
      * @return the release with its artists, labels, release group (with its artists) and media
      */
+    @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Release lookupRelease(final UUID releaseId) {
         return restClient.get()
@@ -50,6 +54,7 @@ public class MusicBrainzClient {
                 .body(Release.class);
     }
 
+    @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Artist lookupArtist(final UUID artistId) {
         return restClient.get()

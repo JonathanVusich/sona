@@ -51,7 +51,13 @@ public final class DefaultLibrary implements Library {
         final var ingestTarget = ingestFolder
                 .resolve(ingestTrackId.toString());
 
-        Files.copy(inputStream, ingestTarget);
+        try {
+            Files.copy(inputStream, ingestTarget);
+        } catch (IOException e) {
+            // An upload cut short leaves part of a file, which no ingest row would ever point at.
+            Files.deleteIfExists(ingestTarget);
+            throw e;
+        }
 
         final var trackIngest = new TrackToIngest(
                 ingestTrackId,
