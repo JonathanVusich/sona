@@ -81,7 +81,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final Parser parser;
         final RawMetadata metadata;
         try {
-            parser = parserFor(trackToIngest);
+            parser = parserFor(trackToIngest.originalFileName());
             metadata = parseIngestTrack(trackToIngest, parser);
         } catch (InvalidFormatException e) {
             // Processing it again would fail the same way.
@@ -103,13 +103,17 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         importTrack(trackToIngest, resolved, metadata.duration(), parser.format());
     }
 
-    private static Parser parserFor(final TrackToIngest trackToIngest) throws InvalidFormatException {
-        final var extension = FilenameUtils.getExtension(trackToIngest.originalFileName()).toLowerCase(Locale.ROOT);
+    private static Parser parserFor(final String filename) throws InvalidFormatException {
+        final var extension = fileExtension(filename);
         final var parser = PARSERS.get(extension);
         if (parser == null) {
             throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
         }
         return parser;
+    }
+
+    private static String fileExtension(final String filename) {
+        return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
     private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest,

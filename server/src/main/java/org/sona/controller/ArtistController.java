@@ -5,10 +5,9 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ArtistDetailsResponse;
 import org.sona.controller.response.ArtistPageResponse;
-import org.sona.controller.response.ErrorCode;
 import org.sona.db.ArtistDao;
 import org.sona.db.ArtistDetailsDao;
-import org.sona.exception.ClientException;
+import org.sona.exception.ArtistNotFoundException;
 import org.sona.mappers.ArtistResponseMapper;
 import org.sona.model.tables.pojos.Artist;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,7 +48,7 @@ public class ArtistController {
     public ArtistDetailsResponse artist(@PathVariable final UUID artistId) {
         return detailsDao.loadById(artistId)
                 .map(mapper::toResponse)
-                .orElseThrow(() -> new ClientException(ErrorCode.ARTIST_NOT_FOUND));
+                .orElseThrow(() -> new ArtistNotFoundException(artistId));
     }
 
     /**

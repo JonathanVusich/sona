@@ -1,10 +1,9 @@
 package org.sona.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ReleaseResponse;
 import org.sona.db.ReleaseDetailsDao;
-import org.sona.exception.ClientException;
+import org.sona.exception.ReleaseNotFoundException;
 import org.sona.mappers.ReleaseResponseMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +24,6 @@ public class ReleaseController {
     public ReleaseResponse release(@PathVariable final UUID releaseId) {
         return releaseDetailsDao.loadById(releaseId)
                 .map(mapper::toResponse)
-                .orElseThrow(() -> new ClientException(ErrorCode.RELEASE_NOT_FOUND));
+                .orElseThrow(() -> new ReleaseNotFoundException(releaseId));
     }
 }

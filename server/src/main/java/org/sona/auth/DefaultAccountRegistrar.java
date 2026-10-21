@@ -1,10 +1,11 @@
 package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.controller.response.ErrorCode;
 import org.sona.db.OidcIdentityDao;
 import org.sona.db.UserDao;
-import org.sona.exception.ClientException;
+import org.sona.exception.AlreadyRegisteredException;
+import org.sona.exception.InvalidRegistrationTokenException;
+import org.sona.exception.UsernameTakenException;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
@@ -40,16 +41,16 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
     @Override
     public ProviderUser registerUser(final String registrationToken, final String username) {
         final var user = registrationTokens.readToken(registrationToken)
-                .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REGISTRATION_TOKEN));
+                .orElseThrow(InvalidRegistrationTokenException::new);
         if (userDao.loadById(user.userId()).isPresent()) {
-            throw new ClientException(ErrorCode.ALREADY_REGISTERED);
+            throw new AlreadyRegisteredException();
         }
         final var account = new Users(user.userId(), UserType.OIDC, username, user.role(), AccountState.ACTIVE);
         try {
             userDao.insert(account);
         } catch (final DuplicateKeyException _) {
             // Usernames are unique, so the database settles two users choosing the same one at once.
-            throw new ClientException(ErrorCode.USERNAME_TAKEN);
+            throw new UsernameTakenException(username);
         }
         oidcIdentityDao.insert(new OidcIdentity(user.userId(), user.issuer(), user.subject()));
         return user;

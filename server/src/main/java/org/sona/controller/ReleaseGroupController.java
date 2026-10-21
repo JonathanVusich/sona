@@ -3,13 +3,12 @@ package org.sona.controller;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ReleaseGroupPageResponse;
 import org.sona.controller.response.ReleaseGroupResponse;
 import org.sona.db.ReleaseGroupDetailsDao;
 import org.sona.db.ReleaseGroupSummary;
 import org.sona.db.ReleaseGroupSummaryDao;
-import org.sona.exception.ClientException;
+import org.sona.exception.ReleaseGroupNotFoundException;
 import org.sona.mappers.ReleaseGroupResponseMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +49,7 @@ public class ReleaseGroupController {
     public ReleaseGroupResponse releaseGroup(@PathVariable final UUID releaseGroupId) {
         return detailsDao.loadById(releaseGroupId)
                 .map(mapper::toResponse)
-                .orElseThrow(() -> new ClientException(ErrorCode.RELEASE_GROUP_NOT_FOUND));
+                .orElseThrow(() -> new ReleaseGroupNotFoundException(releaseGroupId));
     }
 
     /**
