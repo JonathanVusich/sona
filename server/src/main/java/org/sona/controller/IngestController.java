@@ -28,6 +28,9 @@ import static org.sona.utils.IDGenerator.uuidv7;
 /**
  * Uploads into the ingest area. Each file of an upload is sent on its own, into the group the upload started, so a
  * large folder isn't one request and a file that fails doesn't fail the rest.
+ * <p>
+ * A group is the files the uploader says belong together, such as one album. Matching uses that as a hint for choosing
+ * one release for them all, since the files' tags don't always settle it (docs/VISION.md, Ingestion).
  */
 @RestController
 @RequiredArgsConstructor
@@ -40,7 +43,8 @@ public class IngestController {
     private final TrackIngestResponseMapper mapper;
 
     /**
-     * Starts an upload. Nothing is stored until its first file is: a group is only the ID its files share.
+     * Starts uploading a group of files that belong together. Nothing is stored until its first file is: a group is
+     * the ID its files share.
      */
     @PostMapping(ApiRoutes.INGEST_GROUPS)
     public IngestGroupResponse startUpload() {

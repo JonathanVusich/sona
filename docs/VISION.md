@@ -60,6 +60,10 @@ There is no deadline. Done when it's good.
 - **After a successful import the original upload is deleted.** The ingest area is temporary.
 - **Matching unit:** match **per album** (use every track in an ingest group to choose one release),
   **falling back to per-track** matching for loose files.
+- **Ingest groups are the uploader's own grouping.** When a user uploads files together as one album, that is a signal
+  in itself: the files most likely belong to one release. Tags alone don't always settle the release (they may be
+  missing, sparse, or differ from file to file), so the group is another data point for choosing it, above all when a
+  file has no MusicBrainz IDs or other tagging data.
 - **Existing MusicBrainz IDs** in tags (e.g. from Picard) are a **strong hint that must be verified**
   against the other tags, not trusted blindly.
 - **Audio fingerprinting (AcoustID / Chromaprint) runs on every file.** Decoding the audio for it uses
