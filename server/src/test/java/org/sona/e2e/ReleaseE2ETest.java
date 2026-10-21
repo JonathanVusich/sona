@@ -12,9 +12,11 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
@@ -24,6 +26,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -58,6 +61,8 @@ class ReleaseE2ETest {
     MediumDao mediumDao;
     @Autowired
     TrackDao trackDao;
+    @Autowired
+    IngestGroupDao ingestGroupDao;
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -199,7 +204,9 @@ class ReleaseE2ETest {
 
     private void insertTrackInState(final Medium medium, final Artist artist, final String name,
                                     final IngestState state) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", state);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.upsert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", state);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
                 artist.artistId(), ingest.trackIngestId()));

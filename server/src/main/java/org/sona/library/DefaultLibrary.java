@@ -7,6 +7,7 @@ import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -42,14 +43,14 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
-    public TrackToIngest storeIngestTrack(final UUID ingestGroup,
+    public TrackToIngest storeIngestTrack(final IngestGroup ingestGroup,
                                  final String filename,
                                  final InputStream inputStream) throws InvalidFormatException, IOException {
         checkFormat(filename);
         final UUID ingestTrackId = uuidv7();
 
         final var ingestFolder = config.ingestFolder()
-                .resolve(ingestGroup.toString());
+                .resolve(ingestGroup.ingestGroupId().toString());
 
         Files.createDirectories(ingestFolder);
 
@@ -66,7 +67,7 @@ public final class DefaultLibrary implements Library {
 
         final var trackIngest = new TrackToIngest(
                 ingestTrackId,
-                ingestGroup,
+                ingestGroup.ingestGroupId(),
                 filename,
                 IngestState.PENDING
         );

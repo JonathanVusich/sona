@@ -3,12 +3,15 @@ package org.sona.library;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.metadata.RawMetadata;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -54,19 +57,21 @@ class DefaultLibraryTest {
     @Autowired
     private DefaultLibrary library;
     @Autowired
+    private IngestGroupDao ingestGroupDao;
+    @Autowired
     private TrackToIngestDao trackToIngestDao;
     @Autowired
     private LibraryProperties libraryProperties;
 
     @Test
     void readAndStoreIngestTrack() throws InvalidFormatException, IOException {
-        final var groupId = uuidv7();
+        final var group = storeGroup();
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
 
-        final var ingestTrack = library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
+        final var ingestTrack = library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(bytes));
 
-        assertThat(trackToIngestDao.loadById(ingestTrack.trackIngestId()))
-                .isEqualTo(new TrackToIngest(ingestTrack.trackIngestId(), groupId, "track.flac", IngestState.PENDING));
+        assertThat(trackToIngestDao.loadById(ingestTrack.trackIngestId())).isEqualTo(new TrackToIngest(
+                ingestTrack.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.PENDING));
 
         try (final var stored = library.readIngestTrack(ingestTrack)) {
             assertThat(stored.readAllBytes()).isEqualTo(bytes);
@@ -75,13 +80,13 @@ class DefaultLibraryTest {
 
     @Test
     void aFileInAnUnsupportedFormatIsNotStored() {
-        final var groupId = uuidv7();
+        final var group = storeGroup();
         final var file = new ByteArrayInputStream(new byte[]{1, 2, 3});
 
-        assertThatThrownBy(() -> library.storeIngestTrack(groupId, "track.mp3", file))
+        assertThatThrownBy(() -> library.storeIngestTrack(group, "track.mp3", file))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("Extension mp3 is not supported!");
-        assertThat(Files.exists(libraryProperties.ingestFolder().resolve(groupId.toString()))).isFalse();
+        assertThat(Files.exists(libraryProperties.ingestFolder().resolve(group.ingestGroupId().toString()))).isFalse();
     }
 
     @Test
@@ -95,8 +100,7 @@ class DefaultLibraryTest {
     @Test
     void importTrackMovesFileIntoLibrary() throws InvalidFormatException, IOException {
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
-        final var groupId = uuidv7();
-        final var ingestTrack = library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));
+        final var ingestTrack = library.storeIngestTrack(storeGroup(), "track.flac", new ByteArrayInputStream(bytes));
         final var path = library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", Format.FLAC);
 
         library.importTrack(ingestTrack, path);
@@ -105,6 +109,12 @@ class DefaultLibraryTest {
             assertThat(imported.readAllBytes()).isEqualTo(bytes);
         }
         assertThatThrownBy(() -> library.readIngestTrack(ingestTrack)).isInstanceOf(NoSuchFileException.class);
+    }
+
+    private IngestGroup storeGroup() {
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
+        ingestGroupDao.upsert(group);
+        return group;
     }
 
     private static Track newTrack(final String path, final UUID trackIngestId) {

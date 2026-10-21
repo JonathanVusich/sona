@@ -40,10 +40,12 @@ public final class ApiRoutes {
     public static final String ARTISTS = API + "/artists";
     public static final String ARTIST = ARTISTS + "/{artistId}";
 
+    public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**
-     * The uploader makes up each group's ID, so there's no endpoint for the groups themselves.
+     * Under the ID the uploader made up for the group.
      */
-    public static final String INGEST_GROUP_TRACKS = API + "/ingest-groups/{groupIngestId}/tracks";
+    public static final String INGEST_GROUP = INGEST_GROUPS + "/{groupIngestId}";
+    public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
 
     public static final String JWKS = "/.well-known/jwks.json";
 }

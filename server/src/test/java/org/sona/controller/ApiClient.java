@@ -1,6 +1,7 @@
 package org.sona.controller;
 
 import org.sona.controller.request.ChangePasswordRequest;
+import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.request.LoginRequest;
 import org.sona.controller.request.RegisterRequest;
 import org.sona.controller.response.TokenResponse;
@@ -128,6 +129,22 @@ public final class ApiClient {
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ChangePasswordRequest(currentPassword, newPassword))
+                .exchange();
+    }
+
+    public RestTestClient.ResponseSpec putIngestGroup(final String accessToken, final UUID groupIngestId,
+                                                      final IngestGroupRequest request) {
+        return putJson(accessToken, ApiRoutes.INGEST_GROUPS + "/" + groupIngestId, request);
+    }
+
+    /**
+     * Sends any JSON, such as a body no request record can hold.
+     */
+    public RestTestClient.ResponseSpec putJson(final String accessToken, final String path, final Object body) {
+        return client.put().uri(path)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
                 .exchange();
     }
 

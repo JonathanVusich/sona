@@ -25,7 +25,9 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// The ingest worker doesn't run on its schedule, so it can't race a test for the ingests it stores; tests that need
+// a pass run it themselves.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "sona.ingest-worker.cron=-")
 @Import({TestcontainersConfig.class, TestLibraryConfig.class, TestAuthConfig.class, TestQueryPlanConfig.class,
         TestSingleQueryConfig.class})
 @ExtendWith(TruncateTablesExtension.class)

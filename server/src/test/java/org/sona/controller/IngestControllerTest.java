@@ -6,26 +6,26 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
+import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.TrackIngestResponse;
-import org.sona.db.ReleaseDao;
-import org.sona.db.TrackDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
-import org.sona.metadata.Tag;
-import org.sona.metadata.TagValue;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -36,11 +36,9 @@ class IngestControllerTest {
     @Autowired
     JwtEncoder encoder;
     @Autowired
+    IngestGroupDao ingestGroupDao;
+    @Autowired
     TrackToIngestDao trackToIngestDao;
-    @Autowired
-    TrackDao trackDao;
-    @Autowired
-    ReleaseDao releaseDao;
     @Autowired
     Library library;
     // For rows the DAOs have no lookup for.
@@ -60,60 +58,81 @@ class IngestControllerTest {
     }
 
     @Test
-    void anUploadedFileIsImportedIntoTheLibrary() throws IOException {
-        final var flac = flacFile(whisperMetadata());
-        // The uploader makes up its group's ID.
+    void aGroupIsCreatedUnderTheIdTheUploaderMadeUp() {
         final var groupIngestId = uuidv7();
 
-        final var response = api.uploadTrack(adminToken, groupIngestId, "09 A Whisper.flac", flac)
+        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+                .expectStatus().isNoContent();
+
+        assertThat(ingestGroupDao.loadById(groupIngestId))
+                .contains(new IngestGroup(groupIngestId, IngestGroupKind.ALBUM, "Parachutes"));
+    }
+
+    @Test
+    void aGroupSentAgainIsUpdated() {
+        final var groupIngestId = uuidv7();
+        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+                .expectStatus().isNoContent();
+
+        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.UNKNOWN, "Loose tracks"))
+                .expectStatus().isNoContent();
+
+        assertThat(ingestGroupDao.loadById(groupIngestId))
+                .contains(new IngestGroup(groupIngestId, IngestGroupKind.UNKNOWN, "Loose tracks"));
+    }
+
+    @Test
+    void aGroupWithoutANameIsRefused() {
+        api.putIngestGroup(adminToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.UNKNOWN, " "))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400);
+    }
+
+    @Test
+    void aGroupOfAnUnknownKindIsRefused() {
+        api.putJson(adminToken, ApiRoutes.INGEST_GROUPS + "/" + uuidv7(), Map.of("kind", "PLAYLIST", "name", "Mix"))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400);
+    }
+
+    @Test
+    void anUploadedFileWaitsToBeIngested() throws IOException {
+        final var group = storeGroup();
+        final var flac = flacFile(new RawMetadata(Duration.ofSeconds(10)));
+
+        final var response = api.uploadTrack(adminToken, group.ingestGroupId(), "09 A Whisper.flac", flac)
                 .expectStatus().isCreated()
                 .expectBody(TrackIngestResponse.class)
                 .returnResult().getResponseBody();
 
-        assertThat(response.groupIngestId()).isEqualTo(groupIngestId);
+        assertThat(response.groupIngestId()).isEqualTo(group.ingestGroupId());
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
         assertThat(response.state()).isEqualTo(IngestState.PENDING);
-        awaitState(response.trackIngestId(), IngestState.COMPLETED);
-        final var track = trackDao.loadByIngest(response.trackIngestId());
-        assertThat(track.name()).isEqualTo("A Whisper");
-        assertThat(releaseDao.loadByMusicBrainzId(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")))
-                .isPresent();
-        try (final var imported = library.readTrack(track)) {
-            assertThat(imported.readAllBytes()).isEqualTo(flac);
+        final var ingest = trackToIngestDao.loadById(response.trackIngestId());
+        assertThat(ingest.state()).isEqualTo(IngestState.PENDING);
+        try (final var stored = library.readIngestTrack(ingest)) {
+            assertThat(stored.readAllBytes()).isEqualTo(flac);
         }
     }
 
     @Test
-    void anUploadedFileMusicBrainzDoesNotKnowNeedsInput() {
-        final var flac = flacFile(metadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall"));
-
-        final var ingestId = uploadTrack("song.flac", flac);
-
-        awaitState(ingestId, IngestState.INPUT_REQUIRED);
-    }
-
-    @Test
-    void anUploadedFileThatIsNotFlacFails() {
-        final var ingestId = uploadTrack("song.flac", new byte[]{1, 2, 3, 4});
-
-        awaitState(ingestId, IngestState.FAILED);
-    }
-
-    @Test
-    void anUploadedFileWhoseLookupFailsFails() {
-        // MusicBrainz isn't stubbed for this track, so looking it up answers 404.
-        final var flac = flacFile(metadata("Unstubbed Song", "Unstubbed Artist"));
-
-        final var ingestId = uploadTrack("song.flac", flac);
-
-        awaitState(ingestId, IngestState.FAILED);
+    void aFileForAGroupThatWasNeverCreatedIsRefused() {
+        api.uploadTrack(adminToken, uuidv7(), "song.flac", new byte[]{1, 2, 3})
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(304)
+                .jsonPath("$.reason")
+                .isEqualTo("This upload group doesn't exist. Create it before uploading its files.");
+        assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
     @Test
     void aFileInAFormatSonaCannotIngestIsRefused() {
-        final var groupIngestId = uuidv7();
+        final var group = storeGroup();
 
-        api.uploadTrack(adminToken, groupIngestId, "song.mp3", new byte[]{1, 2, 3})
+        api.uploadTrack(adminToken, group.ingestGroupId(), "song.mp3", new byte[]{1, 2, 3})
                 .expectStatus().isEqualTo(415)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(303)
@@ -123,9 +142,9 @@ class IngestControllerTest {
 
     @Test
     void aFileSentAsAFormIsRefused() {
-        final var groupIngestId = uuidv7();
+        final var group = storeGroup();
 
-        api.uploadTrackAsForm(adminToken, groupIngestId, "song.flac", flacFile(whisperMetadata()))
+        api.uploadTrackAsForm(adminToken, group.ingestGroupId(), "song.flac", new byte[]{1, 2, 3})
                 .expectStatus().isEqualTo(415)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(401);
@@ -134,9 +153,9 @@ class IngestControllerTest {
 
     @Test
     void aFileWithoutANameIsRefused() {
-        final var groupIngestId = uuidv7();
+        final var group = storeGroup();
 
-        api.uploadTrackWithoutFilename(adminToken, groupIngestId, new byte[]{1, 2, 3})
+        api.uploadTrackWithoutFilename(adminToken, group.ingestGroupId(), new byte[]{1, 2, 3})
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(400);
@@ -146,39 +165,22 @@ class IngestControllerTest {
     void aUserMayNotUpload() {
         final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER,
                 SessionState.ACTIVE);
+        final var group = storeGroup();
 
-        api.uploadTrack(userToken, uuidv7(), "song.flac", new byte[]{1, 2, 3})
+        api.putIngestGroup(userToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(104);
+        api.uploadTrack(userToken, group.ingestGroupId(), "song.flac", new byte[]{1, 2, 3})
                 .expectStatus().isForbidden()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(104);
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
-    /**
-     * @return the ingest of the uploaded file
-     */
-    private UUID uploadTrack(final String filename, final byte[] file) {
-        return api.uploadTrack(adminToken, uuidv7(), filename, file)
-                .expectStatus().isCreated()
-                .expectBody(TrackIngestResponse.class)
-                .returnResult().getResponseBody().trackIngestId();
-    }
-
-    private void awaitState(final UUID trackIngestId, final IngestState state) {
-        await().atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> assertThat(trackToIngestDao.loadById(trackIngestId).state()).isEqualTo(state));
-    }
-
-    private static RawMetadata whisperMetadata() {
-        final var metadata = metadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        return metadata;
-    }
-
-    private static RawMetadata metadata(final String title, final String artist) {
-        final var metadata = new RawMetadata(Duration.ofSeconds(10));
-        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
-        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
-        return metadata;
+    private IngestGroup storeGroup() {
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
+        ingestGroupDao.upsert(group);
+        return group;
     }
 }

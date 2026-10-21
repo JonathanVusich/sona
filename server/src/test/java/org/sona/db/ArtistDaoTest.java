@@ -3,6 +3,7 @@ package org.sona.db;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
@@ -10,6 +11,7 @@ import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -34,6 +36,8 @@ class ArtistDaoTest {
     MediumDao mediumDao;
     @Autowired
     TrackDao trackDao;
+    @Autowired
+    IngestGroupDao ingestGroupDao;
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -95,7 +99,9 @@ class ArtistDaoTest {
      */
     private void insertTrack(final Release release) {
         final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.upsert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
                 release.artistId(), ingest.trackIngestId()));
