@@ -131,12 +131,6 @@ public final class ApiClient {
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec startUpload(final String accessToken) {
-        return client.post().uri(ApiRoutes.INGEST_GROUPS)
-                .headers(headers -> headers.setBearerAuth(accessToken))
-                .exchange();
-    }
-
     /**
      * Sends one file of an upload, as the frontend does: its bytes as the body, and its name as a parameter.
      */

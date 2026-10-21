@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
-import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.ReleaseDao;
 import org.sona.db.TrackDao;
@@ -63,7 +62,8 @@ class IngestControllerTest {
     @Test
     void anUploadedFileIsImportedIntoTheLibrary() throws IOException {
         final var flac = flacFile(whisperMetadata());
-        final var groupIngestId = startUpload();
+        // The uploader makes up its group's ID.
+        final var groupIngestId = uuidv7();
 
         final var response = api.uploadTrack(adminToken, groupIngestId, "09 A Whisper.flac", flac)
                 .expectStatus().isCreated()
@@ -111,7 +111,7 @@ class IngestControllerTest {
 
     @Test
     void aFileInAFormatSonaCannotIngestIsRefused() {
-        final var groupIngestId = startUpload();
+        final var groupIngestId = uuidv7();
 
         api.uploadTrack(adminToken, groupIngestId, "song.mp3", new byte[]{1, 2, 3})
                 .expectStatus().isEqualTo(415)
@@ -123,7 +123,7 @@ class IngestControllerTest {
 
     @Test
     void aFileSentAsAFormIsRefused() {
-        final var groupIngestId = startUpload();
+        final var groupIngestId = uuidv7();
 
         api.uploadTrackAsForm(adminToken, groupIngestId, "song.flac", flacFile(whisperMetadata()))
                 .expectStatus().isEqualTo(415)
@@ -134,7 +134,7 @@ class IngestControllerTest {
 
     @Test
     void aFileWithoutANameIsRefused() {
-        final var groupIngestId = startUpload();
+        final var groupIngestId = uuidv7();
 
         api.uploadTrackWithoutFilename(adminToken, groupIngestId, new byte[]{1, 2, 3})
                 .expectStatus().isBadRequest()
@@ -147,10 +147,6 @@ class IngestControllerTest {
         final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER,
                 SessionState.ACTIVE);
 
-        api.startUpload(userToken)
-                .expectStatus().isForbidden()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(104);
         api.uploadTrack(userToken, uuidv7(), "song.flac", new byte[]{1, 2, 3})
                 .expectStatus().isForbidden()
                 .expectBody()
@@ -158,18 +154,11 @@ class IngestControllerTest {
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
-    private UUID startUpload() {
-        return api.startUpload(adminToken)
-                .expectStatus().isOk()
-                .expectBody(IngestGroupResponse.class)
-                .returnResult().getResponseBody().groupIngestId();
-    }
-
     /**
      * @return the ingest of the uploaded file
      */
     private UUID uploadTrack(final String filename, final byte[] file) {
-        return api.uploadTrack(adminToken, startUpload(), filename, file)
+        return api.uploadTrack(adminToken, uuidv7(), filename, file)
                 .expectStatus().isCreated()
                 .expectBody(TrackIngestResponse.class)
                 .returnResult().getResponseBody().trackIngestId();

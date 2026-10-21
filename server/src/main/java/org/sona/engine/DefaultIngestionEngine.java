@@ -34,7 +34,6 @@ import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -65,13 +64,6 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final ReleaseLabelDao releaseLabelDao;
     private final MediumDao mediumDao;
     private final TrackDao trackDao;
-
-    @Override
-    public TrackToIngest storeUpload(final UUID groupIngestId, final String filename, final InputStream file)
-            throws InvalidFormatException, IOException {
-        parserFor(filename);
-        return library.storeIngestTrack(groupIngestId, filename, file);
-    }
 
     @Override
     public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException {

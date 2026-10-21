@@ -2,7 +2,9 @@ package org.sona.library;
 
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
+import org.sona.config.properties.LibraryProperties;
 import org.sona.db.TrackToIngestDao;
+import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.metadata.RawMetadata;
 import org.sona.model.enums.AudioFormat;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.UUID;
@@ -52,9 +55,11 @@ class DefaultLibraryTest {
     private DefaultLibrary library;
     @Autowired
     private TrackToIngestDao trackToIngestDao;
+    @Autowired
+    private LibraryProperties libraryProperties;
 
     @Test
-    void readAndStoreIngestTrack() throws IOException {
+    void readAndStoreIngestTrack() throws InvalidFormatException, IOException {
         final var groupId = uuidv7();
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
 
@@ -69,6 +74,17 @@ class DefaultLibraryTest {
     }
 
     @Test
+    void aFileInAnUnsupportedFormatIsNotStored() {
+        final var groupId = uuidv7();
+        final var file = new ByteArrayInputStream(new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> library.storeIngestTrack(groupId, "track.mp3", file))
+                .isInstanceOf(InvalidFormatException.class)
+                .hasMessage("Extension mp3 is not supported!");
+        assertThat(Files.exists(libraryProperties.ingestFolder().resolve(groupId.toString()))).isFalse();
+    }
+
+    @Test
     void libraryPathUsesDatabaseIds() {
         assertThat(library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", Format.FLAC)).isEqualTo(
                 "01a11a00-0000-7000-8000-000000000001[A Rush of Blood_ Deluxe_Remastered]/"
@@ -77,7 +93,7 @@ class DefaultLibraryTest {
     }
 
     @Test
-    void importTrackMovesFileIntoLibrary() throws IOException {
+    void importTrackMovesFileIntoLibrary() throws InvalidFormatException, IOException {
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
         final var groupId = uuidv7();
         final var ingestTrack = library.storeIngestTrack(groupId, "track.flac", new ByteArrayInputStream(bytes));

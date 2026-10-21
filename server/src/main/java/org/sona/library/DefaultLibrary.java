@@ -1,8 +1,10 @@
 package org.sona.library;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.io.FilenameUtils;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.TrackToIngestDao;
+import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Release;
@@ -16,6 +18,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -40,7 +44,8 @@ public final class DefaultLibrary implements Library {
     @Override
     public TrackToIngest storeIngestTrack(final UUID ingestGroup,
                                  final String filename,
-                                 final InputStream inputStream) throws IOException  {
+                                 final InputStream inputStream) throws InvalidFormatException, IOException {
+        checkFormat(filename);
         final UUID ingestTrackId = uuidv7();
 
         final var ingestFolder = config.ingestFolder()
@@ -101,6 +106,15 @@ public final class DefaultLibrary implements Library {
     @Override
     public InputStream readTrack(final Track track) throws IOException {
         return Files.newInputStream(resolveLibraryPath(track.path()), StandardOpenOption.READ);
+    }
+
+    private static void checkFormat(final String filename) throws InvalidFormatException {
+        final var extension = FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
+        final var supported = Arrays.stream(Format.values())
+                .anyMatch(format -> format.getExtensions().contains(extension));
+        if (!supported) {
+            throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
+        }
     }
 
     private Path resolveLibraryPath(final String libraryPath) {

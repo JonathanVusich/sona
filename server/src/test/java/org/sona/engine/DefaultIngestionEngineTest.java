@@ -221,8 +221,10 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void rejectUnsupportedFormat() throws IOException {
-        final var ingest = storeIngest(flacFile(new RawMetadata(Duration.ofSeconds(10))), "song.mp3");
+    void rejectUnsupportedFormat() {
+        // The library refuses to store such a file, so the ingest is inserted as it would be by an older upload.
+        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "song.mp3", IngestState.PENDING);
+        trackToIngestDao.insert(ingest);
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
                 .isInstanceOf(InvalidFormatException.class)
@@ -243,7 +245,8 @@ class DefaultIngestionEngineTest {
         return metadata;
     }
 
-    private TrackToIngest storeIngest(final byte[] flac, final String fileName) throws IOException {
+    private TrackToIngest storeIngest(final byte[] flac, final String fileName)
+            throws InvalidFormatException, IOException {
         return library.storeIngestTrack(uuidv7(), fileName, new ByteArrayInputStream(flac));
     }
 
