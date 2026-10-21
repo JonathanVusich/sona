@@ -1,14 +1,13 @@
 package org.sona.e2e;
 
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.sona.IntegrationTest;
-import org.springframework.test.context.TestPropertySource;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.sona.IntegrationTest;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * An {@link IntegrationTest} that drives the built web frontend in a browser, as a user would: Firefox, unless the
@@ -23,12 +22,12 @@ import java.lang.annotation.Target;
 @IntegrationTest
 // Over HTTPS, with a self-signed certificate for localhost, because WebKit won't keep the Secure refresh cookie over
 // plain HTTP, even on localhost.
-@TestPropertySource(properties = {
-        "sona.test.access-token-lifetime=10s",
-        "server.ssl.key-store=classpath:e2e/localhost.p12",
-        "server.ssl.key-store-type=PKCS12",
-        "server.ssl.key-store-password=sona-e2e"
-})
+@TestPropertySource(
+        properties = {
+            "sona.test.access-token-lifetime=10s",
+            "server.ssl.key-store=classpath:e2e/localhost.p12",
+            "server.ssl.key-store-type=PKCS12",
+            "server.ssl.key-store-password=sona-e2e"
+        })
 @ExtendWith(BrowserExtension.class)
-public @interface E2ETest {
-}
+public @interface E2ETest {}

@@ -1,12 +1,10 @@
 package org.sona.auth;
 
+import java.util.UUID;
 import org.sona.model.enums.UserRole;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
-
-import java.util.UUID;
-
 
 /**
  * Reads the user from an access token issued by Sona. The token is short-lived, so the role and account state it

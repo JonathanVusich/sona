@@ -1,5 +1,19 @@
 package org.sona.auth;
 
+import static org.sona.auth.SonaJwtConverter.ISSUER;
+import static org.sona.auth.SonaJwtConverter.ROLE_CLAIM;
+import static org.sona.auth.SonaJwtConverter.STATE_CLAIM;
+import static org.sona.auth.SonaJwtConverter.USERNAME_CLAIM;
+import static org.sona.utils.HashUtils.sha256Hex;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
 import org.sona.db.OidcSessionDao;
@@ -18,21 +32,6 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
-
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.Base64;
-import java.util.UUID;
-
-import static org.sona.auth.SonaJwtConverter.ISSUER;
-import static org.sona.auth.SonaJwtConverter.ROLE_CLAIM;
-import static org.sona.auth.SonaJwtConverter.STATE_CLAIM;
-import static org.sona.auth.SonaJwtConverter.USERNAME_CLAIM;
-import static org.sona.utils.HashUtils.sha256Hex;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @Service
 @RequiredArgsConstructor
@@ -72,7 +71,8 @@ public class DefaultTokenIssuer implements TokenIssuer {
         final var tokenHash = sha256Hex(refreshToken);
         final var replacedAfter = OffsetDateTime.now().minus(LOST_REFRESH_WINDOW);
         // A token whose replacement was lost refreshes the session in place of the token that replaced it.
-        final var used = refreshTokenDao.revokeIfValid(tokenHash)
+        final var used = refreshTokenDao
+                .revokeIfValid(tokenHash)
                 .or(() -> refreshTokenDao.revokeFamilyTokenIfRecentlyReplaced(tokenHash, replacedAfter))
                 .orElse(null);
         if (used == null) {
@@ -108,8 +108,10 @@ public class DefaultTokenIssuer implements TokenIssuer {
 
     private Tokens issueTokens(final Users user, final UUID familyId) {
         final var refreshToken = randomToken();
-        final var expiresAt = Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
-        refreshTokenDao.insert(new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
+        final var expiresAt =
+                Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
+        refreshTokenDao.insert(
+                new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
         return new Tokens(accessToken(user), refreshToken);
     }
 
@@ -120,9 +122,11 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private boolean stillAllowed(final Users user, final UUID familyId) {
         return switch (user.type()) {
             case LOCAL -> true;
-            case OIDC -> oidcSessionDao.loadByFamilyId(familyId)
-                    .map(providerClient::refreshSession)
-                    .orElse(false);
+            case OIDC ->
+                oidcSessionDao
+                        .loadByFamilyId(familyId)
+                        .map(providerClient::refreshSession)
+                        .orElse(false);
         };
     }
 
@@ -162,7 +166,8 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        refreshTokenDao.loadByHash(tokenHash)
+        refreshTokenDao
+                .loadByHash(tokenHash)
                 .filter(token -> token.revokedAt() != null)
                 .ifPresent(token -> endFamily(token.familyId()));
     }

@@ -8,5 +8,4 @@ import java.util.UUID;
  *
  * @param next what to pass as {@code after} for the next page, or null when this is the last
  */
-public record ArtistPageResponse(List<ArtistSummaryResponse> artists, UUID next) {
-}
+public record ArtistPageResponse(List<ArtistSummaryResponse> artists, UUID next) {}

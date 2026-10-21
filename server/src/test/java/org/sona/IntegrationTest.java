@@ -1,6 +1,9 @@
 package org.sona;
 
-
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sona.config.TestAuthConfig;
 import org.sona.config.TestLibraryConfig;
@@ -9,12 +12,6 @@ import org.sona.config.TestSingleQueryConfig;
 import org.sona.config.TestcontainersConfig;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
 
 /**
  * Full application context against a Testcontainers Postgres (requires Docker), an in-memory library
@@ -26,8 +23,12 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({TestcontainersConfig.class, TestLibraryConfig.class, TestAuthConfig.class, TestQueryPlanConfig.class,
-        TestSingleQueryConfig.class})
+@Import({
+    TestcontainersConfig.class,
+    TestLibraryConfig.class,
+    TestAuthConfig.class,
+    TestQueryPlanConfig.class,
+    TestSingleQueryConfig.class
+})
 @ExtendWith(TruncateTablesExtension.class)
-public @interface IntegrationTest {
-}
+public @interface IntegrationTest {}

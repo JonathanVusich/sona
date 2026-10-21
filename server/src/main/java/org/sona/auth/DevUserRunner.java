@@ -1,5 +1,7 @@
 package org.sona.auth;
 
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import lombok.RequiredArgsConstructor;
 import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
@@ -14,8 +16,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
-import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * Creates admin/admin and user/user for local development, resetting them on every start.

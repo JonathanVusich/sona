@@ -8,5 +8,6 @@ import org.sona.model.tables.records.MediumRecord;
 public interface MediumMapper {
 
     MediumRecord toRecord(Medium medium);
+
     Medium fromRecord(MediumRecord medium);
 }

@@ -1,5 +1,13 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.selectFrom;
+import static org.sona.model.Tables.ARTIST;
+import static org.sona.model.Tables.RELEASE_GROUP;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -9,15 +17,6 @@ import org.sona.mappers.ReleaseGroupMapper;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.multiset;
-import static org.jooq.impl.DSL.selectFrom;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.model.Tables.RELEASE_GROUP;
 
 /**
  * Every table the query reads is converted to its pojo by its table's mapper as it's read, so the composite mapper
@@ -46,9 +45,9 @@ public class ArtistDetailsDao {
      */
     private Field<List<ReleaseGroup>> releaseGroups() {
         return multiset(selectFrom(RELEASE_GROUP)
-                .where(RELEASE_GROUP.ARTIST_ID.eq(ARTIST.ARTIST_ID))
-                .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
-                .orderBy(RELEASE_GROUP.FIRST_RELEASE_DATE.desc().nullsLast(), RELEASE_GROUP.RELEASE_GROUP_ID))
+                        .where(RELEASE_GROUP.ARTIST_ID.eq(ARTIST.ARTIST_ID))
+                        .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
+                        .orderBy(RELEASE_GROUP.FIRST_RELEASE_DATE.desc().nullsLast(), RELEASE_GROUP.RELEASE_GROUP_ID))
                 .convertFrom(groups -> groups.map(releaseGroupMapper::fromRecord));
     }
 }

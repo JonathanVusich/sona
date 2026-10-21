@@ -1,11 +1,10 @@
 package org.sona.auth;
 
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
-
-import java.time.Duration;
 
 /**
  * The HttpOnly cookie that carries a session's refresh token, which scripts can't read and which is only sent back to

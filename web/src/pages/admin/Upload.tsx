@@ -88,11 +88,12 @@ export default function Upload() {
             />
           </div>
 
-          <Show when={pending().length > 0} fallback={<p class="muted">No files selected. Only audio files are kept.</p>}>
+          <Show
+            when={pending().length > 0}
+            fallback={<p class="muted">No files selected. Only audio files are kept.</p>}
+          >
             <div class="pending-header">
-              <span>
-                {plural(pending().length, "file")} ready
-              </span>
+              <span>{plural(pending().length, "file")} ready</span>
               <div class="dropzone-actions">
                 <button onClick={() => setPending([])}>Clear</button>
                 <button class="primary" onClick={submit}>

@@ -148,9 +148,7 @@ export function AddToPlaylistItems(props: { trackIds: () => string[] }) {
       <button
         class="menu-item"
         role="menuitem"
-        onClick={() =>
-          openNewPlaylistDialog(props.trackIds(), (created) => toast(`Added to ${created.name}`))
-        }
+        onClick={() => openNewPlaylistDialog(props.trackIds(), (created) => toast(`Added to ${created.name}`))}
       >
         New playlist…
       </button>

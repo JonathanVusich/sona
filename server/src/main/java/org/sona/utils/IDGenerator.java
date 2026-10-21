@@ -3,9 +3,8 @@ package org.sona.utils;
 import com.fasterxml.uuid.Generators;
 import com.fasterxml.uuid.impl.NameBasedGenerator;
 import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
-import lombok.experimental.UtilityClass;
-
 import java.util.UUID;
+import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public final class IDGenerator {

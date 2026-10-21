@@ -1,5 +1,7 @@
 package org.sona.config;
 
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -11,8 +13,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @Configuration
 public class SigningKeyConfig {

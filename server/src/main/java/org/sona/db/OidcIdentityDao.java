@@ -1,16 +1,15 @@
 package org.sona.db;
 
+import static org.sona.model.Tables.OIDC_IDENTITY;
+
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.OidcIdentityMapper;
 import org.sona.model.tables.pojos.OidcIdentity;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.sona.model.Tables.OIDC_IDENTITY;
 
 /**
  * Where users who sign in through an OIDC provider come from.
@@ -30,8 +29,6 @@ public class OidcIdentityDao {
     }
 
     public void insert(final OidcIdentity identity) {
-        dsl.insertInto(OIDC_IDENTITY)
-                .set(mapper.toRecord(identity))
-                .execute();
+        dsl.insertInto(OIDC_IDENTITY).set(mapper.toRecord(identity)).execute();
     }
 }

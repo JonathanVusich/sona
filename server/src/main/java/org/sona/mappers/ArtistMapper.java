@@ -8,5 +8,6 @@ import org.sona.model.tables.records.ArtistRecord;
 public interface ArtistMapper {
 
     ArtistRecord toRecord(Artist artist);
+
     Artist fromRecord(ArtistRecord artist);
 }

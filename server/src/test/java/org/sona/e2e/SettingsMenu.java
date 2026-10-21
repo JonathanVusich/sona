@@ -14,7 +14,8 @@ public final class SettingsMenu {
     private final Page page;
 
     public void openMenu() {
-        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Settings")).click();
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Settings"))
+                .click();
     }
 
     /**

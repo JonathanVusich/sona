@@ -1,6 +1,11 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import com.microsoft.playwright.Page;
+import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
@@ -25,31 +30,33 @@ import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.List;
-import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @E2ETest
 class AlbumsE2ETest {
 
     @Autowired
     UserDao userDao;
+
     @Autowired
     PasswordDao passwordDao;
+
     @Autowired
     PasswordEncoder encoder;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -68,7 +75,7 @@ class AlbumsE2ETest {
 
         final var albums = logInAndOpen(page);
 
-        assertThat(albums.titles()).hasText(new String[]{"Hopes and Fears", "Parachutes", "Somewhere Only We Know"});
+        assertThat(albums.titles()).hasText(new String[] {"Hopes and Fears", "Parachutes", "Somewhere Only We Know"});
         assertThat(albums.subtitle("Hopes and Fears")).hasText("Keane");
         assertThat(albums.subtitle("Somewhere Only We Know")).hasText("Keane · Single");
     }
@@ -78,14 +85,14 @@ class AlbumsE2ETest {
         final var coldplay = insertArtist("Coldplay");
         insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM);
         // An ingest that stopped part-way, after storing the album, its release, or its track's row.
-        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "X&Y", ReleaseGroupType.ALBUM, null, coldplay.artistId(), 0,
-                uuidv7()));
+        releaseGroupDao.upsert(
+                new ReleaseGroup(uuidv7(), "X&Y", ReleaseGroupType.ALBUM, null, coldplay.artistId(), 0, uuidv7()));
         insertRelease(coldplay, "Viva la Vida", ReleaseGroupType.ALBUM);
         insertTrackInState(insertRelease(coldplay, "Mylo Xyloto", ReleaseGroupType.ALBUM), IngestState.MOVE_FAILED);
 
         final var albums = logInAndOpen(page);
 
-        assertThat(albums.titles()).hasText(new String[]{"Parachutes"});
+        assertThat(albums.titles()).hasText(new String[] {"Parachutes"});
     }
 
     @Test
@@ -148,10 +155,10 @@ class AlbumsE2ETest {
      * @return the only release of a new release group, with no track, so neither is in the library
      */
     private Release insertRelease(final Artist artist, final String name, final ReleaseGroupType type) {
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, null, artist.artistId(), 0,
-                uuidv7()));
-        return releaseDao.upsert(new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(),
-                artist.artistId(), uuidv7()));
+        final var group =
+                releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, null, artist.artistId(), 0, uuidv7()));
+        return releaseDao.upsert(
+                new Release(uuidv7(), name, null, null, "GB", 0, group.releaseGroupId(), artist.artistId(), uuidv7()));
     }
 
     /**
@@ -162,10 +169,20 @@ class AlbumsE2ETest {
     }
 
     private void insertTrackInState(final Release release, final IngestState state) {
-        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var medium = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .getFirst();
         final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", state);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
-                release.artistId(), ingest.trackIngestId()));
+        trackDao.insert(new Track(
+                uuidv7(),
+                release.name(),
+                300,
+                AudioFormat.FLAC,
+                "track.flac",
+                medium.mediumId(),
+                1,
+                release.artistId(),
+                ingest.trackIngestId()));
     }
 }

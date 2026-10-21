@@ -8,5 +8,6 @@ import org.sona.model.tables.records.ReleaseGroupRecord;
 public interface ReleaseGroupMapper {
 
     ReleaseGroupRecord toRecord(ReleaseGroup releaseGroup);
+
     ReleaseGroup fromRecord(ReleaseGroupRecord releaseGroup);
 }

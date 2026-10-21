@@ -20,6 +20,4 @@ public record EditionResponse(
         String country,
         int trackCount,
         List<LabelResponse> labels,
-        List<String> formats
-) {
-}
+        List<String> formats) {}

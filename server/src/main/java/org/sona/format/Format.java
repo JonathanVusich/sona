@@ -1,9 +1,8 @@
 package org.sona.format;
 
+import java.util.List;
 import lombok.Getter;
 import org.sona.model.enums.AudioFormat;
-
-import java.util.List;
 
 @Getter
 public enum Format {

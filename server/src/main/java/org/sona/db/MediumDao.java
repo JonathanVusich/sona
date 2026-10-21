@@ -1,18 +1,17 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.sona.model.Tables.MEDIUM;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.MediumMapper;
 import org.sona.model.tables.pojos.Medium;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.sona.model.Tables.MEDIUM;
 
 @Component
 @RequiredArgsConstructor

@@ -11,11 +11,4 @@ import java.util.UUID;
  * @param trackNumber the track's position on that medium, from 1
  */
 public record ResolvedTrack(
-        UUID recordingId,
-        String title,
-        ResolvedArtist artist,
-        UUID releaseId,
-        int discNumber,
-        int trackNumber
-) {
-}
+        UUID recordingId, String title, ResolvedArtist artist, UUID releaseId, int discNumber, int trackNumber) {}

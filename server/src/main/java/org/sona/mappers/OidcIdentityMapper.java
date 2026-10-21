@@ -8,5 +8,6 @@ import org.sona.model.tables.records.OidcIdentityRecord;
 public interface OidcIdentityMapper {
 
     OidcIdentityRecord toRecord(OidcIdentity identity);
+
     OidcIdentity fromRecord(OidcIdentityRecord identity);
 }

@@ -35,7 +35,6 @@ public final class RawMetadata {
     }
 
     public Stream<TagSet> unknownTags() {
-        return unknownTags.entrySet().stream()
-                .map(entry -> new TagSet(entry.getKey(), entry.getValue()));
+        return unknownTags.entrySet().stream().map(entry -> new TagSet(entry.getKey(), entry.getValue()));
     }
 }

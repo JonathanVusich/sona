@@ -16,7 +16,13 @@ export function PageBody(props: { children: JSX.Element }) {
   let body: HTMLDivElement | undefined;
 
   // One page component can show different items, such as moving between releases, so start each at the top.
-  createEffect(on(() => location.pathname, () => body?.scrollTo(0, 0), { defer: true }));
+  createEffect(
+    on(
+      () => location.pathname,
+      () => body?.scrollTo(0, 0),
+      { defer: true },
+    ),
+  );
 
   return (
     <div class="page-body" ref={body}>

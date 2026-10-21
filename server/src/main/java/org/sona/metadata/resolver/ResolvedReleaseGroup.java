@@ -1,9 +1,8 @@
 package org.sona.metadata.resolver;
 
-import org.sona.model.enums.ReleaseGroupType;
-
 import java.time.LocalDate;
 import java.util.UUID;
+import org.sona.model.enums.ReleaseGroupType;
 
 /**
  * @param type             null when MusicBrainz gives the release group no primary type
@@ -11,10 +10,4 @@ import java.util.UUID;
  *                         as the first, or null
  */
 public record ResolvedReleaseGroup(
-        UUID releaseGroupId,
-        String title,
-        ReleaseGroupType type,
-        LocalDate firstReleaseDate,
-        ResolvedArtist artist
-) {
-}
+        UUID releaseGroupId, String title, ReleaseGroupType type, LocalDate firstReleaseDate, ResolvedArtist artist) {}

@@ -1,5 +1,8 @@
 package org.sona.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,10 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @IntegrationTest
 class AuthControllerTest {
@@ -53,7 +52,8 @@ class AuthControllerTest {
         users.createUser("alice", UserRole.USER);
 
         final var result = api.login("alice", "alice")
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(TokenResponse.class)
                 .returnResult();
 
@@ -70,12 +70,15 @@ class AuthControllerTest {
         final var session = api.startSession("alice", "alice");
 
         final var me = api.getWithToken(ApiRoutes.CURRENT_USER, session.accessToken())
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(CurrentUserResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
-        assertThat(me).isEqualTo(new CurrentUserResponse(alice.userId(), "alice", UserRole.USER,
-                SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
+        assertThat(me)
+                .isEqualTo(new CurrentUserResponse(
+                        alice.userId(), "alice", UserRole.USER, SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
     }
 
     @Test
@@ -83,10 +86,13 @@ class AuthControllerTest {
         users.createUser("alice", UserRole.USER);
 
         api.login("alice", "wrong")
-                .expectStatus().isUnauthorized()
+                .expectStatus()
+                .isUnauthorized()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(101)
-                .jsonPath("$.reason").isEqualTo("The username or password is incorrect.");
+                .jsonPath("$.code")
+                .isEqualTo(101)
+                .jsonPath("$.reason")
+                .isEqualTo("The username or password is incorrect.");
     }
 
     @ParameterizedTest
@@ -95,8 +101,11 @@ class AuthControllerTest {
         users.createUser("alice", UserRole.USER);
 
         api.login(username, password)
-                .expectStatus().isBadRequest()
-                .expectBody().jsonPath("$.code").isEqualTo(400);
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test

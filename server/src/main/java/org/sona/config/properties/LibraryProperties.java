@@ -1,9 +1,7 @@
 package org.sona.config.properties;
 
+import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.nio.file.Path;
-
 @ConfigurationProperties("library")
-public record LibraryProperties(Path ingestFolder, Path mediaFolder) {
-}
+public record LibraryProperties(Path ingestFolder, Path mediaFolder) {}

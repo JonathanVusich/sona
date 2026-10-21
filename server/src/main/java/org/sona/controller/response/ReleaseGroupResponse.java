@@ -1,10 +1,9 @@
 package org.sona.controller.response;
 
-import org.sona.model.enums.ReleaseGroupType;
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.sona.model.enums.ReleaseGroupType;
 
 /**
  * Everything the release group page shows.
@@ -23,6 +22,4 @@ public record ReleaseGroupResponse(
         LocalDate firstReleaseDate,
         ArtistResponse artist,
         DefaultReleaseResponse defaultRelease,
-        List<EditionResponse> editions
-) {
-}
+        List<EditionResponse> editions) {}

@@ -1,19 +1,5 @@
 package org.sona.client;
 
-import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.sona.client.model.ArtistCredit;
-import org.sona.client.model.Media;
-import org.sona.client.model.query.RecordingQuery;
-import org.sona.config.MusicBrainzConfig;
-import org.sona.config.properties.MusicBrainzProperties;
-import org.springframework.web.client.HttpServerErrorException;
-import tools.jackson.databind.DeserializationFeature;
-import tools.jackson.databind.json.JsonMapper;
-
-import java.util.UUID;
-
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -24,6 +10,19 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+
+import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.sona.client.model.ArtistCredit;
+import org.sona.client.model.Media;
+import org.sona.client.model.query.RecordingQuery;
+import org.sona.config.MusicBrainzConfig;
+import org.sona.config.properties.MusicBrainzProperties;
+import org.springframework.web.client.HttpServerErrorException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 class MusicBrainzClientTest {
 
@@ -121,13 +120,17 @@ class MusicBrainzClientTest {
                 """)));
 
         final var recording = client.searchRecordings(new RecordingQuery("Under Pressure", "Queen", -1, -1))
-                .recordings().getFirst();
+                .recordings()
+                .getFirst();
 
         assertThat(recording.artistCredit())
                 .extracting(ArtistCredit::name, ArtistCredit::joinPhrase)
                 .containsExactly(tuple("David Bowie", " & "), tuple("Queen", ""));
         assertThat(recording.releases().getFirst().artistCredit())
-                .extracting(ArtistCredit::name, ArtistCredit::joinPhrase, credit -> credit.artist().name())
+                .extracting(
+                        ArtistCredit::name,
+                        ArtistCredit::joinPhrase,
+                        credit -> credit.artist().name())
                 .containsExactly(tuple("DJ Jazzy Jeff", " + ", "DJ Jazzy Jeff"), tuple("MICK", "", "Mick Boogie"));
     }
 
@@ -157,7 +160,8 @@ class MusicBrainzClientTest {
         final var mapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
-        final var restClient = config.musicBrainzRestClient(config.uriBuilderFactory(new MusicBrainzProperties(url)), mapper);
+        final var restClient =
+                config.musicBrainzRestClient(config.uriBuilderFactory(new MusicBrainzProperties(url)), mapper);
         return new MusicBrainzClient(restClient);
     }
 }

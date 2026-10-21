@@ -8,5 +8,6 @@ import org.sona.model.tables.records.RefreshTokenRecord;
 public interface RefreshTokenMapper {
 
     RefreshTokenRecord toRecord(RefreshToken token);
+
     RefreshToken fromRecord(RefreshTokenRecord token);
 }

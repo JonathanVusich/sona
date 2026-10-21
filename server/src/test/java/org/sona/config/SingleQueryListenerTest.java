@@ -1,5 +1,10 @@
 package org.sona.config;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sona.model.Tables.ARTIST;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
@@ -12,16 +17,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @IntegrationTest
 class SingleQueryListenerTest {
 
     @Autowired
     DSLContext dsl;
+
     @Autowired
     JwtEncoder encoder;
 
@@ -32,7 +33,10 @@ class SingleQueryListenerTest {
     void aPageReadInOneQueryIsServed() {
         final var token = new TestTokens(encoder).accessToken(uuidv7(), "alice", UserRole.USER, SessionState.ACTIVE);
 
-        new ApiClient(port).getWithToken(ApiRoutes.RELEASE_GROUPS, token).expectStatus().isOk();
+        new ApiClient(port)
+                .getWithToken(ApiRoutes.RELEASE_GROUPS, token)
+                .expectStatus()
+                .isOk();
     }
 
     @Test
@@ -52,9 +56,10 @@ class SingleQueryListenerTest {
     @Test
     void queriesOutsideAPagesReadArentCounted() {
         assertThatCode(() -> {
-            loadArtist();
-            loadArtist();
-        }).doesNotThrowAnyException();
+                    loadArtist();
+                    loadArtist();
+                })
+                .doesNotThrowAnyException();
     }
 
     private void loadArtist() {

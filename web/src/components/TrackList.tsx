@@ -35,7 +35,11 @@ export function MediaTrackList(props: { media: MediumResponse[]; artistId: strin
 
 // One release's tracks, numbered by their position on their medium. A row names its artist only when it isn't the
 // release's own (artistId), as on a compilation. Playlists are still mocked, so these tracks can't go on them.
-export function ReleaseTrackList(props: { tracks: TrackResponse[]; artistId: string; onPlay: (index: number) => void }) {
+export function ReleaseTrackList(props: {
+  tracks: TrackResponse[];
+  artistId: string;
+  onPlay: (index: number) => void;
+}) {
   return (
     <ol class="tracklist">
       <For each={props.tracks}>

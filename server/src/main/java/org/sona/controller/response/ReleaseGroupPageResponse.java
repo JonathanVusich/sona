@@ -8,5 +8,4 @@ import java.util.UUID;
  *
  * @param next what to pass as {@code after} for the next page, or null when this is the last
  */
-public record ReleaseGroupPageResponse(List<ReleaseGroupSummaryResponse> releaseGroups, UUID next) {
-}
+public record ReleaseGroupPageResponse(List<ReleaseGroupSummaryResponse> releaseGroups, UUID next) {}

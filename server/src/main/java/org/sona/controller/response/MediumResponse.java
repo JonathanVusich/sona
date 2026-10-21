@@ -7,5 +7,4 @@ import java.util.List;
  * @param format   like "CD" or "Digital Media"; null when MusicBrainz doesn't know
  * @param tracks   in order
  */
-public record MediumResponse(int position, String format, List<TrackResponse> tracks) {
-}
+public record MediumResponse(int position, String format, List<TrackResponse> tracks) {}

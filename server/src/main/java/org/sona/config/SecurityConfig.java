@@ -1,5 +1,18 @@
 package org.sona.config;
 
+import static org.sona.auth.SonaJwtConverter.ISSUER;
+import static org.sona.controller.ApiRoutes.API;
+import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
+import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
+import static org.sona.controller.ApiRoutes.AUTH_REGISTER;
+import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
+import static org.sona.controller.ApiRoutes.CURRENT_USER;
+import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
+import static org.sona.controller.ApiRoutes.JWKS;
+import static org.sona.controller.ApiRoutes.OIDC_AUTHORIZE;
+import static org.sona.controller.ApiRoutes.OIDC_CALLBACK;
+import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
+
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
@@ -28,59 +41,50 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
-import static org.sona.auth.SonaJwtConverter.ISSUER;
-import static org.sona.controller.ApiRoutes.API;
-import static org.sona.controller.ApiRoutes.AUTH_LOGOUT;
-import static org.sona.controller.ApiRoutes.AUTH_REFRESH;
-import static org.sona.controller.ApiRoutes.AUTH_REGISTER;
-import static org.sona.controller.ApiRoutes.AUTH_TOKEN;
-import static org.sona.controller.ApiRoutes.CURRENT_USER;
-import static org.sona.controller.ApiRoutes.CURRENT_USER_PASSWORD;
-import static org.sona.controller.ApiRoutes.JWKS;
-import static org.sona.controller.ApiRoutes.OIDC_AUTHORIZE;
-import static org.sona.controller.ApiRoutes.OIDC_CALLBACK;
-import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
-
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(final HttpSecurity http, final JwtDecoder tokenDecoder,
-                                                   final AuthenticationEntryPoint authenticationEntryPoint,
-                                                   final AccessDeniedHandler accessDeniedHandler,
-                                                   final OidcDiscoveryClient discoveryClient,
-                                                   final OAuth2AuthorizedClientRepository authorizedClients,
-                                                   final SignInHandler oidcSignIn,
-                                                   final AuthProperties properties) {
+    public SecurityFilterChain securityFilterChain(
+            final HttpSecurity http,
+            final JwtDecoder tokenDecoder,
+            final AuthenticationEntryPoint authenticationEntryPoint,
+            final AccessDeniedHandler accessDeniedHandler,
+            final OidcDiscoveryClient discoveryClient,
+            final OAuth2AuthorizedClientRepository authorizedClients,
+            final SignInHandler oidcSignIn,
+            final AuthProperties properties) {
         // CSRF protection isn't needed: requests authenticate with a bearer header, and the refresh cookie is
         // SameSite=Strict.
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(requests -> requests
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                .authorizeHttpRequests(requests -> requests.dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT, AUTH_REGISTER)
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS).permitAll()
+                        .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS)
+                        .permitAll()
                         // The web frontend's files are public; it signs in through the API like any other client.
-                        .requestMatchers(SecurityConfig::isFrontendRequest).permitAll()
-                        .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*").permitAll()
+                        .requestMatchers(SecurityConfig::isFrontendRequest)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, OIDC_AUTHORIZE + "/*", OIDC_CALLBACK + "/*")
+                        .permitAll()
                         // A user who must change their password may still do so, and see that they must.
-                        .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD).authenticated()
-                        .anyRequest().access(new ActiveUserService()))
+                        .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD)
+                        .authenticated()
+                        .anyRequest()
+                        .access(new ActiveUserService()))
                 .oauth2ResourceServer(resourceServer -> resourceServer
-                        .jwt(jwt -> jwt
-                                .decoder(tokenDecoder)
-                                .jwtAuthenticationConverter(new SonaJwtConverter()))
+                        .jwt(jwt -> jwt.decoder(tokenDecoder).jwtAuthenticationConverter(new SonaJwtConverter()))
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 // Signing in through an OIDC provider, with the authorization code flow. The provider's tokens are only
                 // used here; the API takes Sona's own.
-                .oauth2Login(login -> login
-                        .clientRegistrationRepository(discoveryClient)
+                .oauth2Login(login -> login.clientRegistrationRepository(discoveryClient)
                         .authorizedClientRepository(authorizedClients)
-                        .authorizationEndpoint(endpoint -> endpoint
-                                .authorizationRequestResolver(new SilentSignInResolver(discoveryClient)))
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.authorizationRequestResolver(new SilentSignInResolver(discoveryClient)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri(OIDC_CALLBACK + "/*"))
                         .successHandler(oidcSignIn)
                         .failureHandler(oidcSignIn)
@@ -94,7 +98,8 @@ public class SecurityConfig {
     }
 
     private static boolean isFrontendRequest(final HttpServletRequest request) {
-        return HttpMethod.GET.matches(request.getMethod()) && !request.getRequestURI().startsWith(API + "/");
+        return HttpMethod.GET.matches(request.getMethod())
+                && !request.getRequestURI().startsWith(API + "/");
     }
 
     /**
@@ -117,7 +122,8 @@ public class SecurityConfig {
      */
     @Bean
     public JwtDecoder tokenDecoder(final RSAKey signingKey) throws JOSEException {
-        final var decoder = NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
+        final var decoder =
+                NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
         return decoder;
     }

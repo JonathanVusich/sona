@@ -1,17 +1,16 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.sona.model.Tables.OIDC_SESSION;
+
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.OidcSessionMapper;
 import org.sona.model.tables.pojos.OidcSession;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.sona.model.Tables.OIDC_SESSION;
 
 /**
  * The provider's refresh token behind each session of an OIDC user.
@@ -43,8 +42,6 @@ public class OidcSessionDao {
     }
 
     public void delete(final UUID familyId) {
-        dsl.deleteFrom(OIDC_SESSION)
-                .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
-                .execute();
+        dsl.deleteFrom(OIDC_SESSION).where(OIDC_SESSION.FAMILY_ID.eq(familyId)).execute();
     }
 }

@@ -1,15 +1,14 @@
 package org.sona.format.flac;
 
-import org.junit.jupiter.api.Test;
-import org.sona.metadata.Blob;
-import org.sona.metadata.TagValue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+import org.sona.metadata.Blob;
+import org.sona.metadata.TagValue;
 
 class FlacUtilsTest {
 
@@ -24,7 +23,7 @@ class FlacUtilsTest {
 
     @Test
     void toFieldsRefusesBinaryValues() {
-        final var values = Set.<TagValue>of(new TagValue.Binary(Blob.copyOf(new byte[]{1})));
+        final var values = Set.<TagValue>of(new TagValue.Binary(Blob.copyOf(new byte[] {1})));
 
         assertThatThrownBy(() -> FlacUtils.toFields("picture", values).toList())
                 .isInstanceOf(IllegalArgumentException.class);

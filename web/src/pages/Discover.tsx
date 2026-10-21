@@ -20,7 +20,10 @@ export default function Discover() {
           <ReleaseGroupGrid groups={recentlyAdded().slice(0, 12).map(summaryResponse)} layout={CardLayout.ROW} />
         </Section>
         <Section title="Not played yet">
-          <Show when={notPlayedYet().length > 0} fallback={<p class="empty">You've played everything in the library.</p>}>
+          <Show
+            when={notPlayedYet().length > 0}
+            fallback={<p class="empty">You've played everything in the library.</p>}
+          >
             <ReleaseGroupGrid groups={notPlayedYet().map(summaryResponse)} layout={CardLayout.ROW} />
           </Show>
         </Section>

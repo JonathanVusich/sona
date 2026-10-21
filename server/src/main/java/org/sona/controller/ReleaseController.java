@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ReleaseResponse;
 import org.sona.db.ReleaseDetailsDao;
@@ -9,8 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,7 +21,8 @@ public class ReleaseController {
 
     @GetMapping(ApiRoutes.RELEASE)
     public ReleaseResponse release(@PathVariable final UUID releaseId) {
-        return releaseDetailsDao.loadById(releaseId)
+        return releaseDetailsDao
+                .loadById(releaseId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ReleaseNotFoundException(releaseId));
     }

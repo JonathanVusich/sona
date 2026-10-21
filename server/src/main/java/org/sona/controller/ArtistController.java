@@ -2,6 +2,8 @@ package org.sona.controller;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ArtistDetailsResponse;
 import org.sona.controller.response.ArtistPageResponse;
@@ -15,9 +17,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -35,8 +34,9 @@ public class ArtistController {
      * @param limit how many artists a page holds, up to {@value MAX_LIMIT}
      */
     @GetMapping(ApiRoutes.ARTISTS)
-    public ArtistPageResponse artists(@RequestParam(required = false) final UUID after,
-                                      @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT) final int limit) {
+    public ArtistPageResponse artists(
+            @RequestParam(required = false) final UUID after,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT) final int limit) {
         // One more than the page holds tells whether there's a page after it.
         if (after == null) {
             return pageResponse(artistDao.loadFirstPage(limit + 1), limit);
@@ -46,7 +46,8 @@ public class ArtistController {
 
     @GetMapping(ApiRoutes.ARTIST)
     public ArtistDetailsResponse artist(@PathVariable final UUID artistId) {
-        return detailsDao.loadById(artistId)
+        return detailsDao
+                .loadById(artistId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ArtistNotFoundException(artistId));
     }

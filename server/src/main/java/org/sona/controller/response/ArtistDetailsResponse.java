@@ -10,9 +10,4 @@ import java.util.UUID;
  * @param releaseGroups the artist's release groups in the library, newest first, and those with no known date last
  */
 public record ArtistDetailsResponse(
-        UUID artistId,
-        String name,
-        String country,
-        List<ArtistReleaseGroupResponse> releaseGroups
-) {
-}
+        UUID artistId, String name, String country, List<ArtistReleaseGroupResponse> releaseGroups) {}

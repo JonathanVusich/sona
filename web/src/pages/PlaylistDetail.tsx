@@ -52,7 +52,11 @@ export default function PlaylistDetail() {
                     {plural(playlistTracks().length, "song")} · {formatTotal(total())}
                   </p>
                   <div class="detail-actions">
-                    <button class="primary" disabled={playlistTracks().length === 0} onClick={() => playTracks(playlistTracks())}>
+                    <button
+                      class="primary"
+                      disabled={playlistTracks().length === 0}
+                      onClick={() => playTracks(playlistTracks())}
+                    >
                       <PlayIcon size={16} /> Play
                     </button>
                     <button disabled={playlistTracks().length === 0} onClick={() => shufflePlay(playlistTracks())}>

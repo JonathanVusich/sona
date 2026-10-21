@@ -3,6 +3,7 @@ package org.sona.auth;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ErrorCode;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,8 +11,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
-
-import java.io.IOException;
 
 /**
  * Refuses a signed-in user's request with an error response. A user who must change their password is told that this
@@ -26,13 +25,14 @@ public final class AccessErrorHandler implements AccessDeniedHandler {
     private final ErrorResponseWriter writer;
 
     @Override
-    public void handle(final HttpServletRequest request, final HttpServletResponse response,
-                       final AccessDeniedException exception) throws IOException, ServletException {
+    public void handle(
+            final HttpServletRequest request, final HttpServletResponse response, final AccessDeniedException exception)
+            throws IOException, ServletException {
         bearerHandler.handle(request, response, exception);
         final var authentication = SecurityContextHolder.getContext().getAuthentication();
         final var code = switch (authentication) {
-            case UserAuthentication user when user.user().state() == SessionState.PASSWORD_CHANGE_REQUIRED ->
-                    ErrorCode.PASSWORD_CHANGE_REQUIRED;
+            case UserAuthentication user
+            when user.user().state() == SessionState.PASSWORD_CHANGE_REQUIRED -> ErrorCode.PASSWORD_CHANGE_REQUIRED;
             case null, default -> ErrorCode.ACCESS_DENIED;
         };
         writer.writeError(response, code);

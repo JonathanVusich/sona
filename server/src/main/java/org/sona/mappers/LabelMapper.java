@@ -8,5 +8,6 @@ import org.sona.model.tables.records.LabelRecord;
 public interface LabelMapper {
 
     LabelRecord toRecord(Label label);
+
     Label fromRecord(LabelRecord label);
 }

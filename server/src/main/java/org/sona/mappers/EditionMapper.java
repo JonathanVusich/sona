@@ -1,13 +1,12 @@
 package org.sona.mappers;
 
+import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.sona.db.Edition;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
-
-import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface EditionMapper {

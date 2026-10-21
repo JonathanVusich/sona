@@ -67,7 +67,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   font-size: 14px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -119,7 +124,9 @@ button,
   font-size: 13px;
   font-weight: 550;
   cursor: pointer;
-  transition: opacity 120ms var(--ease), background-color 120ms var(--ease);
+  transition:
+    opacity 120ms var(--ease),
+    background-color 120ms var(--ease);
 }
 
 button:hover:not(:disabled),
@@ -285,7 +292,9 @@ select {
   border-radius: 999px;
   color: var(--text-2);
   font-weight: 550;
-  transition: color 120ms var(--ease), background-color 120ms var(--ease);
+  transition:
+    color 120ms var(--ease),
+    background-color 120ms var(--ease);
 }
 
 .nav a:hover {
@@ -500,7 +509,9 @@ select {
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
   opacity: 0;
   transform: translateY(4px);
-  transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+  transition:
+    opacity 150ms var(--ease),
+    transform 150ms var(--ease);
 }
 
 .card:hover .card-play,
@@ -928,7 +939,9 @@ a.player-artist:hover {
   color: var(--text-2);
   text-align: center;
   margin-bottom: 24px;
-  transition: border-color 120ms var(--ease), background-color 120ms var(--ease);
+  transition:
+    border-color 120ms var(--ease),
+    background-color 120ms var(--ease);
 }
 
 .dropzone.dragging {
@@ -1086,7 +1099,6 @@ a.edition:hover {
   background: var(--surface-2);
 }
 
-
 .edition-title {
   font-weight: 550;
 }
@@ -1179,7 +1191,9 @@ a.edition:hover {
   opacity: 0;
   transform: translate(-50%, 8px);
   pointer-events: none;
-  transition: opacity 150ms var(--ease), transform 150ms var(--ease);
+  transition:
+    opacity 150ms var(--ease),
+    transform 150ms var(--ease);
 }
 
 .toast.visible {

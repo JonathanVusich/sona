@@ -1,16 +1,15 @@
 package org.sona.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sona.model.tables.pojos.OidcSession;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
-
-import java.util.Set;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class OidcUtilsTest {
 

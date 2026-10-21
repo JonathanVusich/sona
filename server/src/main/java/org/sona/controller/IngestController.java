@@ -1,6 +1,9 @@
 package org.sona.controller;
 
 import jakarta.validation.constraints.NotBlank;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.engine.IngestWorker;
@@ -15,10 +18,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.UUID;
 
 /**
  * Uploads into the ingest area. Each file of an upload is sent on its own, into its group, so a large folder isn't one
@@ -47,9 +46,11 @@ public class IngestController {
      */
     @PostMapping(path = ApiRoutes.INGEST_GROUP_TRACKS, consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public TrackIngestResponse uploadTrack(@PathVariable final UUID groupIngestId,
-                                           @RequestParam @NotBlank final String filename,
-                                           final InputStream body) throws InvalidFormatException, IOException {
+    public TrackIngestResponse uploadTrack(
+            @PathVariable final UUID groupIngestId,
+            @RequestParam @NotBlank final String filename,
+            final InputStream body)
+            throws InvalidFormatException, IOException {
         final var ingest = library.storeIngestTrack(groupIngestId, filename, body);
         worker.processPending();
         return mapper.toResponse(ingest);

@@ -17,7 +17,8 @@ public final class LoginPage {
         page.navigate("/login");
         page.getByLabel("Username").fill(username);
         page.getByLabel("Password").fill(password);
-        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Log in")).click();
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Log in"))
+                .click();
     }
 
     public Locator error() {

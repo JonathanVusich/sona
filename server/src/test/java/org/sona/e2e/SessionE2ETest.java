@@ -1,7 +1,11 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
@@ -11,11 +15,6 @@ import org.sona.db.UserDao;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThat;
 
 @E2ETest
 class SessionE2ETest {
@@ -50,8 +49,7 @@ class SessionE2ETest {
         assertThat(page).hasURL(Pattern.compile("/discover$"));
 
         // Access tokens last ten seconds in these tests, so the frontend refreshes after five.
-        final var refresh = page.waitForResponse(response -> response.url().endsWith(ApiRoutes.AUTH_REFRESH), () -> {
-        });
+        final var refresh = page.waitForResponse(response -> response.url().endsWith(ApiRoutes.AUTH_REFRESH), () -> {});
 
         assertThat(refresh.status()).isEqualTo(200);
         page.reload();

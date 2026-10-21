@@ -10,6 +10,5 @@ public record Picture(
         int height,
         int colorDepth,
         int numberOfColors,
-        byte[] data
-) implements Block {
-}
+        byte[] data)
+        implements Block {}

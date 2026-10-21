@@ -1,6 +1,8 @@
 package org.sona.controller;
 
 import jakarta.validation.Valid;
+import java.net.URI;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.AccountRegistrar;
 import org.sona.auth.OidcDiscoveryClient;
@@ -11,9 +13,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.net.URI;
-import java.util.List;
 
 /**
  * Signing in through OIDC providers, beside the flow Spring runs at {@link ApiRoutes#OIDC_AUTHORIZE} and

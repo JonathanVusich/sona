@@ -3,12 +3,11 @@ package org.sona.e2e;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Playwright;
+import java.time.Duration;
+import java.util.Map;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
-
-import java.time.Duration;
-import java.util.Map;
 
 /**
  * The browser the E2E tests drive, named by {@code sona.e2e.browser} (firefox unless the e2eTest task is given another).
@@ -29,8 +28,8 @@ public final class RunningBrowser implements AutoCloseable {
         container = playwrightServer(version);
         container.start();
         // The browsers are in the container, so the client mustn't download its own.
-        playwright = Playwright.create(new Playwright.CreateOptions()
-                .setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
+        playwright = Playwright.create(
+                new Playwright.CreateOptions().setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
         final var endpoint = "ws://" + container.getHost() + ":" + container.getMappedPort(SERVER_PORT) + "/";
         browser = browserType(System.getProperty("sona.e2e.browser", "firefox")).connect(endpoint);
     }
@@ -56,7 +55,8 @@ public final class RunningBrowser implements AutoCloseable {
                 .withAccessToHost(true)
                 // Chromium runs out of the default 64 MB of shared memory.
                 .withSharedMemorySize(1024L * 1024 * 1024)
-                .withCreateContainerCmdModifier(create -> create.withUser("pwuser").withWorkingDir("/home/pwuser"))
+                .withCreateContainerCmdModifier(
+                        create -> create.withUser("pwuser").withWorkingDir("/home/pwuser"))
                 .waitingFor(Wait.forLogMessage(".*Listening on.*", 1).withStartupTimeout(Duration.ofMinutes(3)));
     }
 

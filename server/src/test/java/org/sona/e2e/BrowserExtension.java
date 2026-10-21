@@ -12,7 +12,8 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  */
 public final class BrowserExtension implements ParameterResolver {
 
-    private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create(BrowserExtension.class);
+    private static final ExtensionContext.Namespace NAMESPACE =
+            ExtensionContext.Namespace.create(BrowserExtension.class);
 
     @Override
     public boolean supportsParameter(final ParameterContext parameterContext, final ExtensionContext context) {
@@ -34,11 +35,17 @@ public final class BrowserExtension implements ParameterResolver {
      * with it the context, when the test ends
      */
     private static BrowserSession browserSession(final ExtensionContext context) {
-        return context.getStore(NAMESPACE).computeIfAbsent(BrowserSession.class, _ -> {
-            final var browser = context.getRoot().getStore(NAMESPACE)
-                    .computeIfAbsent(RunningBrowser.class, _ -> new RunningBrowser(), RunningBrowser.class)
-                    .browser();
-            return new BrowserSession(context, browser);
-        }, BrowserSession.class);
+        return context.getStore(NAMESPACE)
+                .computeIfAbsent(
+                        BrowserSession.class,
+                        _ -> {
+                            final var browser = context.getRoot()
+                                    .getStore(NAMESPACE)
+                                    .computeIfAbsent(
+                                            RunningBrowser.class, _ -> new RunningBrowser(), RunningBrowser.class)
+                                    .browser();
+                            return new BrowserSession(context, browser);
+                        },
+                        BrowserSession.class);
     }
 }
