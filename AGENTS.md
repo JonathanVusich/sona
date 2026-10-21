@@ -128,7 +128,13 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:e2eTest -Pe2eBrowser=webkit        # or chromium; CI runs all three
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
+./gradlew spotlessApply                              # format the Java sources (palantir-java-format)
+npm --prefix web run format                          # format the frontend (Prettier)
 ```
+
+Formatting is the formatters' job, not a reviewer's: Spotless formats the Java sources with palantir-java-format, and
+Prettier formats `web/`, both at 120 columns. `gradle build` fails on Java that `spotlessApply` would change, and CI
+runs `npm run format:check`, so run both before committing.
 
 The docker-compose database is only needed for `bootRun` and jOOQ codegen; tests don't use it.
 
@@ -189,7 +195,8 @@ frontend work on top of an API still in review.
 
 ## Code style
 
-Match the surrounding code. The conventions below are consistent across the codebase:
+Match the surrounding code. Layout (indentation, line length, wrapping) is the formatters' (see *Building and
+testing*): run them rather than formatting by hand. The conventions below are consistent across the codebase:
 
 **Language**
 - Java 25. Use modern features: records for data, sealed interfaces + pattern-matching `switch` for
