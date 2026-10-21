@@ -34,6 +34,7 @@ import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -66,8 +67,10 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final TrackDao trackDao;
 
     @Override
-    public boolean supports(final String filename) {
-        return PARSERS.containsKey(extensionOf(filename));
+    public TrackToIngest storeUpload(final UUID groupIngestId, final String filename, final InputStream file)
+            throws InvalidFormatException, IOException {
+        parserFor(filename);
+        return library.storeIngestTrack(groupIngestId, filename, file);
     }
 
     @Override
@@ -86,7 +89,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final Parser parser;
         final RawMetadata metadata;
         try {
-            parser = parserFor(trackToIngest);
+            parser = parserFor(trackToIngest.originalFileName());
             metadata = parseIngestTrack(trackToIngest, parser);
         } catch (InvalidFormatException e) {
             // Processing it again would fail the same way.
@@ -108,8 +111,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         importTrack(trackToIngest, resolved, metadata.duration(), parser.format());
     }
 
-    private static Parser parserFor(final TrackToIngest trackToIngest) throws InvalidFormatException {
-        final var extension = extensionOf(trackToIngest.originalFileName());
+    private static Parser parserFor(final String filename) throws InvalidFormatException {
+        final var extension = fileExtension(filename);
         final var parser = PARSERS.get(extension);
         if (parser == null) {
             throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
@@ -117,7 +120,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return parser;
     }
 
-    private static String extensionOf(final String filename) {
+    private static String fileExtension(final String filename) {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 

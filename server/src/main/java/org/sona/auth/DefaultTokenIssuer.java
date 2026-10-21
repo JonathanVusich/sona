@@ -6,6 +6,7 @@ import org.sona.db.OidcSessionDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.RefreshTokenDao;
 import org.sona.db.UserDao;
+import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.model.enums.AccountState;
 import org.sona.model.tables.pojos.OidcSession;
 import org.sona.model.tables.pojos.Password;
@@ -24,7 +25,6 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.sona.auth.SonaJwtConverter.ISSUER;
@@ -68,7 +68,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     @Override
-    public Optional<Tokens> refreshSession(final String refreshToken) {
+    public Tokens refreshSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
         final var replacedAfter = OffsetDateTime.now().minus(LOST_REFRESH_WINDOW);
         // A token whose replacement was lost refreshes the session in place of the token that replaced it.
@@ -77,7 +77,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
                 .orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
-            return Optional.empty();
+            throw new InvalidRefreshTokenException();
         }
         // Checked here because access tokens are trusted as they are until they expire.
         final var user = userDao.loadById(used.userId())
@@ -85,21 +85,20 @@ public class DefaultTokenIssuer implements TokenIssuer {
                 .orElse(null);
         if (user == null || !stillAllowed(user, used.familyId())) {
             endFamily(used.familyId());
-            return Optional.empty();
+            throw new InvalidRefreshTokenException();
         }
-        return Optional.of(issueTokens(user, used.familyId()));
+        return issueTokens(user, used.familyId());
     }
 
     @Override
-    public boolean endSession(final String refreshToken) {
+    public void endSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
         final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
-            return false;
+            throw new InvalidRefreshTokenException();
         }
         endFamily(used.familyId());
-        return true;
     }
 
     @Override

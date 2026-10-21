@@ -8,10 +8,8 @@ import org.sona.auth.TokenIssuer;
 import org.sona.auth.Tokens;
 import org.sona.config.properties.AuthProperties;
 import org.sona.controller.request.LoginRequest;
-import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.exception.ClientException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -35,29 +33,22 @@ public final class AuthController {
     @PostMapping(ApiRoutes.AUTH_TOKEN)
     public ResponseEntity<TokenResponse> login(@RequestBody @Valid final LoginRequest request) {
         // The same answer for an unknown user, a wrong password or a disabled account, so none can be told apart.
-        final var user = passwordChecker.checkLogin(request.username(), request.password())
-                .orElseThrow(() -> new ClientException(ErrorCode.INVALID_CREDENTIALS));
+        final var user = passwordChecker.checkLogin(request.username(), request.password());
         final var tokens = tokenIssuer.startSession(user);
         return tokenResponse(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_REFRESH)
     public ResponseEntity<TokenResponse> refreshTokens(
-            @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
-        if (refreshToken == null) {
-            throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
-        }
-        final var tokens = tokenIssuer.refreshSession(refreshToken)
-                .orElseThrow(() -> new ClientException(ErrorCode.INVALID_REFRESH_TOKEN));
+            @CookieValue(name = RefreshCookieService.NAME) final String refreshToken) {
+        final var tokens = tokenIssuer.refreshSession(refreshToken);
         return tokenResponse(tokens);
     }
 
     @PostMapping(ApiRoutes.AUTH_LOGOUT)
     public ResponseEntity<Void> logout(
-            @CookieValue(name = RefreshCookieService.NAME, required = false) final String refreshToken) {
-        if (refreshToken == null || !tokenIssuer.endSession(refreshToken)) {
-            throw new ClientException(ErrorCode.INVALID_REFRESH_TOKEN);
-        }
+            @CookieValue(name = RefreshCookieService.NAME) final String refreshToken) {
+        tokenIssuer.endSession(refreshToken);
         final var cookie = refreshCookies.clearCookie();
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())

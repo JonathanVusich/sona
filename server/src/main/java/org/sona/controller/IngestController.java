@@ -2,13 +2,11 @@ package org.sona.controller;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.engine.IngestWorker;
 import org.sona.engine.IngestionEngine;
-import org.sona.exception.ClientException;
-import org.sona.library.Library;
+import org.sona.exception.InvalidFormatException;
 import org.sona.mappers.TrackIngestResponseMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -37,7 +35,6 @@ import static org.sona.utils.IDGenerator.uuidv7;
 @PreAuthorize("hasAuthority('library:upload')")
 public class IngestController {
 
-    private final Library library;
     private final IngestionEngine engine;
     private final IngestWorker worker;
     private final TrackIngestResponseMapper mapper;
@@ -61,11 +58,8 @@ public class IngestController {
     @ResponseStatus(HttpStatus.CREATED)
     public TrackIngestResponse uploadTrack(@PathVariable final UUID groupIngestId,
                                            @RequestParam @NotBlank final String filename,
-                                           final InputStream body) throws IOException {
-        if (!engine.supports(filename)) {
-            throw new ClientException(ErrorCode.UNSUPPORTED_FORMAT);
-        }
-        final var ingest = library.storeIngestTrack(groupIngestId, filename, body);
+                                           final InputStream body) throws InvalidFormatException, IOException {
+        final var ingest = engine.storeUpload(groupIngestId, filename, body);
         worker.notifyPending();
         return mapper.toResponse(ingest);
     }

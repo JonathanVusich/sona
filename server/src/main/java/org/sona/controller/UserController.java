@@ -6,8 +6,6 @@ import org.sona.auth.PasswordChecker;
 import org.sona.auth.UserAuthentication;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
-import org.sona.controller.response.ErrorCode;
-import org.sona.exception.ClientException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,13 +37,7 @@ public final class UserController {
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
     public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
                                                @RequestBody @Valid final ChangePasswordRequest request) {
-        final var change = passwordChecker.changePassword(authentication.user(), request.currentPassword(),
-                request.newPassword());
-        return switch (change) {
-            case CHANGED -> ResponseEntity.noContent().build();
-            case INCORRECT_CURRENT_PASSWORD -> throw new ClientException(ErrorCode.INCORRECT_CURRENT_PASSWORD);
-            case INVALID_NEW_PASSWORD -> throw new ClientException(ErrorCode.INVALID_NEW_PASSWORD);
-            case MANAGED_BY_PROVIDER -> throw new ClientException(ErrorCode.PASSWORD_MANAGED_BY_PROVIDER);
-        };
+        passwordChecker.changePassword(authentication.user(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
     }
 }

@@ -4,6 +4,8 @@ import org.sona.exception.InvalidFormatException;
 import org.sona.model.tables.pojos.TrackToIngest;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.UUID;
 
 /**
  * Ingest path:
@@ -12,9 +14,14 @@ import java.io.IOException;
 public interface IngestionEngine {
 
     /**
-     * @return whether a file of this name is in a format Sona can ingest, going by its extension
+     * Stores an uploaded file in the ingest area, to be processed later.
+     *
+     * @param filename the file's name where it was uploaded from, whose extension says its format
+     * @return the stored ingest, waiting to be processed
+     * @throws InvalidFormatException if Sona has no parser for the file's format, in which case nothing is stored
      */
-    boolean supports(String filename);
+    TrackToIngest storeUpload(UUID groupIngestId, String filename, InputStream file)
+            throws InvalidFormatException, IOException;
 
     void processTrack(TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException;
 }
