@@ -5,76 +5,54 @@ import lombok.extern.slf4j.Slf4j;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
-import org.springframework.context.SmartLifecycle;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.Semaphore;
+import static org.sona.config.IngestExecutorConfig.INGEST_EXECUTOR;
 
 /**
  * Takes pending ingests from the database, so those still pending when Sona stopped are processed when it starts
- * again. One thread is enough: MusicBrainz takes about one request a second, and Sona runs as a single instance.
+ * again. Every pass runs on the one ingest thread ({@code IngestExecutorConfig}). Not final, so Spring can make the
+ * passes asynchronous.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public final class DefaultIngestWorker implements IngestWorker, SmartLifecycle {
+public class DefaultIngestWorker implements IngestWorker {
 
     private final IngestionEngine engine;
     private final TrackToIngestDao trackToIngestDao;
 
-    // Each permit means there may be pending ingests. It starts with one, for those left from before a restart.
-    private final Semaphore wakeUps = new Semaphore(1);
-    private volatile Thread thread;
-
+    @Async(INGEST_EXECUTOR)
     @Override
-    public void notifyPending() {
-        wakeUps.release();
+    public void processPending() {
+        processPendingSafely();
     }
 
-    @Override
-    public void start() {
-        thread = Thread.ofPlatform().name("ingest-worker").start(this::processUntilStopped);
+    /**
+     * Processes the ingests left pending when Sona last stopped.
+     */
+    @Async(INGEST_EXECUTOR)
+    @EventListener(ApplicationReadyEvent.class)
+    public void processLeftoverIngests() {
+        processPendingSafely();
     }
 
-    @Override
-    public void stop() {
-        thread.interrupt();
+    private void processPendingSafely() {
         try {
-            thread.join();
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    @Override
-    public boolean isRunning() {
-        return thread != null && thread.isAlive();
-    }
-
-    private void processUntilStopped() {
-        try {
-            while (true) {
-                wakeUps.acquire();
-                // One pass takes every ingest pending by then, however many uploads woke the worker.
-                wakeUps.drainPermits();
-                processPendingSafely();
-            }
+            processEachPending();
         } catch (InterruptedException _) {
             // Sona is stopping. An ingest it was processing is still pending, and is taken again on the next start.
-        }
-    }
-
-    private void processPendingSafely() throws InterruptedException {
-        try {
-            processPending();
+            Thread.currentThread().interrupt();
         } catch (RuntimeException e) {
-            // Such as the database being out of reach. The thread must live on, or nothing would be ingested until Sona
-            // restarted; the ingests still pending are taken on the next wake-up.
+            // Such as the database being out of reach. The ingests still pending are taken by the next pass.
             log.error("Processing pending ingests failed", e);
         }
     }
 
-    private void processPending() throws InterruptedException {
+    private void processEachPending() throws InterruptedException {
         var next = trackToIngestDao.loadOldestPending().orElse(null);
         while (next != null) {
             processIngest(next);

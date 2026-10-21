@@ -6,7 +6,7 @@ package org.sona.engine;
 public interface IngestWorker {
 
     /**
-     * Tells the worker there are ingests waiting, such as one just uploaded. Returns at once.
+     * Processes every pending ingest, such as one just uploaded, in the background. Returns at once.
      */
-    void notifyPending();
+    void processPending();
 }

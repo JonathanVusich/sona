@@ -43,7 +43,7 @@ All code lives under `org.sona`. The ingestion pipeline is the core of the app:
 ```
 upload (IngestController) ──► Library.storeIngestTrack ──► track_to_ingest row (PENDING) + file in <ingestFolder>/<group>/<trackId>
                                                                   │
-IngestWorker (one background thread, oldest PENDING first) ◄──────┘
+IngestWorker (@Async on one thread, oldest PENDING first) ◄───────┘
    │  any failure the engine doesn't mark ──► state = FAILED
    ▼
 IngestionEngine.processTrack
@@ -71,7 +71,7 @@ the library yet: the pages and lists leave them out.
 
 | Package | Responsibility |
 |---|---|
-| `engine` | `IngestionEngine` / `DefaultIngestionEngine`: orchestrates parse → resolve → persist → import. Holds the extension → `Parser` registry. `IngestWorker` / `DefaultIngestWorker`: a single background thread that processes pending ingests oldest first, woken by each upload and once at startup (for ingests left pending by a restart). |
+| `engine` | `IngestionEngine` / `DefaultIngestionEngine`: orchestrates parse → resolve → persist → import. Holds the extension → `Parser` registry. `IngestWorker` / `DefaultIngestWorker`: processes pending ingests oldest first in `@Async` passes on a single-thread executor (`IngestExecutorConfig`), one after each upload and one at startup (for ingests left pending by a restart). |
 | `format` | Audio container parsing/writing. `Parser`, `Writer`, `Format` (supported formats + extensions), `MD5Checksum`. |
 | `format.flac` | Hand-written FLAC metadata reader per [RFC 9639](https://www.rfc-editor.org/rfc/rfc9639.html). Each metadata block type is a record implementing the sealed `Block` interface. `FlacTag` maps Vorbis comment field names to the format-agnostic `metadata.Tag`. Bit-level reads use `dev.javax:bitstream`. |
 | `metadata` | Format-agnostic tag model: `Tag` (known tags), `TagValue` (sealed: `Str`, `Int`, `Binary`), `RawMetadata` (known + unknown tags, multi-valued). |

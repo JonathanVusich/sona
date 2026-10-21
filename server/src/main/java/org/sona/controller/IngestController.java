@@ -51,7 +51,7 @@ public class IngestController {
                                            @RequestParam @NotBlank final String filename,
                                            final InputStream body) throws InvalidFormatException, IOException {
         final var ingest = library.storeIngestTrack(groupIngestId, filename, body);
-        worker.notifyPending();
+        worker.processPending();
         return mapper.toResponse(ingest);
     }
 }
