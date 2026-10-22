@@ -2,6 +2,8 @@ package org.sona.controller;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ReleaseGroupPageResponse;
 import org.sona.controller.response.ReleaseGroupResponse;
@@ -15,9 +17,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -35,9 +34,9 @@ public class ReleaseGroupController {
      * @param limit how many release groups a page holds, up to {@value MAX_LIMIT}
      */
     @GetMapping(ApiRoutes.RELEASE_GROUPS)
-    public ReleaseGroupPageResponse releaseGroups(@RequestParam(required = false) final UUID after,
-                                                  @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT)
-                                                  final int limit) {
+    public ReleaseGroupPageResponse releaseGroups(
+            @RequestParam(required = false) final UUID after,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT) final int limit) {
         // One more than the page holds tells whether there's a page after it.
         if (after == null) {
             return pageResponse(summaryDao.loadFirstPage(limit + 1), limit);
@@ -47,7 +46,8 @@ public class ReleaseGroupController {
 
     @GetMapping(ApiRoutes.RELEASE_GROUP)
     public ReleaseGroupResponse releaseGroup(@PathVariable final UUID releaseGroupId) {
-        return detailsDao.loadById(releaseGroupId)
+        return detailsDao
+                .loadById(releaseGroupId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ReleaseGroupNotFoundException(releaseGroupId));
     }
@@ -62,6 +62,7 @@ public class ReleaseGroupController {
             // The response marks the last page with a null next.
             return new ReleaseGroupPageResponse(releaseGroups, null);
         }
-        return new ReleaseGroupPageResponse(releaseGroups, page.getLast().releaseGroup().releaseGroupId());
+        return new ReleaseGroupPageResponse(
+                releaseGroups, page.getLast().releaseGroup().releaseGroupId());
     }
 }

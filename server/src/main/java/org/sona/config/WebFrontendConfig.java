@@ -1,13 +1,13 @@
 package org.sona.config;
 
+import static org.sona.controller.ApiRoutes.API;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import static org.sona.controller.ApiRoutes.API;
 
 /**
  * Serves the web frontend, which the boot jar bundles under {@code static/}, from the same origin as the API, as the

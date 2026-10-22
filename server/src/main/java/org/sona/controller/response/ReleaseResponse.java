@@ -26,6 +26,4 @@ public record ReleaseResponse(
         ArtistResponse artist,
         List<LabelResponse> labels,
         List<String> formats,
-        List<MediumResponse> media
-) {
-}
+        List<MediumResponse> media) {}

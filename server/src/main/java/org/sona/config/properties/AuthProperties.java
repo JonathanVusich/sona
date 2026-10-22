@@ -1,10 +1,9 @@
 package org.sona.config.properties;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.bind.DefaultValue;
-
 import java.time.Duration;
 import java.util.List;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * @param accessTokenLifetime  how long an access token issued by Sona stays valid
@@ -18,6 +17,4 @@ public record AuthProperties(
         @DefaultValue("15m") Duration accessTokenLifetime,
         @DefaultValue("30d") Duration refreshTokenLifetime,
         @DefaultValue("/") String frontendUrl,
-        @DefaultValue List<OidcProvider> oidcProviders
-) {
-}
+        @DefaultValue List<OidcProvider> oidcProviders) {}

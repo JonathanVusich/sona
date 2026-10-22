@@ -1,19 +1,18 @@
 package org.sona.format.flac;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.Blob;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.time.Duration;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FlacWriterTest {
 
@@ -33,13 +32,14 @@ class FlacWriterTest {
         for (final var tag : Tag.values()) {
             assertThat(parsed.findValues(tag)).as(tag.name()).containsExactlyElementsOf(metadata.findValues(tag));
         }
-        assertThat(parsed.unknownTags()).containsExactlyInAnyOrderElementsOf(metadata.unknownTags().toList());
+        assertThat(parsed.unknownTags())
+                .containsExactlyInAnyOrderElementsOf(metadata.unknownTags().toList());
     }
 
     @Test
     void rejectBinaryTags() {
         final var metadata = new RawMetadata(Duration.ofSeconds(1));
-        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Binary(Blob.copyOf(new byte[]{1})));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Binary(Blob.copyOf(new byte[] {1})));
 
         assertThatThrownBy(() -> writeFlac(metadata)).isInstanceOf(IllegalArgumentException.class);
     }

@@ -1,5 +1,9 @@
 package org.sona.controller;
 
+import static org.sona.auth.RefreshCookieService.NAME;
+
+import java.net.HttpCookie;
+import java.util.UUID;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.request.LoginRequest;
@@ -10,11 +14,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-import java.net.HttpCookie;
-import java.util.UUID;
-
-import static org.sona.auth.RefreshCookieService.NAME;
-
 /**
  * Calls Sona's API over HTTP, as the frontend does.
  */
@@ -24,17 +23,19 @@ public final class ApiClient {
      * @param accessToken  sent as a bearer token
      * @param refreshToken sent back in the refresh cookie
      */
-    public record Session(String accessToken, String refreshToken) {
-    }
+    public record Session(String accessToken, String refreshToken) {}
 
     private final RestTestClient client;
 
     public ApiClient(final int port) {
-        client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        client = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     public RestTestClient.ResponseSpec login(final String username, final String password) {
-        return client.post().uri(ApiRoutes.AUTH_TOKEN)
+        return client.post()
+                .uri(ApiRoutes.AUTH_TOKEN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new LoginRequest(username, password))
                 .exchange();
@@ -48,13 +49,15 @@ public final class ApiClient {
     }
 
     public RestTestClient.ResponseSpec refreshSession(final String refreshToken) {
-        return client.post().uri(ApiRoutes.AUTH_REFRESH)
+        return client.post()
+                .uri(ApiRoutes.AUTH_REFRESH)
                 .cookie(NAME, refreshToken)
                 .exchange();
     }
 
     public RestTestClient.ResponseSpec logout(final String refreshToken) {
-        return client.post().uri(ApiRoutes.AUTH_LOGOUT)
+        return client.post()
+                .uri(ApiRoutes.AUTH_LOGOUT)
                 .cookie(NAME, refreshToken)
                 .exchange();
     }
@@ -64,7 +67,8 @@ public final class ApiClient {
     }
 
     public RestTestClient.ResponseSpec getWithToken(final String path, final String accessToken) {
-        return client.get().uri(path)
+        return client.get()
+                .uri(path)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .exchange();
     }
@@ -85,7 +89,9 @@ public final class ApiClient {
      * user straight in when they still have a session there.
      */
     public RestTestClient.ResponseSpec startSilentOidcSignIn(final String providerId) {
-        return client.get().uri(ApiRoutes.OIDC_AUTHORIZE + "/" + providerId + "?prompt=none").exchange();
+        return client.get()
+                .uri(ApiRoutes.OIDC_AUTHORIZE + "/" + providerId + "?prompt=none")
+                .exchange();
     }
 
     /**
@@ -93,9 +99,10 @@ public final class ApiClient {
      *
      * @param sessionCookie the cookie that started the sign-in, which holds its state
      */
-    public RestTestClient.ResponseSpec finishOidcSignIn(final String providerId, final String code,
-                                                        final String state, final HttpCookie sessionCookie) {
-        return client.get().uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
+    public RestTestClient.ResponseSpec finishOidcSignIn(
+            final String providerId, final String code, final String state, final HttpCookie sessionCookie) {
+        return client.get()
+                .uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
                         .queryParam("code", code)
                         .queryParam("state", state)
                         .build())
@@ -106,9 +113,10 @@ public final class ApiClient {
     /**
      * Comes back from the OIDC provider with an error, as the browser does when it couldn't sign the user in.
      */
-    public RestTestClient.ResponseSpec failOidcSignIn(final String providerId, final String error,
-                                                      final String state, final HttpCookie sessionCookie) {
-        return client.get().uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
+    public RestTestClient.ResponseSpec failOidcSignIn(
+            final String providerId, final String error, final String state, final HttpCookie sessionCookie) {
+        return client.get()
+                .uri(uri -> uri.path(ApiRoutes.OIDC_CALLBACK + "/" + providerId)
                         .queryParam("error", error)
                         .queryParam("state", state)
                         .build())
@@ -117,23 +125,25 @@ public final class ApiClient {
     }
 
     public RestTestClient.ResponseSpec registerUser(final String registrationToken, final String username) {
-        return client.post().uri(ApiRoutes.AUTH_REGISTER)
+        return client.post()
+                .uri(ApiRoutes.AUTH_REGISTER)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new RegisterRequest(registrationToken, username))
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec changePassword(final String accessToken, final String currentPassword,
-                                                      final String newPassword) {
-        return client.post().uri(ApiRoutes.CURRENT_USER_PASSWORD)
+    public RestTestClient.ResponseSpec changePassword(
+            final String accessToken, final String currentPassword, final String newPassword) {
+        return client.post()
+                .uri(ApiRoutes.CURRENT_USER_PASSWORD)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ChangePasswordRequest(currentPassword, newPassword))
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec putIngestGroup(final String accessToken, final UUID groupIngestId,
-                                                      final IngestGroupRequest request) {
+    public RestTestClient.ResponseSpec putIngestGroup(
+            final String accessToken, final UUID groupIngestId, final IngestGroupRequest request) {
         return putJson(accessToken, ApiRoutes.INGEST_GROUPS + "/" + groupIngestId, request);
     }
 
@@ -141,7 +151,8 @@ public final class ApiClient {
      * Sends any JSON, such as a body no request record can hold.
      */
     public RestTestClient.ResponseSpec putJson(final String accessToken, final String path, final Object body) {
-        return client.put().uri(path)
+        return client.put()
+                .uri(path)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
@@ -151,9 +162,10 @@ public final class ApiClient {
     /**
      * Sends one file of an upload, as the frontend does: its bytes as the body, and its name as a parameter.
      */
-    public RestTestClient.ResponseSpec uploadTrack(final String accessToken, final UUID groupIngestId,
-                                                   final String filename, final byte[] file) {
-        return client.post().uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
+    public RestTestClient.ResponseSpec uploadTrack(
+            final String accessToken, final UUID groupIngestId, final String filename, final byte[] file) {
+        return client.post()
+                .uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
                         .queryParam("filename", filename)
                         .build(groupIngestId))
                 .headers(headers -> headers.setBearerAuth(accessToken))
@@ -165,9 +177,10 @@ public final class ApiClient {
     /**
      * Sends a file as curl does by default, as if it were a form.
      */
-    public RestTestClient.ResponseSpec uploadTrackAsForm(final String accessToken, final UUID groupIngestId,
-                                                         final String filename, final byte[] file) {
-        return client.post().uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
+    public RestTestClient.ResponseSpec uploadTrackAsForm(
+            final String accessToken, final UUID groupIngestId, final String filename, final byte[] file) {
+        return client.post()
+                .uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
                         .queryParam("filename", filename)
                         .build(groupIngestId))
                 .headers(headers -> headers.setBearerAuth(accessToken))
@@ -176,9 +189,10 @@ public final class ApiClient {
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec uploadTrackWithoutFilename(final String accessToken, final UUID groupIngestId,
-                                                                  final byte[] file) {
-        return client.post().uri(ApiRoutes.INGEST_GROUP_TRACKS, groupIngestId)
+    public RestTestClient.ResponseSpec uploadTrackWithoutFilename(
+            final String accessToken, final UUID groupIngestId, final byte[] file) {
+        return client.post()
+                .uri(ApiRoutes.INGEST_GROUP_TRACKS, groupIngestId)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(file)
@@ -189,9 +203,8 @@ public final class ApiClient {
      * @return the tokens from a response that must have issued them
      */
     public static Session readSession(final RestTestClient.ResponseSpec response) {
-        final var result = response.expectStatus().isOk()
-                .expectBody(TokenResponse.class)
-                .returnResult();
+        final var result =
+                response.expectStatus().isOk().expectBody(TokenResponse.class).returnResult();
         return new Session(result.getResponseBody().accessToken(), refreshToken(result));
     }
 

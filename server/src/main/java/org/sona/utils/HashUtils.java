@@ -1,11 +1,10 @@
 package org.sona.utils;
 
-import lombok.experimental.UtilityClass;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public final class HashUtils {

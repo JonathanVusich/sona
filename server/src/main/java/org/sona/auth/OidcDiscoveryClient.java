@@ -1,5 +1,12 @@
 package org.sona.auth;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import org.sona.config.properties.AuthProperties;
 import org.sona.config.properties.OidcProvider;
 import org.sona.controller.ApiRoutes;
@@ -7,14 +14,6 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-
-import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Sona's client registrations at the configured OIDC providers. Each is discovered from its issuer on first use, so
@@ -61,7 +60,9 @@ public final class OidcDiscoveryClient implements ClientRegistrationRepository {
 
     private ClientRegistration discoverRegistration(final OidcProvider provider) {
         // PKCE is off by default for confidential clients like Sona, and recommended for every client.
-        final var settings = ClientRegistration.ClientSettings.builder().requireProofKey(true).build();
+        final var settings = ClientRegistration.ClientSettings.builder()
+                .requireProofKey(true)
+                .build();
         return ClientRegistrations.fromIssuerLocation(provider.issuerUri())
                 .registrationId(provider.id())
                 .clientName(provider.name())

@@ -1,9 +1,8 @@
 package org.sona.auth;
 
+import java.util.Set;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
-
-import java.util.Set;
 
 /**
  * A request authenticated by an access token. The token is trusted as it is, so its user's permissions follow from

@@ -2,6 +2,9 @@ package org.sona.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.config.properties.AuthProperties;
@@ -19,10 +22,6 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.io.IOException;
-import java.time.Duration;
-import java.util.Set;
 
 /**
  * Finishes signing in through an OIDC provider, once Spring has checked the provider's ID token, and sends the
@@ -44,8 +43,8 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
      * What a provider answers a silent sign-in it can't complete without the user (OpenID Connect Core section
      * 3.1.2.6).
      */
-    private static final Set<String> USER_NEEDED = Set.of("login_required", "interaction_required",
-            "consent_required", "account_selection_required");
+    private static final Set<String> USER_NEEDED =
+            Set.of("login_required", "interaction_required", "consent_required", "account_selection_required");
 
     private final AccountRegistrar accountRegistrar;
     private final OidcDiscoveryClient discoveryClient;
@@ -54,24 +53,30 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     private final AuthProperties properties;
 
     @Override
-    public void onAuthenticationSuccess(final HttpServletRequest request, final HttpServletResponse response,
-                                        final Authentication authentication) throws IOException {
+    public void onAuthenticationSuccess(
+            final HttpServletRequest request, final HttpServletResponse response, final Authentication authentication)
+            throws IOException {
         switch (authentication) {
-            case OAuth2AuthenticationToken token when token.getPrincipal() instanceof OidcUser oidcUser ->
-                    signIn(request, response, token, oidcUser);
+            case OAuth2AuthenticationToken token
+            when token.getPrincipal() instanceof OidcUser oidcUser -> signIn(request, response, token, oidcUser);
             default -> throw new IllegalStateException("OAuth2 login finished without an OIDC user");
         }
     }
 
-    private void signIn(final HttpServletRequest request, final HttpServletResponse response,
-                        final OAuth2AuthenticationToken token, final OidcUser oidcUser) throws IOException {
+    private void signIn(
+            final HttpServletRequest request,
+            final HttpServletResponse response,
+            final OAuth2AuthenticationToken token,
+            final OidcUser oidcUser)
+            throws IOException {
         final var providerId = token.getAuthorizedClientRegistrationId();
         // Read from the sign-in session, so before it ends.
         final OAuth2AuthorizedClient client = authorizedClients.loadAuthorizedClient(providerId, token, request);
         endSignInSession(request);
         final var refreshToken = client.getRefreshToken();
         if (refreshToken == null) {
-            log.warn("{} returned no refresh token, so Sona can't check sessions with it. Ask for offline_access.",
+            log.warn(
+                    "{} returned no refresh token, so Sona can't check sessions with it. Ask for offline_access.",
                     providerId);
             response.sendRedirect(errorRedirect(ErrorCode.SIGN_IN_FAILED));
             return;
@@ -81,7 +86,8 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
             case OidcSignIn.SignedIn signedIn -> {
                 final var cookie = refreshCookies.issueCookie(signedIn.tokens().refreshToken());
                 response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-                response.addHeader(HttpHeaders.SET_COOKIE, lastProviderCookie(providerId).toString());
+                response.addHeader(
+                        HttpHeaders.SET_COOKIE, lastProviderCookie(providerId).toString());
                 response.sendRedirect(frontendUri().toUriString());
             }
             case OidcSignIn.RegistrationRequired required -> response.sendRedirect(registerRedirect(required));
@@ -90,8 +96,11 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     }
 
     @Override
-    public void onAuthenticationFailure(final HttpServletRequest request, final HttpServletResponse response,
-                                        final AuthenticationException exception) throws IOException {
+    public void onAuthenticationFailure(
+            final HttpServletRequest request,
+            final HttpServletResponse response,
+            final AuthenticationException exception)
+            throws IOException {
         endSignInSession(request);
         response.sendRedirect(errorRedirect(failureCode(exception)));
     }
@@ -99,8 +108,8 @@ public final class SignInHandler implements AuthenticationSuccessHandler, Authen
     private static ErrorCode failureCode(final AuthenticationException exception) {
         return switch (exception) {
             // A silent sign-in found no session at the provider, so the user picks how to sign in instead.
-            case OAuth2AuthenticationException oauth when USER_NEEDED.contains(oauth.getError().getErrorCode()) ->
-                    ErrorCode.SIGN_IN_REQUIRED;
+            case OAuth2AuthenticationException oauth
+            when USER_NEEDED.contains(oauth.getError().getErrorCode()) -> ErrorCode.SIGN_IN_REQUIRED;
             default -> {
                 log.warn("Signing in through an OIDC provider failed", exception);
                 yield ErrorCode.SIGN_IN_FAILED;

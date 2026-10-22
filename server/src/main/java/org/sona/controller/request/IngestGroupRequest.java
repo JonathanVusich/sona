@@ -11,5 +11,5 @@ import org.sona.model.enums.IngestGroupKind;
  *             which matching groups itself
  * @param name the folder's name, or what the uploader called the group
  */
-public record IngestGroupRequest(@NotNull IngestGroupKind kind, @NotBlank String name) {
-}
+public record IngestGroupRequest(
+        @NotNull IngestGroupKind kind, @NotBlank String name) {}

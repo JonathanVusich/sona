@@ -1,11 +1,8 @@
 package org.sona.format.flac;
 
-import dev.javax.bitstream.BitOutputStream;
-import org.sona.format.Format;
-import org.sona.format.MD5Checksum;
-import org.sona.format.Writer;
-import org.sona.metadata.RawMetadata;
+import static org.sona.format.flac.FlacUtils.toFields;
 
+import dev.javax.bitstream.BitOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -13,8 +10,10 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.Stream;
-
-import static org.sona.format.flac.FlacUtils.toFields;
+import org.sona.format.Format;
+import org.sona.format.MD5Checksum;
+import org.sona.format.Writer;
+import org.sona.metadata.RawMetadata;
 
 public final class FlacWriter implements Writer {
 
@@ -55,17 +54,26 @@ public final class FlacWriter implements Writer {
     private static StreamInfo streamInfo(final RawMetadata rawMetadata) {
         final var header = new BlockHeader(BlockPosition.NOT_LAST, BlockType.STREAM_INFO, STREAM_INFO_SIZE);
         final var samples = rawMetadata.duration().toNanos() * DEFAULT_SAMPLE_RATE / 1_000_000_000L;
-        return new StreamInfo(header, new MD5Checksum(new byte[MD5_SIZE]), DEFAULT_BLOCK_SIZE, DEFAULT_BLOCK_SIZE, 0, 0,
-                DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEFAULT_BITS_PER_SAMPLE, samples);
+        return new StreamInfo(
+                header,
+                new MD5Checksum(new byte[MD5_SIZE]),
+                DEFAULT_BLOCK_SIZE,
+                DEFAULT_BLOCK_SIZE,
+                0,
+                0,
+                DEFAULT_SAMPLE_RATE,
+                DEFAULT_CHANNELS,
+                DEFAULT_BITS_PER_SAMPLE,
+                samples);
     }
 
     private static VorbisComment vorbisComment(final RawMetadata rawMetadata) {
         final var header = new BlockHeader(BlockPosition.LAST, BlockType.VORBIS_COMMENT, 0);
         final var knownFields = Arrays.stream(FlacTag.values())
                 .flatMap(flacTag -> toFields(flacTag.getFieldName(), rawMetadata.findValues(flacTag.getTag())));
-        final var unknownFields = rawMetadata.unknownTags()
-                .flatMap(tagSet -> toFields(tagSet.tag(), tagSet.values()));
-        return new VorbisComment(header, VENDOR, Stream.concat(knownFields, unknownFields).toList());
+        final var unknownFields = rawMetadata.unknownTags().flatMap(tagSet -> toFields(tagSet.tag(), tagSet.values()));
+        return new VorbisComment(
+                header, VENDOR, Stream.concat(knownFields, unknownFields).toList());
     }
 
     void writeFlacHeader(final DataOutputStream outputStream) throws IOException {
@@ -89,8 +97,7 @@ public final class FlacWriter implements Writer {
         }
     }
 
-    private void writeStreamInfo(final DataOutputStream outputStream,
-                                 final StreamInfo streamInfo) throws IOException {
+    private void writeStreamInfo(final DataOutputStream outputStream, final StreamInfo streamInfo) throws IOException {
         writeBlockHeader(outputStream, streamInfo.header(), STREAM_INFO_SIZE);
 
         final var bitOutputStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
@@ -126,14 +133,15 @@ public final class FlacWriter implements Writer {
         }
     }
 
-    private void writeVorbisComment(final DataOutputStream outputStream,
-                                    final VorbisComment vorbisComment) throws IOException {
+    private void writeVorbisComment(final DataOutputStream outputStream, final VorbisComment vorbisComment)
+            throws IOException {
         final var vendor = vorbisComment.vendor().getBytes(StandardCharsets.UTF_8);
         final var fields = vorbisComment.fields().stream()
                 .map(field -> (field.name() + "=" + field.content()).getBytes(StandardCharsets.UTF_8))
                 .toList();
         // The vendor and every field are prefixed with their u32 length, and the fields with their u32 count.
-        final var fieldsSize = fields.stream().mapToInt(field -> 4 + field.length).sum();
+        final var fieldsSize =
+                fields.stream().mapToInt(field -> 4 + field.length).sum();
         writeBlockHeader(outputStream, vorbisComment.header(), 4 + vendor.length + 4 + fieldsSize);
 
         writeUtf8(outputStream, vendor);
@@ -144,8 +152,8 @@ public final class FlacWriter implements Writer {
         }
     }
 
-    private void writeApplication(final DataOutputStream outputStream,
-                                  final Application application) throws IOException {
+    private void writeApplication(final DataOutputStream outputStream, final Application application)
+            throws IOException {
         final var data = application.data();
         writeBlockHeader(outputStream, application.header(), 4 + data.length);
 
@@ -176,8 +184,7 @@ public final class FlacWriter implements Writer {
         }
     }
 
-    private void writeCueSheetTrack(final DataOutputStream outputStream,
-                                    final CueSheetTrack track) throws IOException {
+    private void writeCueSheetTrack(final DataOutputStream outputStream, final CueSheetTrack track) throws IOException {
         outputStream.writeLong(track.offset());
         outputStream.writeByte(track.number());
         writeAscii(outputStream, track.isrc(), FlacParser.ISRC_SIZE);
@@ -224,7 +231,8 @@ public final class FlacWriter implements Writer {
     }
 
     // Fixed-size ASCII fields are padded with NUL bytes.
-    private void writeAscii(final DataOutputStream outputStream, final String value, final int size) throws IOException {
+    private void writeAscii(final DataOutputStream outputStream, final String value, final int size)
+            throws IOException {
         final var bytes = value.getBytes(StandardCharsets.US_ASCII);
         if (bytes.length > size) {
             throw new IllegalArgumentException("\"" + value + "\" is longer than " + size + " bytes");
@@ -239,9 +247,8 @@ public final class FlacWriter implements Writer {
         outputStream.write(utf8);
     }
 
-    private void writeBlockHeader(final DataOutputStream outputStream,
-                                  final BlockHeader header,
-                                  final int size) throws IOException {
+    private void writeBlockHeader(final DataOutputStream outputStream, final BlockHeader header, final int size)
+            throws IOException {
         final var bitStream = BitOutputStream.wrap(outputStream, ByteOrder.BIG_ENDIAN);
 
         bitStream.writeBits(header.position().ordinal(), 1);
@@ -249,5 +256,4 @@ public final class FlacWriter implements Writer {
         bitStream.writeBits(size, 24);
         bitStream.flush();
     }
-
 }

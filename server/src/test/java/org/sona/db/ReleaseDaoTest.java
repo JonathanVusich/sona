@@ -1,41 +1,46 @@
 package org.sona.db;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
 class ReleaseDaoTest {
 
     @Autowired
     ReleaseDao dao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -49,14 +54,31 @@ class ReleaseDaoTest {
     @Test
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new Release(uuidv7(), "Old Name", null, LocalDate.of(2002, 1, 1), "GB", 0,
-                releaseGroupId(), artistId(), musicbrainzId));
+        final var stored = dao.upsert(new Release(
+                uuidv7(),
+                "Old Name",
+                null,
+                LocalDate.of(2002, 1, 1),
+                "GB",
+                0,
+                releaseGroupId(),
+                artistId(),
+                musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
         final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
-        assertThat(refreshed).isEqualTo(new Release(stored.releaseId(), "New Name", null, LocalDate.of(2002, 8, 26),
-                "XW", 0, newReleaseGroupId, refreshed.artistId(), musicbrainzId));
+        assertThat(refreshed)
+                .isEqualTo(new Release(
+                        stored.releaseId(),
+                        "New Name",
+                        null,
+                        LocalDate.of(2002, 8, 26),
+                        "XW",
+                        0,
+                        newReleaseGroupId,
+                        refreshed.artistId(),
+                        musicbrainzId));
     }
 
     @Test
@@ -97,29 +119,42 @@ class ReleaseDaoTest {
     }
 
     private UUID releaseGroupId() {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artistId(),
-                0, uuidv7())).releaseGroupId();
+        return releaseGroupDao
+                .upsert(new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artistId(), 0, uuidv7()))
+                .releaseGroupId();
     }
 
     private UUID artistId() {
-        return artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7())).artistId();
+        return artistDao
+                .upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()))
+                .artistId();
     }
 
     private Release newRelease(final String name, final UUID releaseGroupId, final UUID musicbrainzId) {
-        return new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", 0, releaseGroupId, artistId(),
-                musicbrainzId);
+        return new Release(
+                uuidv7(), name, null, LocalDate.of(2002, 8, 26), "XW", 0, releaseGroupId, artistId(), musicbrainzId);
     }
 
     /**
      * Gives the release a track, so it's in the library.
      */
     private void insertTrack(final Release release) {
-        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var medium = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .getFirst();
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
         ingestGroupDao.upsert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
-                release.artistId(), ingest.trackIngestId()));
+        trackDao.insert(new Track(
+                uuidv7(),
+                release.name(),
+                300,
+                AudioFormat.FLAC,
+                "track.flac",
+                medium.mediumId(),
+                1,
+                release.artistId(),
+                ingest.trackIngestId()));
     }
 }

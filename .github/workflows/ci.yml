@@ -68,6 +68,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # Fails on any file Prettier would change; `npm run format` fixes them. The Java sources are checked by Spotless
+      # in the server job, as part of `gradle build`.
+      - run: npm run format:check
       # Type-checks, then bundles.
       - run: npm run build
 

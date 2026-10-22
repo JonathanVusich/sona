@@ -1,23 +1,5 @@
 package org.sona.config;
 
-import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
-import org.springframework.security.oauth2.jwt.JwsHeader;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.function.Consumer;
-
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -26,6 +8,23 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import java.time.Instant;
+import java.util.List;
+import java.util.function.Consumer;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 /**
  * An OIDC provider served by WireMock, with its own signing key. Tests tell it which authorization codes and refresh
@@ -70,7 +69,8 @@ public final class FakeOidcProvider {
                 .claim("nonce", nonce);
         claims.accept(builder);
         final var header = JwsHeader.with(SignatureAlgorithm.RS256).build();
-        return encoder.encode(JwtEncoderParameters.from(header, builder.build())).getTokenValue();
+        return encoder.encode(JwtEncoderParameters.from(header, builder.build()))
+                .getTokenValue();
     }
 
     /**
@@ -130,8 +130,7 @@ public final class FakeOidcProvider {
         server.stop();
     }
 
-    private void stubToken(final String grantType, final String parameter,
-                           final ResponseDefinitionBuilder response) {
+    private void stubToken(final String grantType, final String parameter, final ResponseDefinitionBuilder response) {
         server.stubFor(post(urlPathEqualTo(TOKEN_PATH))
                 .withRequestBody(containing("grant_type=" + grantType))
                 .withRequestBody(containing(parameter))

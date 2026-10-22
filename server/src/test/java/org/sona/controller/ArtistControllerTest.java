@@ -1,5 +1,10 @@
 package org.sona.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,11 +17,11 @@ import org.sona.controller.response.ArtistPageResponse;
 import org.sona.controller.response.ArtistReleaseGroupResponse;
 import org.sona.controller.response.ArtistSummaryResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
@@ -24,39 +29,40 @@ import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
-
-import java.time.LocalDate;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
 class ArtistControllerTest {
 
     @Autowired
     JwtEncoder encoder;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -75,38 +81,50 @@ class ArtistControllerTest {
     @Test
     void anArtistComesWithTheirReleaseGroupsNewestFirst() {
         final var coldplay = insertArtist("Coldplay", "GB");
-        final var parachutes = insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM,
-                LocalDate.of(2000, 7, 10));
+        final var parachutes =
+                insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
         final var demos = insertReleaseGroup(coldplay, "Demos", null, null);
         final var yellow = insertReleaseGroup(coldplay, "Yellow", ReleaseGroupType.SINGLE, LocalDate.of(2000, 6, 26));
-        final var aRush = insertReleaseGroup(coldplay, "A Rush of Blood to the Head", ReleaseGroupType.ALBUM,
-                LocalDate.of(2002, 8, 26));
-        insertReleaseGroup(insertArtist("Keane", "GB"), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10));
+        final var aRush = insertReleaseGroup(
+                coldplay, "A Rush of Blood to the Head", ReleaseGroupType.ALBUM, LocalDate.of(2002, 8, 26));
+        insertReleaseGroup(
+                insertArtist("Keane", "GB"), "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
 
         final var response = api.getWithToken(ApiRoutes.ARTISTS + "/" + coldplay.artistId(), token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ArtistDetailsResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         // Those with no known date come last.
-        assertThat(response).isEqualTo(new ArtistDetailsResponse(coldplay.artistId(), "Coldplay", "GB", List.of(
-                releaseGroup(aRush), releaseGroup(parachutes), releaseGroup(yellow), releaseGroup(demos))));
+        assertThat(response)
+                .isEqualTo(new ArtistDetailsResponse(
+                        coldplay.artistId(),
+                        "Coldplay",
+                        "GB",
+                        List.of(
+                                releaseGroup(aRush),
+                                releaseGroup(parachutes),
+                                releaseGroup(yellow),
+                                releaseGroup(demos))));
     }
 
     @Test
     void anArtistsReleaseGroupsNotInTheLibraryAreLeftOut() {
         final var coldplay = insertArtist("Coldplay", "GB");
-        final var parachutes = insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM,
-                LocalDate.of(2000, 7, 10));
+        final var parachutes =
+                insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
         insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
-        insertRelease(insertReleaseGroupWithoutRelease(coldplay, "Viva la Vida", ReleaseGroupType.ALBUM,
-                LocalDate.of(2008, 6, 12)));
+        insertRelease(insertReleaseGroupWithoutRelease(
+                coldplay, "Viva la Vida", ReleaseGroupType.ALBUM, LocalDate.of(2008, 6, 12)));
 
         final var response = api.getWithToken(ApiRoutes.ARTISTS + "/" + coldplay.artistId(), token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ArtistDetailsResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         assertThat(response.releaseGroups()).containsExactly(releaseGroup(parachutes));
     }
@@ -116,9 +134,11 @@ class ArtistControllerTest {
         final var artist = insertArtist("Ada Mori", null);
 
         final var response = api.getWithToken(ApiRoutes.ARTISTS + "/" + artist.artistId(), token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ArtistDetailsResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         assertThat(response).isEqualTo(new ArtistDetailsResponse(artist.artistId(), "Ada Mori", null, List.of()));
     }
@@ -126,10 +146,13 @@ class ArtistControllerTest {
     @Test
     void anUnknownArtistIsNotFound() {
         api.getWithToken(ApiRoutes.ARTISTS + "/" + uuidv7(), token)
-                .expectStatus().isNotFound()
+                .expectStatus()
+                .isNotFound()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(302)
-                .jsonPath("$.reason").isEqualTo("This artist isn't in the library.");
+                .jsonPath("$.code")
+                .isEqualTo(302)
+                .jsonPath("$.reason")
+                .isEqualTo("This artist isn't in the library.");
     }
 
     @Test
@@ -145,8 +168,9 @@ class ArtistControllerTest {
         final var first = loadPage(ApiRoutes.ARTISTS + "?limit=2");
         final var second = loadPage(ApiRoutes.ARTISTS + "?limit=2&after=" + first.next());
 
-        assertThat(first).isEqualTo(new ArtistPageResponse(
-                List.of(summary(blur, 1), summary(coldplay, 2)), coldplay.artistId()));
+        assertThat(first)
+                .isEqualTo(
+                        new ArtistPageResponse(List.of(summary(blur, 1), summary(coldplay, 2)), coldplay.artistId()));
         assertThat(second).isEqualTo(new ArtistPageResponse(List.of(summary(keane, 1)), null));
     }
 
@@ -156,8 +180,7 @@ class ArtistControllerTest {
         insertArtist("Ada Mori", null);
         insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
 
-        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)),
-                null));
+        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)), null));
     }
 
     @Test
@@ -168,11 +191,10 @@ class ArtistControllerTest {
         insertReleaseGroup(coldplay, "Parachutes", ReleaseGroupType.ALBUM, LocalDate.of(2000, 7, 10));
         insertReleaseGroupWithoutRelease(coldplay, "X&Y", ReleaseGroupType.ALBUM, LocalDate.of(2005, 6, 6));
         insertReleaseGroupWithoutRelease(keane, "Hopes and Fears", ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10));
-        insertRelease(insertReleaseGroupWithoutRelease(blur, "Parklife", ReleaseGroupType.ALBUM,
-                LocalDate.of(1994, 4, 25)));
+        insertRelease(
+                insertReleaseGroupWithoutRelease(blur, "Parklife", ReleaseGroupType.ALBUM, LocalDate.of(1994, 4, 25)));
 
-        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)),
-                null));
+        assertThat(loadPage(ApiRoutes.ARTISTS)).isEqualTo(new ArtistPageResponse(List.of(summary(coldplay, 1)), null));
     }
 
     @Test
@@ -193,16 +215,20 @@ class ArtistControllerTest {
     @ValueSource(strings = {"0", "101", "many"})
     void aLimitThatIsntOneToAHundredIsRefused(final String limit) {
         api.getWithToken(ApiRoutes.ARTISTS + "?limit=" + limit, token)
-                .expectStatus().isBadRequest()
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     private ArtistPageResponse loadPage(final String uri) {
         return api.getWithToken(uri, token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ArtistPageResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
     }
 
     private Artist insertArtist(final String name, final String country) {
@@ -212,8 +238,8 @@ class ArtistControllerTest {
     /**
      * @return a release group in the library, with a release that has a track
      */
-    private ReleaseGroup insertReleaseGroup(final Artist artist, final String name, final ReleaseGroupType type,
-                                            final LocalDate firstReleaseDate) {
+    private ReleaseGroup insertReleaseGroup(
+            final Artist artist, final String name, final ReleaseGroupType type, final LocalDate firstReleaseDate) {
         final var group = insertReleaseGroupWithoutRelease(artist, name, type, firstReleaseDate);
         final var release = insertRelease(group);
         insertTrack(release);
@@ -224,20 +250,27 @@ class ArtistControllerTest {
      * @return a release of the group with no tracks, which isn't in the library
      */
     private Release insertRelease(final ReleaseGroup group) {
-        return releaseDao.upsert(new Release(uuidv7(), group.name(), null, group.firstReleaseDate(), "GB", 0,
-                group.releaseGroupId(), group.artistId(), uuidv7()));
-    }
-
-    private ReleaseGroup insertReleaseGroupWithoutRelease(final Artist artist, final String name,
-                                                          final ReleaseGroupType type,
-                                                          final LocalDate firstReleaseDate) {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(), 0,
+        return releaseDao.upsert(new Release(
+                uuidv7(),
+                group.name(),
+                null,
+                group.firstReleaseDate(),
+                "GB",
+                0,
+                group.releaseGroupId(),
+                group.artistId(),
                 uuidv7()));
     }
 
+    private ReleaseGroup insertReleaseGroupWithoutRelease(
+            final Artist artist, final String name, final ReleaseGroupType type, final LocalDate firstReleaseDate) {
+        return releaseGroupDao.upsert(
+                new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(), 0, uuidv7()));
+    }
+
     private static ArtistReleaseGroupResponse releaseGroup(final ReleaseGroup group) {
-        return new ArtistReleaseGroupResponse(group.releaseGroupId(), group.name(), group.type(),
-                group.firstReleaseDate());
+        return new ArtistReleaseGroupResponse(
+                group.releaseGroupId(), group.name(), group.type(), group.firstReleaseDate());
     }
 
     private static ArtistSummaryResponse summary(final Artist artist, final int releaseGroupCount) {
@@ -248,12 +281,22 @@ class ArtistControllerTest {
      * Gives the release a track, so it's in the library.
      */
     private void insertTrack(final Release release) {
-        final var medium = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var medium = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .getFirst();
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
         ingestGroupDao.upsert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), release.name(), 300, AudioFormat.FLAC, "track.flac", medium.mediumId(), 1,
-                release.artistId(), ingest.trackIngestId()));
+        trackDao.insert(new Track(
+                uuidv7(),
+                release.name(),
+                300,
+                AudioFormat.FLAC,
+                "track.flac",
+                medium.mediumId(),
+                1,
+                release.artistId(),
+                ingest.trackIngestId()));
     }
 }

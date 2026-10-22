@@ -1,11 +1,6 @@
 package org.sona.client.model.query;
 
-public record RecordingQuery(
-        String trackName,
-        String artist,
-        int trackNumber,
-        int totalTracks
-) {
+public record RecordingQuery(String trackName, String artist, int trackNumber, int totalTracks) {
 
     public String toQueryString() {
         final var query = new StringBuilder();
@@ -37,5 +32,4 @@ public record RecordingQuery(
 
         return query.toString();
     }
-
 }

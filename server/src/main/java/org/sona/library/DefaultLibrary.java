@@ -1,5 +1,15 @@
 package org.sona.library;
 
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.config.properties.LibraryProperties;
@@ -13,17 +23,6 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.UUID;
-
-import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * Library structure, named by Sona's database IDs (a track may have no MusicBrainz IDs):
@@ -43,19 +42,18 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
-    public TrackToIngest storeIngestTrack(final IngestGroup ingestGroup,
-                                 final String filename,
-                                 final InputStream inputStream) throws InvalidFormatException, IOException {
+    public TrackToIngest storeIngestTrack(
+            final IngestGroup ingestGroup, final String filename, final InputStream inputStream)
+            throws InvalidFormatException, IOException {
         checkFormat(filename);
         final UUID ingestTrackId = uuidv7();
 
-        final var ingestFolder = config.ingestFolder()
-                .resolve(ingestGroup.ingestGroupId().toString());
+        final var ingestFolder =
+                config.ingestFolder().resolve(ingestGroup.ingestGroupId().toString());
 
         Files.createDirectories(ingestFolder);
 
-        final var ingestTarget = ingestFolder
-                .resolve(ingestTrackId.toString());
+        final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
 
         try {
             Files.copy(inputStream, ingestTarget);
@@ -65,12 +63,8 @@ public final class DefaultLibrary implements Library {
             throw e;
         }
 
-        final var trackIngest = new TrackToIngest(
-                ingestTrackId,
-                ingestGroup.ingestGroupId(),
-                filename,
-                IngestState.PENDING
-        );
+        final var trackIngest =
+                new TrackToIngest(ingestTrackId, ingestGroup.ingestGroupId(), filename, IngestState.PENDING);
 
         trackToIngestDao.insert(trackIngest);
         return trackIngest;
@@ -83,16 +77,22 @@ public final class DefaultLibrary implements Library {
     }
 
     @Override
-    public String libraryPath(final ReleaseGroup releaseGroup,
-                              final Release release,
-                              final UUID trackId,
-                              final String trackName,
-                              final Format format) {
+    public String libraryPath(
+            final ReleaseGroup releaseGroup,
+            final Release release,
+            final UUID trackId,
+            final String trackName,
+            final Format format) {
         final var releaseGroupSegment = new PathSegment(releaseGroup.releaseGroupId(), releaseGroup.name());
         final var releaseSegment = new PathSegment(release.releaseId(), release.name());
         final var trackSegment = new PathSegment(trackId, trackName);
 
-        return "%s/%s/%s.%s".formatted(releaseGroupSegment, releaseSegment, trackSegment, format.getExtensions().getFirst());
+        return "%s/%s/%s.%s"
+                .formatted(
+                        releaseGroupSegment,
+                        releaseSegment,
+                        trackSegment,
+                        format.getExtensions().getFirst());
     }
 
     @Override
@@ -123,6 +123,8 @@ public final class DefaultLibrary implements Library {
     }
 
     private Path resolveIngestTrack(TrackToIngest trackIngest) {
-        return config.ingestFolder().resolve(trackIngest.groupIngestId().toString()).resolve(trackIngest.trackIngestId().toString());
+        return config.ingestFolder()
+                .resolve(trackIngest.groupIngestId().toString())
+                .resolve(trackIngest.trackIngestId().toString());
     }
 }

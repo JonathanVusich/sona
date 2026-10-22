@@ -1,5 +1,14 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.jooq.impl.DSL.noCondition;
+import static org.jooq.impl.DSL.row;
+import static org.jooq.impl.DSL.select;
+import static org.sona.model.Tables.ARTIST;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -7,16 +16,6 @@ import org.sona.mappers.ArtistMapper;
 import org.sona.model.tables.pojos.Artist;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.jooq.impl.DSL.noCondition;
-import static org.jooq.impl.DSL.row;
-import static org.jooq.impl.DSL.select;
-import static org.sona.model.Tables.ARTIST;
 
 @Component
 @RequiredArgsConstructor
@@ -81,9 +80,7 @@ public class ArtistDao {
 
     private static Condition afterArtist(final UUID after) {
         final var last = ARTIST.as("last");
-        final var lastKey = select(last.NAME, last.ARTIST_ID)
-                .from(last)
-                .where(last.ARTIST_ID.eq(after));
+        final var lastKey = select(last.NAME, last.ARTIST_ID).from(last).where(last.ARTIST_ID.eq(after));
         return row(ARTIST.NAME, ARTIST.ARTIST_ID).gt(lastKey);
     }
 }

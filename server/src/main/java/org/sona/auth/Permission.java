@@ -1,11 +1,10 @@
 package org.sona.auth;
 
+import java.util.Set;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.sona.model.enums.UserRole;
 import org.springframework.security.core.GrantedAuthority;
-
-import java.util.Set;
 
 /**
  * What a user may do. Endpoints check these with {@code @PreAuthorize("hasAuthority('library:read')")}.

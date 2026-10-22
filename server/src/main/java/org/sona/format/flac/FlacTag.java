@@ -1,15 +1,14 @@
 package org.sona.format.flac;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import org.sona.metadata.Tag;
-import org.sona.metadata.TagValue;
-
 import java.time.Year;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.sona.metadata.Tag;
+import org.sona.metadata.TagValue;
 
 @RequiredArgsConstructor
 @Getter

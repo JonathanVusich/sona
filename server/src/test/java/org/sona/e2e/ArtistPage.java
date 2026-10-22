@@ -3,9 +3,8 @@ package org.sona.e2e;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
-import lombok.RequiredArgsConstructor;
-
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 
 /**
  * An artist's page: their details, and their release groups in sections by type, each linking to its page.
@@ -39,8 +38,10 @@ public final class ArtistPage {
      */
     public Locator releaseGroupTitles(final String section) {
         return page.locator(".section")
-                .filter(new Locator.FilterOptions().setHas(page.getByRole(AriaRole.HEADING,
-                        new Page.GetByRoleOptions().setName(section).setExact(true))))
+                .filter(new Locator.FilterOptions()
+                        .setHas(page.getByRole(
+                                AriaRole.HEADING,
+                                new Page.GetByRoleOptions().setName(section).setExact(true))))
                 .locator(".card-title");
     }
 

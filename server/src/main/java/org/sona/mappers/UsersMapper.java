@@ -8,5 +8,6 @@ import org.sona.model.tables.records.UsersRecord;
 public interface UsersMapper {
 
     UsersRecord toRecord(Users user);
+
     Users fromRecord(UsersRecord user);
 }

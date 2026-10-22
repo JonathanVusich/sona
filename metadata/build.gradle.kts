@@ -1,6 +1,15 @@
 plugins {
     id("java")
     id("org.springframework.boot").version("4.1.1")
+    id("com.diffplug.spotless")
+}
+
+// Formats the Java sources: `spotlessApply` rewrites them, and `check` (so `build`) fails on any it would change.
+spotless {
+    java {
+        target("src/**/*.java")
+        palantirJavaFormat("2.102.0")
+    }
 }
 
 apply(plugin = "io.spring.dependency-management")

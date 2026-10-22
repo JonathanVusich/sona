@@ -1,9 +1,8 @@
 package org.sona.auth;
 
-import org.sona.model.enums.UserRole;
-
 import java.util.Set;
 import java.util.UUID;
+import org.sona.model.enums.UserRole;
 
 /**
  * Who made a request, as their access token says. Nothing here is looked up in the database.

@@ -1,13 +1,12 @@
 package org.sona.utils;
 
-import lombok.experimental.UtilityClass;
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-
-import static java.time.temporal.ChronoField.DAY_OF_MONTH;
-import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public final class DateUtils {

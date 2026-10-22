@@ -4,9 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public record FlacMetadata(
-        Map<BlockType, List<Block>> metadataBlocks
-) {
+public record FlacMetadata(Map<BlockType, List<Block>> metadataBlocks) {
 
     /**
      * @return the stream info block, or empty if the file has none
@@ -16,7 +14,7 @@ public record FlacMetadata(
                 .<StreamInfo>mapMulti((block, streamInfos) -> {
                     switch (block) {
                         case StreamInfo streamInfo -> streamInfos.accept(streamInfo);
-                        default -> { }
+                        default -> {}
                     }
                 })
                 .findFirst();
@@ -27,7 +25,7 @@ public record FlacMetadata(
                 .<VorbisComment>mapMulti((block, comments) -> {
                     switch (block) {
                         case VorbisComment comment -> comments.accept(comment);
-                        default -> { }
+                        default -> {}
                     }
                 })
                 .toList();

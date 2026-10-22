@@ -1,12 +1,11 @@
 package org.sona.library;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class PathSegmentTest {
 
@@ -29,9 +28,9 @@ class PathSegmentTest {
 
     @ParameterizedTest
     @CsvSource({
-            "AC/DC, AC_DC",
-            "'What?: Live', What__ Live",
-            "'../../etc', .._.._etc",
+        "AC/DC, AC_DC",
+        "'What?: Live', What__ Live",
+        "'../../etc', .._.._etc",
     })
     void sanitizeUnsafeNames(String name, String expected) {
         assertThat(new PathSegment(ID, name).name()).isEqualTo(expected);

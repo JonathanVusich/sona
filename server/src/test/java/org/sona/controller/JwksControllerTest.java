@@ -17,12 +17,18 @@ class JwksControllerTest {
 
     @Test
     void publishesOnlyThePublicSigningKey() {
-        new ApiClient(port).getAnonymously(ApiRoutes.JWKS)
-                .expectStatus().isOk()
+        new ApiClient(port)
+                .getAnonymously(ApiRoutes.JWKS)
+                .expectStatus()
+                .isOk()
                 .expectBody()
-                .jsonPath("$.keys.length()").isEqualTo(1)
-                .jsonPath("$.keys[0].kid").isEqualTo(signingKey.getKeyID())
-                .jsonPath("$.keys[0].n").isEqualTo(signingKey.getModulus().toString())
-                .jsonPath("$.keys[0].d").doesNotExist();
+                .jsonPath("$.keys.length()")
+                .isEqualTo(1)
+                .jsonPath("$.keys[0].kid")
+                .isEqualTo(signingKey.getKeyID())
+                .jsonPath("$.keys[0].n")
+                .isEqualTo(signingKey.getModulus().toString())
+                .jsonPath("$.keys[0].d")
+                .doesNotExist();
     }
 }

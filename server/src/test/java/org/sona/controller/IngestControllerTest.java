@@ -1,5 +1,13 @@
 package org.sona.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.TRACK_TO_INGEST;
+import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Map;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,25 +28,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.Map;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
-import static org.sona.samples.FlacFiles.flacFile;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @IntegrationTest
 class IngestControllerTest {
 
     @Autowired
     JwtEncoder encoder;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
+
     @Autowired
     Library library;
     // For rows the DAOs have no lookup for.
@@ -62,7 +63,8 @@ class IngestControllerTest {
         final var groupIngestId = uuidv7();
 
         api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
-                .expectStatus().isNoContent();
+                .expectStatus()
+                .isNoContent();
 
         assertThat(ingestGroupDao.loadById(groupIngestId))
                 .contains(new IngestGroup(groupIngestId, IngestGroupKind.ALBUM, "Parachutes"));
@@ -72,10 +74,12 @@ class IngestControllerTest {
     void aGroupSentAgainIsUpdated() {
         final var groupIngestId = uuidv7();
         api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
-                .expectStatus().isNoContent();
+                .expectStatus()
+                .isNoContent();
 
         api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.UNKNOWN, "Loose tracks"))
-                .expectStatus().isNoContent();
+                .expectStatus()
+                .isNoContent();
 
         assertThat(ingestGroupDao.loadById(groupIngestId))
                 .contains(new IngestGroup(groupIngestId, IngestGroupKind.UNKNOWN, "Loose tracks"));
@@ -84,17 +88,21 @@ class IngestControllerTest {
     @Test
     void aGroupWithoutANameIsRefused() {
         api.putIngestGroup(adminToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.UNKNOWN, " "))
-                .expectStatus().isBadRequest()
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
     void aGroupOfAnUnknownKindIsRefused() {
         api.putJson(adminToken, ApiRoutes.INGEST_GROUPS + "/" + uuidv7(), Map.of("kind", "PLAYLIST", "name", "Mix"))
-                .expectStatus().isBadRequest()
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
@@ -103,9 +111,11 @@ class IngestControllerTest {
         final var flac = flacFile(new RawMetadata(Duration.ofSeconds(10)));
 
         final var response = api.uploadTrack(adminToken, group.ingestGroupId(), "09 A Whisper.flac", flac)
-                .expectStatus().isCreated()
+                .expectStatus()
+                .isCreated()
                 .expectBody(TrackIngestResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         assertThat(response.groupIngestId()).isEqualTo(group.ingestGroupId());
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
@@ -119,10 +129,12 @@ class IngestControllerTest {
 
     @Test
     void aFileForAGroupThatWasNeverCreatedIsRefused() {
-        api.uploadTrack(adminToken, uuidv7(), "song.flac", new byte[]{1, 2, 3})
-                .expectStatus().isNotFound()
+        api.uploadTrack(adminToken, uuidv7(), "song.flac", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isNotFound()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(304)
+                .jsonPath("$.code")
+                .isEqualTo(304)
                 .jsonPath("$.reason")
                 .isEqualTo("This upload group doesn't exist. Create it before uploading its files.");
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
@@ -132,11 +144,14 @@ class IngestControllerTest {
     void aFileInAFormatSonaCannotIngestIsRefused() {
         final var group = storeGroup();
 
-        api.uploadTrack(adminToken, group.ingestGroupId(), "song.mp3", new byte[]{1, 2, 3})
-                .expectStatus().isEqualTo(415)
+        api.uploadTrack(adminToken, group.ingestGroupId(), "song.mp3", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isEqualTo(415)
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(303)
-                .jsonPath("$.reason").isEqualTo("Sona can't ingest files in this format yet.");
+                .jsonPath("$.code")
+                .isEqualTo(303)
+                .jsonPath("$.reason")
+                .isEqualTo("Sona can't ingest files in this format yet.");
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
@@ -144,10 +159,12 @@ class IngestControllerTest {
     void aFileSentAsAFormIsRefused() {
         final var group = storeGroup();
 
-        api.uploadTrackAsForm(adminToken, group.ingestGroupId(), "song.flac", new byte[]{1, 2, 3})
-                .expectStatus().isEqualTo(415)
+        api.uploadTrackAsForm(adminToken, group.ingestGroupId(), "song.flac", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isEqualTo(415)
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(401);
+                .jsonPath("$.code")
+                .isEqualTo(401);
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
@@ -155,26 +172,31 @@ class IngestControllerTest {
     void aFileWithoutANameIsRefused() {
         final var group = storeGroup();
 
-        api.uploadTrackWithoutFilename(adminToken, group.ingestGroupId(), new byte[]{1, 2, 3})
-                .expectStatus().isBadRequest()
+        api.uploadTrackWithoutFilename(adminToken, group.ingestGroupId(), new byte[] {1, 2, 3})
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
     void aUserMayNotUpload() {
-        final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER,
-                SessionState.ACTIVE);
+        final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER, SessionState.ACTIVE);
         final var group = storeGroup();
 
         api.putIngestGroup(userToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
-                .expectStatus().isForbidden()
+                .expectStatus()
+                .isForbidden()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(104);
-        api.uploadTrack(userToken, group.ingestGroupId(), "song.flac", new byte[]{1, 2, 3})
-                .expectStatus().isForbidden()
+                .jsonPath("$.code")
+                .isEqualTo(104);
+        api.uploadTrack(userToken, group.ingestGroupId(), "song.flac", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isForbidden()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(104);
+                .jsonPath("$.code")
+                .isEqualTo(104);
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 

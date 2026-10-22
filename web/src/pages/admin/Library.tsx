@@ -92,7 +92,16 @@ export default function Library() {
                 </tr>
               </thead>
               <tbody>
-                <For each={rows()} fallback={<tr><td colspan="8" class="empty">No releases match.</td></tr>}>
+                <For
+                  each={rows()}
+                  fallback={
+                    <tr>
+                      <td colspan="8" class="empty">
+                        No releases match.
+                      </td>
+                    </tr>
+                  }
+                >
                   {({ release, group, artist }) => (
                     <tr>
                       <td>
@@ -113,10 +122,7 @@ export default function Library() {
                         <button class="quiet" onClick={() => setEditing(release)}>
                           Edit
                         </button>
-                        <button
-                          class="quiet danger"
-                          onClick={() => setRemoving(release)}
-                        >
+                        <button class="quiet danger" onClick={() => setRemoving(release)}>
                           Remove
                         </button>
                       </td>

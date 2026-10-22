@@ -45,6 +45,7 @@ public final class ApiRoutes {
      * Under the ID the uploader made up for the group.
      */
     public static final String INGEST_GROUP = INGEST_GROUPS + "/{groupIngestId}";
+
     public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
 
     public static final String JWKS = "/.well-known/jwks.json";

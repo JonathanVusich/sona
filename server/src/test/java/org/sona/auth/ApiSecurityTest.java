@@ -1,9 +1,13 @@
 package org.sona.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
@@ -16,11 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * What an access token lets its user do. Tokens are trusted as they are, so none of this needs the user's row.
@@ -48,8 +47,9 @@ class ApiSecurityTest {
         final var userId = uuidv7();
         final var token = tokens.accessToken(userId, "alice", UserRole.USER, SessionState.ACTIVE);
 
-        assertThat(currentUser(token)).isEqualTo(new CurrentUserResponse(userId, "alice", UserRole.USER,
-                SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
+        assertThat(currentUser(token))
+                .isEqualTo(new CurrentUserResponse(
+                        userId, "alice", UserRole.USER, SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
     }
 
     @Test
@@ -74,10 +74,13 @@ class ApiSecurityTest {
         final var token = tokens.accessToken(uuidv7(), "root", UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED);
 
         api.getWithToken("/api/library", token)
-                .expectStatus().isForbidden()
+                .expectStatus()
+                .isForbidden()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(103)
-                .jsonPath("$.reason").isEqualTo("Change your password before continuing.");
+                .jsonPath("$.code")
+                .isEqualTo(103)
+                .jsonPath("$.reason")
+                .isEqualTo("Change your password before continuing.");
     }
 
     @Test
@@ -91,9 +94,13 @@ class ApiSecurityTest {
     @Test
     void requestsWithoutATokenAreRejected() {
         api.getAnonymously(ApiRoutes.CURRENT_USER)
-                .expectStatus().isUnauthorized()
-                .expectHeader().exists(HttpHeaders.WWW_AUTHENTICATE)
-                .expectBody().jsonPath("$.code").isEqualTo(100);
+                .expectStatus()
+                .isUnauthorized()
+                .expectHeader()
+                .exists(HttpHeaders.WWW_AUTHENTICATE)
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(100);
     }
 
     @Test
@@ -112,8 +119,10 @@ class ApiSecurityTest {
 
     private CurrentUserResponse currentUser(final String token) {
         return api.getWithToken(ApiRoutes.CURRENT_USER, token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(CurrentUserResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
     }
 }

@@ -1,5 +1,8 @@
 package org.sona.db;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.IngestGroupKind;
@@ -8,14 +11,12 @@ import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @IntegrationTest
 class TrackToIngestDaoTest {
 
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao dao;
 

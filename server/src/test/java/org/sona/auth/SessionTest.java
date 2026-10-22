@@ -1,5 +1,12 @@
 package org.sona.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.REFRESH_TOKEN;
+import static org.sona.model.Tables.USERS;
+import static org.sona.utils.HashUtils.sha256Hex;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.time.OffsetDateTime;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,14 +26,6 @@ import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-
-import java.time.OffsetDateTime;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.model.Tables.REFRESH_TOKEN;
-import static org.sona.model.Tables.USERS;
-import static org.sona.utils.HashUtils.sha256Hex;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * Refreshing and ending the sessions Sona issues. Each refresh replaces the refresh token, and using a replaced one
@@ -66,7 +65,8 @@ class SessionTest {
         final var first = tokenIssuer.startSession(alice);
 
         final var result = api.refreshSession(first.refreshToken())
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(TokenResponse.class)
                 .returnResult();
 
@@ -76,7 +76,9 @@ class SessionTest {
                 .startsWith("sona_refresh=")
                 .doesNotContain(first.refreshToken())
                 .contains("Path=/api/auth", "HttpOnly", "Secure", "SameSite=Strict");
-        api.getWithToken(ApiRoutes.CURRENT_USER, result.getResponseBody().accessToken()).expectStatus().isOk();
+        api.getWithToken(ApiRoutes.CURRENT_USER, result.getResponseBody().accessToken())
+                .expectStatus()
+                .isOk();
     }
 
     @Test
@@ -138,8 +140,11 @@ class SessionTest {
     @Test
     void refreshWithAnUnknownTokenIsRejected() {
         api.refreshSession("unknown")
-                .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.code").isEqualTo(102);
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(102);
     }
 
     @Test
@@ -147,8 +152,10 @@ class SessionTest {
         final var session = tokenIssuer.startSession(alice);
 
         api.logout(session.refreshToken())
-                .expectStatus().isNoContent()
-                .expectHeader().value(HttpHeaders.SET_COOKIE, cookie -> assertThat(cookie).contains("Max-Age=0"));
+                .expectStatus()
+                .isNoContent()
+                .expectHeader()
+                .value(HttpHeaders.SET_COOKIE, cookie -> assertThat(cookie).contains("Max-Age=0"));
 
         api.refreshSession(session.refreshToken()).expectStatus().isUnauthorized();
     }
@@ -156,15 +163,21 @@ class SessionTest {
     @Test
     void logoutNeedsARefreshToken() {
         api.logoutWithoutCookie()
-                .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.code").isEqualTo(102);
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(102);
     }
 
     @Test
     void logoutRejectsAnUnknownRefreshToken() {
         api.logout("unknown")
-                .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.code").isEqualTo(102);
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(102);
     }
 
     @Test

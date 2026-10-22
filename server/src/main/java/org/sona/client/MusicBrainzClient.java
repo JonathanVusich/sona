@@ -1,7 +1,11 @@
 package org.sona.client;
 
+import static org.springframework.http.HttpHeaders.USER_AGENT;
+
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
+import java.net.URI;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.Artist;
 import org.sona.client.model.EntityType;
@@ -11,11 +15,6 @@ import org.sona.client.model.response.TrackResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
-
-import java.net.URI;
-import java.util.UUID;
-
-import static org.springframework.http.HttpHeaders.USER_AGENT;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +29,8 @@ public class MusicBrainzClient {
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public TrackResponse searchRecordings(RecordingQuery query) {
-        return restClient.get()
+        return restClient
+                .get()
                 .uri(uriBuilder -> formatTrackQuery(uriBuilder, query))
                 .header(USER_AGENT, USER_AGENT_VALUE)
                 .retrieve()
@@ -43,7 +43,8 @@ public class MusicBrainzClient {
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Release lookupRelease(final UUID releaseId) {
-        return restClient.get()
+        return restClient
+                .get()
                 .uri(uriBuilder -> uriBuilder
                         .path(EntityType.RELEASE.getPath() + "/{id}")
                         .queryParam("inc", "{inc}")
@@ -57,7 +58,8 @@ public class MusicBrainzClient {
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Artist lookupArtist(final UUID artistId) {
-        return restClient.get()
+        return restClient
+                .get()
                 .uri(uriBuilder -> uriBuilder
                         .path(EntityType.ARTIST.getPath() + "/{id}")
                         .queryParam("fmt", "json")

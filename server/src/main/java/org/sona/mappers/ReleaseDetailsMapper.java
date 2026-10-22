@@ -1,5 +1,6 @@
 package org.sona.mappers;
 
+import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.sona.db.MediumWithTracks;
@@ -7,8 +8,6 @@ import org.sona.db.ReleaseDetails;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Release;
-
-import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ReleaseDetailsMapper {

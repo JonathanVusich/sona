@@ -1,17 +1,16 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.sona.model.Tables.RELEASE_GROUP;
+
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.ReleaseGroupMapper;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.sona.model.Tables.RELEASE_GROUP;
 
 @Component
 @RequiredArgsConstructor

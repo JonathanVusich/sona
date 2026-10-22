@@ -1,14 +1,5 @@
 package org.sona.client;
 
-import com.github.tomakehurst.wiremock.WireMockServer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.sona.IntegrationTest;
-import org.sona.client.model.query.RecordingQuery;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import java.util.UUID;
-
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
@@ -16,6 +7,14 @@ import static com.github.tomakehurst.wiremock.client.WireMock.serviceUnavailable
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.github.tomakehurst.wiremock.WireMockServer;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.sona.IntegrationTest;
+import org.sona.client.model.query.RecordingQuery;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The retries are applied by Spring, so they're only tested on the client Spring builds.
@@ -27,6 +26,7 @@ class MusicBrainzRetryTest {
 
     @Autowired
     MusicBrainzClient client;
+
     @Autowired
     WireMockServer musicBrainz;
 
@@ -56,6 +56,7 @@ class MusicBrainzRetryTest {
         final var response = client.searchRecordings(query);
 
         assertThat(response.recordings().getFirst().title()).isEqualTo("A Whisper");
-        assertThat(musicBrainz.findAll(getRequestedFor(urlPathEqualTo(RECORDING_PATH)))).hasSize(2);
+        assertThat(musicBrainz.findAll(getRequestedFor(urlPathEqualTo(RECORDING_PATH))))
+                .hasSize(2);
     }
 }

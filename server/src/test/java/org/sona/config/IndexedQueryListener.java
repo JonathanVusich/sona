@@ -1,5 +1,10 @@
 package org.sona.config;
 
+import static org.sona.model.Sona.SONA;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.stream.Stream;
 import org.jooq.Delete;
 import org.jooq.ExecuteContext;
 import org.jooq.ExecuteListener;
@@ -9,12 +14,6 @@ import org.jooq.Select;
 import org.jooq.Update;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.stream.Stream;
-
-import static org.sona.model.Sona.SONA;
 
 /**
  * Fails any query that would scan a whole table of Sona's. Before each query runs, it asks Postgres for the plan with
@@ -30,7 +29,7 @@ public final class IndexedQueryListener implements ExecuteListener {
         switch (context.query()) {
             case Select<?> _, Insert<?> _, Update<?> _, Delete<?> _ -> checkPlan(context, context.query());
             // Batches, DDL and truncation have no plan to check.
-            case null, default -> { }
+            case null, default -> {}
         }
     }
 
@@ -42,8 +41,8 @@ public final class IndexedQueryListener implements ExecuteListener {
                 .flatMap(entry -> sequentialScans(entry.path("Plan")))
                 .toList();
         if (!scannedTables.isEmpty()) {
-            throw new AssertionError("Query scans %s without an index:%n%s%n%s"
-                    .formatted(scannedTables, sql, plan.toPrettyString()));
+            throw new AssertionError(
+                    "Query scans %s without an index:%n%s%n%s".formatted(scannedTables, sql, plan.toPrettyString()));
         }
     }
 

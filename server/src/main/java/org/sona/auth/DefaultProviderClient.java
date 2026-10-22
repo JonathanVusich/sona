@@ -1,5 +1,7 @@
 package org.sona.auth;
 
+import static org.sona.auth.OidcUtils.refreshGrantRequest;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.OidcIdentityDao;
@@ -10,8 +12,6 @@ import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGra
 import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.stereotype.Service;
-
-import static org.sona.auth.OidcUtils.refreshGrantRequest;
 
 @Slf4j
 @Service

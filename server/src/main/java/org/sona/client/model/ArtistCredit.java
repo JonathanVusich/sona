@@ -1,7 +1,6 @@
 package org.sona.client.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.Objects;
 
 /**
@@ -10,11 +9,7 @@ import java.util.Objects;
  * out when it is empty.
  */
 public record ArtistCredit(
-        String name,
-        @JsonProperty("joinphrase")
-        String joinPhrase,
-        Artist artist
-) {
+        String name, @JsonProperty("joinphrase") String joinPhrase, Artist artist) {
 
     public ArtistCredit {
         joinPhrase = Objects.requireNonNullElse(joinPhrase, "");

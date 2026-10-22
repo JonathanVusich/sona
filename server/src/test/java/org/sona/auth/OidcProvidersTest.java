@@ -1,5 +1,7 @@
 package org.sona.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.FakeOidcProvider;
@@ -8,8 +10,6 @@ import org.sona.controller.ApiRoutes;
 import org.sona.controller.response.OidcProviderResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The OIDC providers users can sign in through, and Sona's registrations there.
@@ -28,10 +28,13 @@ class OidcProvidersTest {
 
     @Test
     void theProvidersAreListed() {
-        final var providers = new ApiClient(port).getAnonymously(ApiRoutes.OIDC_PROVIDERS)
-                .expectStatus().isOk()
+        final var providers = new ApiClient(port)
+                .getAnonymously(ApiRoutes.OIDC_PROVIDERS)
+                .expectStatus()
+                .isOk()
                 .expectBody(OidcProviderResponse[].class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         assertThat(providers).containsExactly(new OidcProviderResponse(FakeOidcProvider.ID, FakeOidcProvider.NAME));
     }

@@ -44,9 +44,33 @@ function seedPlaylist(id: string, owner: string, name: string, description: stri
 }
 
 const [playlists, setPlaylists] = createSignal<Playlist[]>([
-  seedPlaylist("p1", "user", "Late Night", "Slow and quiet, for after midnight.", ["Paper Moons", "Nightjar", "Window Seat", "Fog Signal", "Quiet Engines", "Lantern", "Long Night"]),
-  seedPlaylist("p2", "user", "Focus", "Steady, few surprises.", ["Carrier Wave", "Telemetry", "Handshake", "Mesa at Dusk", "Splashdown", "Meridian"]),
-  seedPlaylist("p3", "user", "Road Trip", "Windows down.", ["Afterglow Drive", "Northbound", "Exit 14", "Glass Canyon", "Home Stretch", "Static Bloom", "Harbor Lights", "Rearview"]),
+  seedPlaylist("p1", "user", "Late Night", "Slow and quiet, for after midnight.", [
+    "Paper Moons",
+    "Nightjar",
+    "Window Seat",
+    "Fog Signal",
+    "Quiet Engines",
+    "Lantern",
+    "Long Night",
+  ]),
+  seedPlaylist("p2", "user", "Focus", "Steady, few surprises.", [
+    "Carrier Wave",
+    "Telemetry",
+    "Handshake",
+    "Mesa at Dusk",
+    "Splashdown",
+    "Meridian",
+  ]),
+  seedPlaylist("p3", "user", "Road Trip", "Windows down.", [
+    "Afterglow Drive",
+    "Northbound",
+    "Exit 14",
+    "Glass Canyon",
+    "Home Stretch",
+    "Static Bloom",
+    "Harbor Lights",
+    "Rearview",
+  ]),
 ]);
 
 export const myPlaylists = () => {
@@ -83,13 +107,18 @@ export function addToPlaylist(id: string, trackIds: string[]): number {
   if (playlist === undefined) {
     return 0;
   }
-  const added = trackIds.filter((trackId, i) => !playlist.trackIds.includes(trackId) && trackIds.indexOf(trackId) === i);
+  const added = trackIds.filter(
+    (trackId, i) => !playlist.trackIds.includes(trackId) && trackIds.indexOf(trackId) === i,
+  );
   setPlaylists((all) => updateById(all, id, (other) => ({ ...other, trackIds: [...other.trackIds, ...added] })));
   return added.length;
 }
 
 export function removeFromPlaylist(id: string, trackId: string) {
   setPlaylists((all) =>
-    updateById(all, id, (playlist) => ({ ...playlist, trackIds: playlist.trackIds.filter((other) => other !== trackId) })),
+    updateById(all, id, (playlist) => ({
+      ...playlist,
+      trackIds: playlist.trackIds.filter((other) => other !== trackId),
+    })),
   );
 }

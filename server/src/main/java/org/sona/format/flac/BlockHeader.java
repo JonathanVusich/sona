@@ -1,8 +1,3 @@
 package org.sona.format.flac;
 
-public record BlockHeader(
-        BlockPosition position,
-        BlockType blockType,
-        int size
-) {
-}
+public record BlockHeader(BlockPosition position, BlockType blockType, int size) {}

@@ -8,18 +8,15 @@ public sealed interface OidcSignIn permits OidcSignIn.SignedIn, OidcSignIn.Regis
     /**
      * The user has an account, and a new session.
      */
-    record SignedIn(Tokens tokens) implements OidcSignIn {
-    }
+    record SignedIn(Tokens tokens) implements OidcSignIn {}
 
     /**
      * The user has no account yet. The registration token lets them create one with the username they choose.
      */
-    record RegistrationRequired(String registrationToken) implements OidcSignIn {
-    }
+    record RegistrationRequired(String registrationToken) implements OidcSignIn {}
 
     /**
      * The user's account is disabled in Sona.
      */
-    record Disabled() implements OidcSignIn {
-    }
+    record Disabled() implements OidcSignIn {}
 }

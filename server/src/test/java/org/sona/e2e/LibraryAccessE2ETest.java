@@ -1,7 +1,10 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
@@ -10,10 +13,6 @@ import org.sona.db.UserDao;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
 @E2ETest
 class LibraryAccessE2ETest {
@@ -44,7 +43,8 @@ class LibraryAccessE2ETest {
         menu.menuItem("Manage library").click();
 
         assertThat(page).hasURL(Pattern.compile("/admin/library$"));
-        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Library"))).isVisible();
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Library")))
+                .isVisible();
     }
 
     @Test

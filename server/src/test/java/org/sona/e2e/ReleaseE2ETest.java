@@ -1,10 +1,17 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import com.microsoft.playwright.Page;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
@@ -12,7 +19,6 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
-import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
@@ -20,49 +26,53 @@ import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @E2ETest
 class ReleaseE2ETest {
 
     @Autowired
     UserDao userDao;
+
     @Autowired
     PasswordDao passwordDao;
+
     @Autowired
     PasswordEncoder encoder;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     LabelDao labelDao;
+
     @Autowired
     ReleaseLabelDao releaseLabelDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -77,8 +87,12 @@ class ReleaseE2ETest {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var release = insertRelease(various, "Britpop", "Parlophone");
-        final var disc1 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
-        final var disc2 = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD"))).getFirst();
+        final var disc1 = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .getFirst();
+        final var disc2 = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
+                .getFirst();
         insertTrack(disc1, coldplay, "Yellow");
         insertTrack(disc2, keane, "Somewhere Only We Know");
         final var releasePage = logInAndOpen(page, release);
@@ -98,7 +112,9 @@ class ReleaseE2ETest {
     void aSingleDiscReleaseNamesNeitherTheDiscNorTheReleasesOwnArtistOnEachTrack(final Page page) {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
-        final var disc = mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD"))).getFirst();
+        final var disc = mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .getFirst();
         insertTrack(disc, coldplay, "Yellow");
         final var releasePage = logInAndOpen(page, release);
 
@@ -127,17 +143,33 @@ class ReleaseE2ETest {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var original = insertRelease(coldplay, "A Rush of Blood to the Head", "Parlophone");
         insertTrack(insertMedium(original, 1, "CD"), coldplay, "Clocks");
-        final var japan = releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Japan)", null,
-                LocalDate.of(2002, 8, 27), "JP", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
+        final var japan = releaseDao.upsert(new Release(
+                uuidv7(),
+                "A Rush of Blood to the Head (Japan)",
+                null,
+                LocalDate.of(2002, 8, 27),
+                "JP",
+                0,
+                original.releaseGroupId(),
+                coldplay.artistId(),
+                uuidv7()));
         insertTrack(insertMedium(japan, 1, "CD"), coldplay, "The Scientist");
         // Not in the library, as it has no track.
-        releaseDao.upsert(new Release(uuidv7(), "A Rush of Blood to the Head (Deluxe)", null,
-                LocalDate.of(2002, 8, 28), "GB", 0, original.releaseGroupId(), coldplay.artistId(), uuidv7()));
+        releaseDao.upsert(new Release(
+                uuidv7(),
+                "A Rush of Blood to the Head (Deluxe)",
+                null,
+                LocalDate.of(2002, 8, 28),
+                "GB",
+                0,
+                original.releaseGroupId(),
+                coldplay.artistId(),
+                uuidv7()));
         insertTrack(insertMedium(insertRelease(coldplay, "Parachutes", "Parlophone"), 1, "CD"), coldplay, "Yellow");
         final var releasePage = logInAndOpen(page, original);
 
-        assertThat(releasePage.editionTitles()).hasText(new String[]{"A Rush of Blood to the Head (Japan)"});
-        assertThat(releasePage.moreByTitles()).hasText(new String[]{"Parachutes"});
+        assertThat(releasePage.editionTitles()).hasText(new String[] {"A Rush of Blood to the Head (Japan)"});
+        assertThat(releasePage.moreByTitles()).hasText(new String[] {"Parachutes"});
     }
 
     @Test
@@ -185,30 +217,49 @@ class ReleaseE2ETest {
     }
 
     private Release insertRelease(final Artist artist, final String name, final String labelName) {
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null,
-                artist.artistId(), 0, uuidv7()));
-        final var release = releaseDao.upsert(new Release(uuidv7(), name, null, LocalDate.of(2002, 8, 26), "GB", 0,
-                releaseGroup.releaseGroupId(), artist.artistId(), uuidv7()));
-        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7()))).getFirst();
+        final var releaseGroup =
+                releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null, artist.artistId(), 0, uuidv7()));
+        final var release = releaseDao.upsert(new Release(
+                uuidv7(),
+                name,
+                null,
+                LocalDate.of(2002, 8, 26),
+                "GB",
+                0,
+                releaseGroup.releaseGroupId(),
+                artist.artistId(),
+                uuidv7()));
+        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7())))
+                .getFirst();
         releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
         return release;
     }
 
     private Medium insertMedium(final Release release, final int position, final String format) {
-        return mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), position, format))).getFirst();
+        return mediumDao
+                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), position, format)))
+                .getFirst();
     }
 
     private void insertTrack(final Medium medium, final Artist artist, final String name) {
         insertTrackInState(medium, artist, name, IngestState.COMPLETED);
     }
 
-    private void insertTrackInState(final Medium medium, final Artist artist, final String name,
-                                    final IngestState state) {
+    private void insertTrackInState(
+            final Medium medium, final Artist artist, final String name, final IngestState state) {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
         ingestGroupDao.upsert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", state);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
-                artist.artistId(), ingest.trackIngestId()));
+        trackDao.insert(new Track(
+                uuidv7(),
+                name,
+                300,
+                AudioFormat.FLAC,
+                name + ".flac",
+                medium.mediumId(),
+                1,
+                artist.artistId(),
+                ingest.trackIngestId()));
     }
 }

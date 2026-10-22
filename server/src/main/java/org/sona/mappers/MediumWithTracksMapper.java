@@ -1,12 +1,11 @@
 package org.sona.mappers;
 
+import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.sona.db.MediumWithTracks;
 import org.sona.db.TrackWithArtist;
 import org.sona.model.tables.pojos.Medium;
-
-import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface MediumWithTracksMapper {

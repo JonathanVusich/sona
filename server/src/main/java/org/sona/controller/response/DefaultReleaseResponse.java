@@ -8,5 +8,4 @@ import java.util.UUID;
  *
  * @param media in order, each with its tracks
  */
-public record DefaultReleaseResponse(UUID releaseId, List<MediumResponse> media) {
-}
+public record DefaultReleaseResponse(UUID releaseId, List<MediumResponse> media) {}

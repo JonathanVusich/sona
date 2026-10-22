@@ -8,5 +8,6 @@ import org.sona.model.tables.records.OidcSessionRecord;
 public interface OidcSessionMapper {
 
     OidcSessionRecord toRecord(OidcSession session);
+
     OidcSession fromRecord(OidcSessionRecord session);
 }

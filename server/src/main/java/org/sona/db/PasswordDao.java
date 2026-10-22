@@ -1,5 +1,10 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.sona.model.Tables.PASSWORD;
+
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.PasswordMapper;
@@ -7,12 +12,6 @@ import org.sona.model.enums.PasswordState;
 import org.sona.model.tables.pojos.Password;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.sona.model.Tables.PASSWORD;
 
 /**
  * The passwords of users who sign in with one kept by Sona.
@@ -26,9 +25,7 @@ public class PasswordDao {
     private final PasswordMapper mapper;
 
     public Optional<Password> loadByUserId(final UUID userId) {
-        return dsl.selectFrom(PASSWORD)
-                .where(PASSWORD.USER_ID.eq(userId))
-                .fetchOptional(mapper::fromRecord);
+        return dsl.selectFrom(PASSWORD).where(PASSWORD.USER_ID.eq(userId)).fetchOptional(mapper::fromRecord);
     }
 
     /**

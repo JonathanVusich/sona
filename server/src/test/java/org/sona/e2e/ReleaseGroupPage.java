@@ -3,9 +3,8 @@ package org.sona.e2e;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
-import lombok.RequiredArgsConstructor;
-
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A release group's page: its details, its default release's tracks disc by disc, its editions, each linking to its
@@ -33,11 +32,13 @@ public final class ReleaseGroupPage {
     }
 
     public Locator link(final String name) {
-        return page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(name).setExact(true));
+        return page.getByRole(
+                AriaRole.LINK, new Page.GetByRoleOptions().setName(name).setExact(true));
     }
 
     public Locator disc(final String name) {
-        return page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName(name).setLevel(2));
+        return page.getByRole(
+                AriaRole.HEADING, new Page.GetByRoleOptions().setName(name).setLevel(2));
     }
 
     public Locator track(final String name) {

@@ -1,5 +1,9 @@
 package org.sona.db;
 
+import static org.sona.model.Tables.TRACK_TO_INGEST;
+
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.TrackToIngestMapper;
@@ -7,11 +11,6 @@ import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 @Component
 @RequiredArgsConstructor
@@ -22,9 +21,7 @@ public class TrackToIngestDao {
     private final TrackToIngestMapper mapper;
 
     public void insert(final TrackToIngest trackToIngest) {
-        dsl.insertInto(TRACK_TO_INGEST)
-                .set(mapper.toRecord(trackToIngest))
-                .execute();
+        dsl.insertInto(TRACK_TO_INGEST).set(mapper.toRecord(trackToIngest)).execute();
     }
 
     public TrackToIngest loadById(final UUID trackToIngestId) {

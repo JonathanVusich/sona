@@ -1,5 +1,13 @@
 package org.sona.engine;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.db.IngestGroupDao;
@@ -17,15 +25,6 @@ import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.time.Duration;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.samples.FlacFiles.flacFile;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 /**
  * The worker's schedule is off in tests, so each test runs a pass itself.
  */
@@ -34,14 +33,19 @@ class DefaultIngestWorkerTest {
 
     @Autowired
     IngestWorker worker;
+
     @Autowired
     Library library;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     ReleaseDao releaseDao;
 
@@ -80,7 +84,7 @@ class DefaultIngestWorkerTest {
 
     @Test
     void aFileThatIsNotFlacFails() throws InvalidFormatException, IOException {
-        final var ingest = storeIngest(new byte[]{1, 2, 3, 4});
+        final var ingest = storeIngest(new byte[] {1, 2, 3, 4});
 
         worker.processPending();
 

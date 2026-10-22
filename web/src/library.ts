@@ -90,11 +90,27 @@ const SEED: SeedArtist[] = [
         title: "Saltwater",
         type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 1,
-        songs: ["Harbor Lights", "Copper Sky", "Undertow", "Breakwater", "Fog Signal", "Salt and Iron", "Low Tide Waltz", "Lighthouse Keeper"],
+        songs: [
+          "Harbor Lights",
+          "Copper Sky",
+          "Undertow",
+          "Breakwater",
+          "Fog Signal",
+          "Salt and Iron",
+          "Low Tide Waltz",
+          "Lighthouse Keeper",
+        ],
         releases: [
           { year: 2021, format: "Digital", label: "Harbour Records", country: "GB" },
           { year: 2021, format: "Vinyl", label: "Harbour Records", country: "GB" },
-          { title: "Saltwater (Deluxe Edition)", year: 2022, format: "Digital", label: "Harbour Records", country: "GB", extra: ["Undertow (Live)", "Harbor Lights (Acoustic)"] },
+          {
+            title: "Saltwater (Deluxe Edition)",
+            year: 2022,
+            format: "Digital",
+            label: "Harbour Records",
+            country: "GB",
+            extra: ["Undertow (Live)", "Harbor Lights (Acoustic)"],
+          },
         ],
       },
       {
@@ -158,7 +174,17 @@ const SEED: SeedArtist[] = [
         title: "Signal",
         type: ReleaseGroupType.ALBUM,
         playedHoursAgo: 26,
-        songs: ["Static Bloom", "Satellite Hymn", "Carrier Wave", "Interference", "Callsign", "Dead Air", "Handshake", "Relay", "Clear Channel"],
+        songs: [
+          "Static Bloom",
+          "Satellite Hymn",
+          "Carrier Wave",
+          "Interference",
+          "Callsign",
+          "Dead Air",
+          "Handshake",
+          "Relay",
+          "Clear Channel",
+        ],
         releases: [
           { year: 2023, format: "Digital", label: "Static House", country: "US" },
           { year: 2023, format: "CD", label: "Static House", country: "US" },
@@ -221,7 +247,16 @@ const SEED: SeedArtist[] = [
         title: "Overpass",
         type: ReleaseGroupType.ALBUM,
         playedHoursAgo: null,
-        songs: ["Afterglow Drive", "Sodium Lights", "Exit 14", "Merge", "Midnight Lane", "Tunnel Vision", "Home Stretch", "Rearview"],
+        songs: [
+          "Afterglow Drive",
+          "Sodium Lights",
+          "Exit 14",
+          "Merge",
+          "Midnight Lane",
+          "Tunnel Vision",
+          "Home Stretch",
+          "Rearview",
+        ],
         releases: [{ year: 2020, format: "Digital", label: "Kōsoku", country: "JP" }],
       },
     ],
@@ -414,10 +449,10 @@ export const groupsByArtist = (include: (group: ReleaseGroup) => boolean) =>
   groups()
     .filter(include)
     .sort(
-    (a, b) =>
-      collator.compare(artistById(a.artistId)?.name ?? "", artistById(b.artistId)?.name ?? "") ||
-      (groupYear(a.id) ?? 0) - (groupYear(b.id) ?? 0),
-  );
+      (a, b) =>
+        collator.compare(artistById(a.artistId)?.name ?? "", artistById(b.artistId)?.name ?? "") ||
+        (groupYear(a.id) ?? 0) - (groupYear(b.id) ?? 0),
+    );
 
 export const recentlyPlayed = () =>
   groups()
@@ -429,8 +464,7 @@ export const recentlyAdded = () => [...groups()].sort((a, b) => b.addedAt - a.ad
 export const notPlayedYet = () => groups().filter((group) => group.lastPlayedAt === null);
 
 // Finds a track by title, for seeding playlists.
-export const trackIdByTitle = (title: string) =>
-  Object.values(tracks()).find((track) => track.title === title)?.id;
+export const trackIdByTitle = (title: string) => Object.values(tracks()).find((track) => track.title === title)?.id;
 
 // Changes
 

@@ -1,12 +1,6 @@
 package org.sona.format.flac;
 
 import dev.javax.bitstream.BitInputStream;
-import org.sona.exception.InvalidFormatException;
-import org.sona.format.Format;
-import org.sona.format.MD5Checksum;
-import org.sona.format.Parser;
-import org.sona.metadata.RawMetadata;
-
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,6 +11,11 @@ import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import org.sona.exception.InvalidFormatException;
+import org.sona.format.Format;
+import org.sona.format.MD5Checksum;
+import org.sona.format.Parser;
+import org.sona.metadata.RawMetadata;
 
 public final class FlacParser implements Parser {
 
@@ -33,7 +32,8 @@ public final class FlacParser implements Parser {
     @Override
     public RawMetadata parseMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
         final var flacMetadata = parseAllMetadata(inputStream);
-        final var streamInfo = flacMetadata.streamInfo()
+        final var streamInfo = flacMetadata
+                .streamInfo()
                 .orElseThrow(() -> new InvalidFormatException("FLAC file is missing its STREAMINFO block!"));
         final var comments = flacMetadata.vorbisComments();
 
@@ -65,14 +65,15 @@ public final class FlacParser implements Parser {
         Block block;
         do {
             block = readBlock(dataStream);
-            metadataBlocks.computeIfAbsent(block.header().blockType(), k -> new ArrayList<>()).add(block);
+            metadataBlocks
+                    .computeIfAbsent(block.header().blockType(), k -> new ArrayList<>())
+                    .add(block);
         } while (block.header().position() == BlockPosition.NOT_LAST);
 
         return new FlacMetadata(metadataBlocks);
     }
 
-    private StreamInfo readStreamInfo(final DataInputStream inputStream,
-                                      final BlockHeader header) throws IOException {
+    private StreamInfo readStreamInfo(final DataInputStream inputStream, final BlockHeader header) throws IOException {
         final var bitInputStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
 
         final int minBlockSize = (int) bitInputStream.readBits(16);
@@ -97,8 +98,7 @@ public final class FlacParser implements Parser {
                 sampleRate,
                 numberOfChannels,
                 bitsPerSample,
-                interChannelSamples
-        );
+                interChannelSamples);
     }
 
     private Padding readPadding(final DataInputStream inputStream, final BlockHeader header) throws IOException {
@@ -106,7 +106,8 @@ public final class FlacParser implements Parser {
         return new Padding(header);
     }
 
-    private Application readApplication(final DataInputStream inputStream, final BlockHeader header) throws IOException {
+    private Application readApplication(final DataInputStream inputStream, final BlockHeader header)
+            throws IOException {
         final var applicationId = inputStream.readInt();
         final var data = inputStream.readNBytes(header.size() - 4);
         return new Application(header, applicationId, data);
@@ -128,7 +129,8 @@ public final class FlacParser implements Parser {
         return new SeekTable(header, seekPoints);
     }
 
-    private VorbisComment readVorbisComment(final DataInputStream inputStream, final BlockHeader header) throws IOException {
+    private VorbisComment readVorbisComment(final DataInputStream inputStream, final BlockHeader header)
+            throws IOException {
         // Little endian u32
         final var length = Integer.reverseBytes(inputStream.readInt());
         final var vendor = readUtf8(inputStream, length);
@@ -196,8 +198,8 @@ public final class FlacParser implements Parser {
         return new CueSheetTrack(offset, number, isrc, trackType, preEmphasis, indexPoints);
     }
 
-    private Picture readPicture(final DataInputStream inputStream,
-                                final BlockHeader header) throws IOException, InvalidFormatException {
+    private Picture readPicture(final DataInputStream inputStream, final BlockHeader header)
+            throws IOException, InvalidFormatException {
         // Unlike Vorbis comment lengths, picture lengths are big endian.
         final var pictureType = getPictureType(inputStream.readInt());
         final var mediaTypeLength = inputStream.readInt();
@@ -213,7 +215,8 @@ public final class FlacParser implements Parser {
         final var dataLength = inputStream.readInt();
         final var data = inputStream.readNBytes(dataLength);
 
-        return new Picture(header, pictureType, mediaType, description, width, height, colorDepth, numberOfColors, data);
+        return new Picture(
+                header, pictureType, mediaType, description, width, height, colorDepth, numberOfColors, data);
     }
 
     private Block readBlock(final DataInputStream inputStream) throws IOException, InvalidFormatException {
@@ -244,7 +247,6 @@ public final class FlacParser implements Parser {
         return new String(bytes, 0, length, StandardCharsets.US_ASCII);
     }
 
-
     private void validateFlacHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException {
         final var header = inputStream.readNBytes(4);
         if (!Arrays.equals(header, FLAC_HEADER)) {
@@ -252,7 +254,7 @@ public final class FlacParser implements Parser {
         }
     }
 
-    private BlockHeader readBlockHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException{
+    private BlockHeader readBlockHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException {
         final var bitStream = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
 
         final var position = BlockPosition.values()[(int) bitStream.readBits(1)];
@@ -283,5 +285,4 @@ public final class FlacParser implements Parser {
         }
         return pictureTypes[value];
     }
-
 }

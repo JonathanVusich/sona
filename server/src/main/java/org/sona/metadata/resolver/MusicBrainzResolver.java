@@ -1,5 +1,14 @@
 package org.sona.metadata.resolver;
 
+import static org.sona.utils.DateUtils.parsePartialDate;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.MusicBrainzClient;
 import org.sona.client.model.ArtistCredit;
@@ -14,16 +23,6 @@ import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Stream;
-
-import static org.sona.utils.DateUtils.parsePartialDate;
-
 @Service
 @RequiredArgsConstructor
 public final class MusicBrainzResolver implements MetadataResolver {
@@ -31,7 +30,8 @@ public final class MusicBrainzResolver implements MetadataResolver {
     private final MusicBrainzClient client;
 
     @Override
-    public Optional<ResolvedTrack> resolveTrack(final TrackToIngest trackToIngest, final RawMetadata metadata) throws IOException, InterruptedException {
+    public Optional<ResolvedTrack> resolveTrack(final TrackToIngest trackToIngest, final RawMetadata metadata)
+            throws IOException, InterruptedException {
         final int trackNumber = metadata.findValues(Tag.TRACK_NUMBER).stream()
                 .findFirst()
                 .flatMap(TagValue::asInt)
@@ -47,23 +47,16 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 .flatMap(TagValue::asString)
                 .orElse(null);
 
-        final var albumArtists = metadata.findValues(Tag.ALBUM_ARTIST).stream()
-                .findFirst()
-                .flatMap(TagValue::asString)
-                .stream()
-                .flatMap(this::semicolonSplit) // Picard groups multiple artists into a single value tag.
-                .toList();
+        final var albumArtists =
+                metadata.findValues(Tag.ALBUM_ARTIST).stream().findFirst().flatMap(TagValue::asString).stream()
+                        .flatMap(this::semicolonSplit) // Picard groups multiple artists into a single value tag.
+                        .toList();
 
         if (artist != null) {
             // If there are other artist credits this is likely classical + tagged by MusicBrainz.
             // We should search by the performers in this case.
-            for (final var albumArtist: albumArtists) {
-                final var recordingQuery = new RecordingQuery(
-                        trackName,
-                        albumArtist,
-                        trackNumber,
-                        -1
-                );
+            for (final var albumArtist : albumArtists) {
+                final var recordingQuery = new RecordingQuery(trackName, albumArtist, trackNumber, -1);
 
                 final var recordingsResponse = client.searchRecordings(recordingQuery);
                 final var candidate = findCandidate(recordingsResponse.recordings());
@@ -74,12 +67,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
         }
 
         // Typical path just uses track artist directly
-        final var recordingQuery = new RecordingQuery(
-                trackName,
-                artist,
-                trackNumber,
-                -1
-        );
+        final var recordingQuery = new RecordingQuery(trackName, artist, trackNumber, -1);
 
         final var recordingsResponse = client.searchRecordings(recordingQuery);
         final var candidate = findCandidate(recordingsResponse.recordings());
@@ -107,9 +95,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
                         releaseGroup.title(),
                         releaseGroupType(releaseGroup.primaryType()),
                         parsePartialDate(releaseGroup.firstReleaseDate()),
-                        firstArtist(releaseGroup.artistCredit())
-                )
-        );
+                        firstArtist(releaseGroup.artistCredit())));
     }
 
     @Override
@@ -121,7 +107,8 @@ public final class MusicBrainzResolver implements MetadataResolver {
         return recordings.stream()
                 // TODO: Implement better selection logic
                 // The library path is built from the release, so recordings without one can't be imported.
-                .filter(recording -> recording.releases() != null && !recording.releases().isEmpty())
+                .filter(recording ->
+                        recording.releases() != null && !recording.releases().isEmpty())
                 .findFirst()
                 .orElse(null);
     }
@@ -137,8 +124,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 firstArtist(recording.artistCredit()),
                 release.id(),
                 medium.position(),
-                medium.trackOffset() + 1
-        );
+                medium.trackOffset() + 1);
     }
 
     // TODO: Keep every credited artist, not just the first (e.g. "feat." credits)
@@ -179,7 +165,6 @@ public final class MusicBrainzResolver implements MetadataResolver {
     }
 
     private Stream<String> semicolonSplit(final String tagValue) {
-        return Arrays.stream(tagValue.split(";"))
-                .map(String::strip);
+        return Arrays.stream(tagValue.split(";")).map(String::strip);
     }
 }

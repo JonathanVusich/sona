@@ -9,6 +9,4 @@ public record CueSheetTrack(
         String isrc,
         TrackType trackType,
         PreEmphasis preEmphasis,
-        List<CueSheetIndexPoint> indexPoints
-) {
-}
+        List<CueSheetIndexPoint> indexPoints) {}

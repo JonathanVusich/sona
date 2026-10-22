@@ -1,10 +1,19 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import com.microsoft.playwright.Page;
+import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
@@ -12,7 +21,6 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
-import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
@@ -21,51 +29,53 @@ import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.regex.Pattern;
-import java.util.stream.IntStream;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @E2ETest
 class ReleaseGroupE2ETest {
 
     @Autowired
     UserDao userDao;
+
     @Autowired
     PasswordDao passwordDao;
+
     @Autowired
     PasswordEncoder encoder;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     LabelDao labelDao;
+
     @Autowired
     ReleaseLabelDao releaseLabelDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     IngestGroupDao ingestGroupDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -77,8 +87,14 @@ class ReleaseGroupE2ETest {
     @Test
     void aReleaseGroupListsItsEditionsEarliestFirst(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         final var island = insertLabel("Island");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertTrack(insertMedia(deluxe, "CD", "CD").getFirst(), keane, "Snowed Under");
@@ -94,17 +110,23 @@ class ReleaseGroupE2ETest {
         assertThat(releaseGroupPage.link("Keane")).isVisible();
         assertThat(releaseGroupPage.details()).hasText("2004 · 2 editions");
         assertThat(releaseGroupPage.editionTitles())
-                .hasText(new String[]{"Hopes and Fears", "Hopes and Fears (Deluxe Edition)"});
-        assertThat(releaseGroupPage.editionDetails()).hasText(new String[]{
-                "2004 · CD · Interscope, Island · GB · 1 song",
-                "2014 · 2×CD · Island · GB · 1 song"});
+                .hasText(new String[] {"Hopes and Fears", "Hopes and Fears (Deluxe Edition)"});
+        assertThat(releaseGroupPage.editionDetails()).hasText(new String[] {
+            "2004 · CD · Interscope, Island · GB · 1 song", "2014 · 2×CD · Island · GB · 1 song"
+        });
     }
 
     @Test
     void aReleaseGroupListsItsEarliestEditionsTracksDiscByDisc(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertTrack(insertMedia(deluxe, "CD").getFirst(), keane, "Snowed Under");
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
@@ -123,41 +145,77 @@ class ReleaseGroupE2ETest {
     @Test
     void aReleaseGroupListsTheArtistsOtherReleaseGroupsNewestFirst(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         insertReleaseWithTrack(group, keane, "Hopes and Fears", LocalDate.of(2004, 5, 10));
-        final var underTheIronSea = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Under the Iron Sea",
-                ReleaseGroupType.ALBUM, LocalDate.of(2006, 6, 12), keane.artistId(), 0, uuidv7()));
+        final var underTheIronSea = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Under the Iron Sea",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2006, 6, 12),
+                keane.artistId(),
+                0,
+                uuidv7()));
         insertReleaseWithTrack(underTheIronSea, keane, "Under the Iron Sea", LocalDate.of(2006, 6, 12));
-        final var perfectSymmetry = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Perfect Symmetry",
-                ReleaseGroupType.ALBUM, LocalDate.of(2008, 10, 13), keane.artistId(), 0, uuidv7()));
+        final var perfectSymmetry = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Perfect Symmetry",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2008, 10, 13),
+                keane.artistId(),
+                0,
+                uuidv7()));
         insertReleaseWithTrack(perfectSymmetry, keane, "Perfect Symmetry", LocalDate.of(2008, 10, 13));
         // Not in the library until a release of it with a track is stored.
-        releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Strangeland", ReleaseGroupType.ALBUM,
-                LocalDate.of(2012, 5, 7), keane.artistId(), 0, uuidv7()));
+        releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Strangeland",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2012, 5, 7),
+                keane.artistId(),
+                0,
+                uuidv7()));
         final var releaseGroupPage = logInAndOpen(page, group);
 
-        assertThat(releaseGroupPage.moreByTitles()).hasText(new String[]{"Perfect Symmetry", "Under the Iron Sea"});
+        assertThat(releaseGroupPage.moreByTitles()).hasText(new String[] {"Perfect Symmetry", "Under the Iron Sea"});
     }
 
     @Test
     void anEarlierEditionWithNoTrackInTheLibraryDoesntStandForTheReleaseGroup(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
         insertReleaseWithTrack(group, keane, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         final var releaseGroupPage = logInAndOpen(page, group);
 
         assertThat(releaseGroupPage.track("Hopes and Fears (Deluxe Edition)")).isVisible();
-        assertThat(releaseGroupPage.editionTitles()).hasText(new String[]{"Hopes and Fears (Deluxe Edition)"});
+        assertThat(releaseGroupPage.editionTitles()).hasText(new String[] {"Hopes and Fears (Deluxe Edition)"});
     }
 
     @Test
     void aReleaseGroupWithNoTrackInTheLibraryIsReported(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
         final var releaseGroupPage = logInAndOpen(page, group);
 
@@ -167,8 +225,14 @@ class ReleaseGroupE2ETest {
     @Test
     void anEditionOpensItsReleasesPage(final Page page) {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
-        final var group = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), "Hopes and Fears", ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), keane.artistId(), 0, uuidv7()));
+        final var group = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                "Hopes and Fears",
+                ReleaseGroupType.ALBUM,
+                LocalDate.of(2004, 5, 10),
+                keane.artistId(),
+                0,
+                uuidv7()));
         final var original = insertReleaseWithTrack(group, keane, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var releaseGroupPage = logInAndOpen(page, group);
 
@@ -199,12 +263,12 @@ class ReleaseGroupE2ETest {
     }
 
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {
-        return releaseDao.upsert(new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(),
-                group.artistId(), uuidv7()));
+        return releaseDao.upsert(
+                new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(), group.artistId(), uuidv7()));
     }
 
-    private Release insertReleaseWithTrack(final ReleaseGroup group, final Artist artist, final String name,
-                                           final LocalDate date) {
+    private Release insertReleaseWithTrack(
+            final ReleaseGroup group, final Artist artist, final String name, final LocalDate date) {
         final var release = insertRelease(group, name, date);
         insertTrack(insertMedia(release, "CD").getFirst(), artist, name);
         return release;
@@ -232,7 +296,15 @@ class ReleaseGroupE2ETest {
         ingestGroupDao.upsert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
-        trackDao.insert(new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
-                artist.artistId(), ingest.trackIngestId()));
+        trackDao.insert(new Track(
+                uuidv7(),
+                name,
+                300,
+                AudioFormat.FLAC,
+                name + ".flac",
+                medium.mediumId(),
+                1,
+                artist.artistId(),
+                ingest.trackIngestId()));
     }
 }

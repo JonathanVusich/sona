@@ -1,9 +1,8 @@
 package org.sona.controller.response;
 
-import org.sona.model.enums.ReleaseGroupType;
-
 import java.time.LocalDate;
 import java.util.UUID;
+import org.sona.model.enums.ReleaseGroupType;
 
 /**
  * One of an artist's release groups, as the artist page lists them.
@@ -12,9 +11,4 @@ import java.util.UUID;
  * @param firstReleaseDate null when unknown, as on {@link ReleaseGroupResponse}
  */
 public record ArtistReleaseGroupResponse(
-        UUID releaseGroupId,
-        String name,
-        ReleaseGroupType type,
-        LocalDate firstReleaseDate
-) {
-}
+        UUID releaseGroupId, String name, ReleaseGroupType type, LocalDate firstReleaseDate) {}

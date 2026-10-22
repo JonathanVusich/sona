@@ -1,6 +1,9 @@
 package org.sona;
 
-
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.sona.config.TestAuthConfig;
 import org.sona.config.TestLibraryConfig;
@@ -9,12 +12,6 @@ import org.sona.config.TestSingleQueryConfig;
 import org.sona.config.TestcontainersConfig;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
 
 /**
  * Full application context against a Testcontainers Postgres (requires Docker), an in-memory library
@@ -28,8 +25,12 @@ import java.lang.annotation.Target;
 // The ingest worker doesn't run on its schedule, so it can't race a test for the ingests it stores; tests that need
 // a pass run it themselves.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "sona.ingest-worker.cron=-")
-@Import({TestcontainersConfig.class, TestLibraryConfig.class, TestAuthConfig.class, TestQueryPlanConfig.class,
-        TestSingleQueryConfig.class})
+@Import({
+    TestcontainersConfig.class,
+    TestLibraryConfig.class,
+    TestAuthConfig.class,
+    TestQueryPlanConfig.class,
+    TestSingleQueryConfig.class
+})
 @ExtendWith(TruncateTablesExtension.class)
-public @interface IntegrationTest {
-}
+public @interface IntegrationTest {}

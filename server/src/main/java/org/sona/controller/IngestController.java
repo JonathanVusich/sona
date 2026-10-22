@@ -2,6 +2,9 @@ package org.sona.controller;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.TrackIngestResponse;
@@ -21,10 +24,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.UUID;
 
 /**
  * Uploads into the ingest area. Once the uploader has settled which files belong together, it creates each group under
@@ -51,8 +50,8 @@ public class IngestController {
      */
     @PutMapping(ApiRoutes.INGEST_GROUP)
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void putIngestGroup(@PathVariable final UUID groupIngestId,
-                               @RequestBody @Valid final IngestGroupRequest request) {
+    public void putIngestGroup(
+            @PathVariable final UUID groupIngestId, @RequestBody @Valid final IngestGroupRequest request) {
         ingestGroupDao.upsert(new IngestGroup(groupIngestId, request.kind(), request.name()));
     }
 
@@ -65,10 +64,13 @@ public class IngestController {
      */
     @PostMapping(path = ApiRoutes.INGEST_GROUP_TRACKS, consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public TrackIngestResponse uploadTrack(@PathVariable final UUID groupIngestId,
-                                           @RequestParam @NotBlank final String filename,
-                                           final InputStream body) throws InvalidFormatException, IOException {
-        final var group = ingestGroupDao.loadById(groupIngestId)
+    public TrackIngestResponse uploadTrack(
+            @PathVariable final UUID groupIngestId,
+            @RequestParam @NotBlank final String filename,
+            final InputStream body)
+            throws InvalidFormatException, IOException {
+        final var group = ingestGroupDao
+                .loadById(groupIngestId)
                 .orElseThrow(() -> new IngestGroupNotFoundException(groupIngestId));
         final var ingest = library.storeIngestTrack(group, filename, body);
         return mapper.toResponse(ingest);

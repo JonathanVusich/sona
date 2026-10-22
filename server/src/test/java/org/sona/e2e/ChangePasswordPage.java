@@ -17,7 +17,8 @@ public final class ChangePasswordPage {
         passwordField("Current password").fill(currentPassword);
         passwordField("New password").fill(newPassword);
         passwordField("Confirm new password").fill(confirmedPassword);
-        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Change password")).click();
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Change password"))
+                .click();
     }
 
     public Locator error() {

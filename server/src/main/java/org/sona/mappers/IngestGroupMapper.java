@@ -8,5 +8,6 @@ import org.sona.model.tables.records.IngestGroupRecord;
 public interface IngestGroupMapper {
 
     IngestGroupRecord toRecord(IngestGroup ingestGroup);
+
     IngestGroup fromRecord(IngestGroupRecord ingestGroup);
 }
