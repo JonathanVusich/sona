@@ -1,6 +1,6 @@
 import { Navigate } from "@solidjs/router";
 import { createSignal, Index, Show } from "solid-js";
-import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
+import { fileExtension, fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
 import { PageBody, PageHead } from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
 import UploadGroupEditor from "../../components/UploadGroupEditor";
@@ -41,18 +41,22 @@ export default function Upload() {
 function UploadSelection() {
   const [groups, setGroups] = createSignal<readonly UploadGroup[]>([]);
   const [dropZone, setDropZone] = createSignal<DropZone>(DropZone.IDLE);
-  // The files of the last pick that are too large for Sona to accept, which were left out.
+  // The files of the last pick that were left out, as Sona can't ingest their format, or they're too large for it.
+  const [unsupported, setUnsupported] = createSignal<readonly PickedFile[]>([]);
   const [tooLarge, setTooLarge] = createSignal<readonly PickedFile[]>([]);
   let filesInput: HTMLInputElement | undefined;
   let folderInput: HTMLInputElement | undefined;
 
   const add = (picked: PickedFile[]) => {
-    setTooLarge(picked.filter(isTooLarge));
-    const accepted = picked.filter((file) => !isTooLarge(file));
+    const supported = picked.filter(isSupported);
+    setUnsupported(picked.filter((file) => !isSupported(file)));
+    setTooLarge(supported.filter(isTooLarge));
+    const accepted = supported.filter((file) => !isTooLarge(file));
     setGroups((current) => addPickedFiles(current, accepted));
   };
   const clear = () => {
     setGroups([]);
+    setUnsupported([]);
     setTooLarge([]);
   };
   const fileCount = () => groups().reduce((count, group) => count + group.files.length, 0);
@@ -105,14 +109,17 @@ function UploadSelection() {
         />
       </div>
 
+      <Show when={unsupported().length > 0}>
+        <p class="error">
+          Left out {plural(unsupported().length, "file")} Sona can't ingest yet: {filePaths(unsupported())}
+        </p>
+      </Show>
       <Show when={currentUser()}>
         {(user) => (
           <Show when={tooLarge().length > 0}>
             <p class="error">
               Left out {plural(tooLarge().length, "file")} larger than {formatFileSize(user().maxUploadSize)}:{" "}
-              {tooLarge()
-                .map((file) => file.path)
-                .join(", ")}
+              {filePaths(tooLarge())}
             </p>
           </Show>
         )}
@@ -146,8 +153,19 @@ function UploadSelection() {
   );
 }
 
+// Whether Sona can ingest the file's format. One it can't would be refused, so it's better left out than sent.
+function isSupported(file: PickedFile): boolean {
+  const user = currentUser();
+  const extension = fileExtension(file.file.name);
+  return user !== null && extension !== null && user.uploadExtensions.includes(extension);
+}
+
 // Whether Sona would refuse the file for its size, so it's better left out than sent.
 function isTooLarge(file: PickedFile): boolean {
   const user = currentUser();
   return user !== null && file.file.size > user.maxUploadSize;
+}
+
+function filePaths(files: readonly PickedFile[]): string {
+  return files.map((file) => file.path).join(", ");
 }

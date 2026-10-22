@@ -48,6 +48,8 @@ export interface CurrentUserResponse {
   permissions: Permission[];
   /** The largest file Sona accepts as an upload, in bytes. */
   maxUploadSize: number;
+  /** The extensions of the files Sona can ingest, lowercase and without the dot. */
+  uploadExtensions: string[];
 }
 
 /** Why Sona refused a request. Clients branch on the number, which never changes once released. */

@@ -9,8 +9,19 @@ export interface PickedFile {
 }
 
 export function isAudio(name: string): boolean {
+  const extension = fileExtension(name);
+  return extension !== null && AUDIO_EXTENSIONS.has(extension);
+}
+
+/**
+ * @returns the extension of a file's name, lowercase and without the dot, or null when it has none
+ */
+export function fileExtension(name: string): string | null {
   const dot = name.lastIndexOf(".");
-  return dot !== -1 && AUDIO_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+  if (dot === -1) {
+    return null;
+  }
+  return name.slice(dot + 1).toLowerCase();
 }
 
 export function fromFileList(list: FileList): PickedFile[] {

@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -127,9 +126,7 @@ public final class DefaultLibrary implements Library {
 
     private static void checkFormat(final String filename) throws InvalidFormatException {
         final var extension = FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
-        final var supported = Arrays.stream(Format.values())
-                .anyMatch(format -> format.getExtensions().contains(extension));
-        if (!supported) {
+        if (!Format.supportedExtensions().contains(extension)) {
             throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
         }
     }

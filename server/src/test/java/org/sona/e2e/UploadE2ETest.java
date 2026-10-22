@@ -144,19 +144,14 @@ class UploadE2ETest {
     }
 
     @Test
-    void aFileInAFormatSonaCantIngestIsRefusedForGood(final Page page) {
+    void aFileInAFormatSonaCantIngestIsLeftOut(final Page page) {
         final var uploadPage = logInAndOpen(page);
-        // Larger than the 2MB of an unread body Tomcat reads by default, so the browser only gets Sona's answer if the
-        // server reads the rest of the file after refusing it.
-        final var mp3 = new byte[3 * 1024 * 1024];
-        uploadPage.chooseFiles(new FilePayload("Somewhere Only We Know.mp3", "audio/mpeg", mp3));
 
-        uploadPage.uploadButton().click();
+        uploadPage.chooseFiles(
+                new FilePayload("Somewhere Only We Know.mp3", "audio/mpeg", AUDIO), flac("Everybody's Changing.flac"));
 
-        assertThat(uploadPage.status("Somewhere Only We Know.mp3"))
-                .hasText("Sona can't ingest files in this format yet.");
-        assertThat(uploadPage.summary()).hasText("0 of 1 file uploaded");
-        assertThat(uploadPage.retryButton("Somewhere Only We Know.mp3")).hasCount(0);
+        assertThat(uploadPage.error()).hasText("Left out 1 file Sona can't ingest yet: Somewhere Only We Know.mp3");
+        assertThat(uploadPage.groupFiles("Loose files")).hasText(new String[] {"Everybody's Changing.flac"});
     }
 
     @Test

@@ -86,7 +86,8 @@ class AuthControllerTest {
                         UserRole.USER,
                         SessionState.ACTIVE,
                         List.of(Permission.LIBRARY_READ),
-                        MAX_UPLOAD_SIZE));
+                        MAX_UPLOAD_SIZE,
+                        List.of("flac")));
     }
 
     @Test
