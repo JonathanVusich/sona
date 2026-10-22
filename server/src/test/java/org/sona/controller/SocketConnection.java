@@ -1,7 +1,6 @@
 package org.sona.controller;
 
 import java.lang.reflect.Type;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -62,28 +61,6 @@ public final class SocketConnection extends StompSessionHandlerAdapter {
             }
         });
         return messages;
-    }
-
-    /**
-     * Subscribes to the unfinished ingests and waits for Sona's answer.
-     */
-    public List<TrackIngestResponse> loadUnfinishedIngests()
-            throws ExecutionException, InterruptedException, TimeoutException {
-        final var answer = new CompletableFuture<List<TrackIngestResponse>>();
-        awaitSession().subscribe(ApiRoutes.UNFINISHED_INGESTS, new StompFrameHandler() {
-            @Override
-            public Type getPayloadType(final StompHeaders headers) {
-                return TrackIngestResponse[].class;
-            }
-
-            @Override
-            public void handleFrame(final StompHeaders headers, final Object payload) {
-                if (payload instanceof TrackIngestResponse[] responses) {
-                    answer.complete(List.of(responses));
-                }
-            }
-        });
-        return answer.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     /**

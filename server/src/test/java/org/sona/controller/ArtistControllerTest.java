@@ -23,11 +23,14 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
@@ -35,6 +38,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -62,6 +66,9 @@ class ArtistControllerTest {
 
     @Autowired
     IngestGroupDao ingestGroupDao;
+
+    @Autowired
+    UserDao userDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -284,7 +291,10 @@ class ArtistControllerTest {
         final var medium = mediumDao
                 .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
         ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);

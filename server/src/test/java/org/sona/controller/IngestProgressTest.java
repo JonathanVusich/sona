@@ -5,6 +5,7 @@ import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -14,20 +15,23 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
+import org.sona.controller.request.IngestGroupRequest;
+import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
-import org.sona.db.IngestGroupDao;
-import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.engine.IngestWorker;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
-import org.sona.model.tables.pojos.IngestGroup;
-import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.enums.UserType;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
 @IntegrationTest
@@ -37,13 +41,13 @@ class IngestProgressTest {
     JwtEncoder encoder;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
+    UserDao userDao;
 
     @Autowired
     IngestWorker worker;
+
+    @Autowired
+    SimpUserRegistry userRegistry;
 
     @Value("${local.server.port}")
     int port;
@@ -60,49 +64,35 @@ class IngestProgressTest {
     }
 
     @Test
-    void uploadersSeeEachFileAsItIsStoredAndIngested()
-            throws ExecutionException, InterruptedException, TimeoutException {
-        final var connection = sockets.connect(token(UserRole.ADMIN, SessionState.ACTIVE));
-        final var progress = connection.subscribeToProgress();
-        // Answered only once the subscription above is in place.
-        connection.loadUnfinishedIngests();
-        final var group = storeGroup();
+    void anUploaderSeesTheirFileIngested() throws ExecutionException, InterruptedException, TimeoutException {
+        final var alice = storeAdmin("alice");
+        final var progress = subscribeToProgress(alice);
 
-        api.uploadTrack(
-                        token(UserRole.ADMIN, SessionState.ACTIVE),
-                        group.ingestGroupId(),
-                        "09 A Whisper.flac",
-                        whisper())
-                .expectStatus()
-                .isCreated();
-        final var stored = nextMessage(progress);
+        final var uploaded = uploadWhisper(alice);
         worker.processPending();
-        final var ingested = nextMessage(progress);
+        final var ingested = progress.poll(5, TimeUnit.SECONDS);
 
-        assertThat(stored.groupIngestId()).isEqualTo(group.ingestGroupId());
-        assertThat(stored.originalFileName()).isEqualTo("09 A Whisper.flac");
-        assertThat(stored.state()).isEqualTo(IngestState.PENDING);
-        assertThat(ingested.trackIngestId()).isEqualTo(stored.trackIngestId());
-        assertThat(ingested.state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(ingested)
+                .isEqualTo(new TrackIngestResponse(
+                        uploaded.trackIngestId(),
+                        uploaded.groupIngestId(),
+                        "09 A Whisper.flac",
+                        IngestState.COMPLETED));
     }
 
     @Test
-    void subscribingAnswersWithEveryIngestNotYetImported()
-            throws ExecutionException, InterruptedException, TimeoutException {
-        final var group = storeGroup();
-        final var pending = storeIngest(group, IngestState.PENDING);
-        final var failed = storeIngest(group, IngestState.FAILED);
-        storeIngest(group, IngestState.COMPLETED);
-        final var connection = sockets.connect(token(UserRole.ADMIN, SessionState.ACTIVE));
+    void otherUploadersDoNotSeeIt() throws ExecutionException, InterruptedException, TimeoutException {
+        final var alice = storeAdmin("alice");
+        final var bob = storeAdmin("bob");
+        final var aliceProgress = subscribeToProgress(alice);
+        final var bobProgress = subscribeToProgress(bob);
 
-        final var unfinished = connection.loadUnfinishedIngests();
+        uploadWhisper(alice);
+        worker.processPending();
 
-        assertThat(unfinished)
-                .containsExactly(
-                        new TrackIngestResponse(
-                                pending.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.PENDING),
-                        new TrackIngestResponse(
-                                failed.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.FAILED));
+        assertThat(aliceProgress.poll(5, TimeUnit.SECONDS)).isNotNull();
+        // Sent at the same time as alice's, so it would have arrived by now.
+        assertThat(bobProgress.poll(500, TimeUnit.MILLISECONDS)).isNull();
     }
 
     @Test
@@ -121,44 +111,78 @@ class IngestProgressTest {
 
     @Test
     void aUserWhoCannotUploadCannotWatchIngests() throws ExecutionException, InterruptedException, TimeoutException {
-        final var connection = sockets.connect(token(UserRole.USER, SessionState.ACTIVE));
+        final var connection = sockets.connect(unstoredToken(UserRole.USER, SessionState.ACTIVE));
 
         connection.subscribeToProgress();
 
-        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /topic/ingests");
+        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /user/queue/ingests");
     }
 
     @Test
     void aUserWhoMustChangeTheirPasswordCannotWatchIngests()
             throws ExecutionException, InterruptedException, TimeoutException {
-        final var connection = sockets.connect(token(UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED));
+        final var connection = sockets.connect(unstoredToken(UserRole.ADMIN, SessionState.PASSWORD_CHANGE_REQUIRED));
 
         connection.subscribeToProgress();
 
-        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /topic/ingests");
+        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /user/queue/ingests");
     }
 
-    private String token(final UserRole role, final SessionState state) {
-        return tokens.accessToken(uuidv7(), "alice", role, state);
+    private Users storeAdmin(final String username) {
+        final var user = new Users(uuidv7(), UserType.LOCAL, username, UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(user);
+        return user;
     }
 
-    private IngestGroup storeGroup() {
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
-        ingestGroupDao.insert(group);
-        return group;
+    private String token(final Users user) {
+        return tokens.accessToken(user.userId(), user.username(), user.role(), SessionState.ACTIVE);
     }
 
-    private TrackToIngest storeIngest(final IngestGroup group, final IngestState state) {
-        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
-        trackToIngestDao.insert(ingest);
-        return ingest;
+    /**
+     * @return a token for a user who isn't stored, for checks that only read the token
+     */
+    private String unstoredToken(final UserRole role, final SessionState state) {
+        return tokens.accessToken(uuidv7(), "carol", role, state);
     }
 
-    private static TrackIngestResponse nextMessage(final BlockingQueue<TrackIngestResponse> progress)
-            throws InterruptedException {
-        final var message = progress.poll(5, TimeUnit.SECONDS);
-        assertThat(message).as("a progress message").isNotNull();
-        return message;
+    /**
+     * Subscribes, and waits until Sona has the subscription, so no message sent after this returns is missed.
+     */
+    private BlockingQueue<TrackIngestResponse> subscribeToProgress(final Users user)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        final var progress = sockets.connect(token(user)).subscribeToProgress();
+        final var deadline = Instant.now().plusSeconds(5);
+        while (!isSubscribed(user)) {
+            assertThat(Instant.now()).as("subscribed by now").isBefore(deadline);
+            Thread.sleep(10);
+        }
+        return progress;
+    }
+
+    private boolean isSubscribed(final Users user) {
+        final var socketUser = userRegistry.getUser(user.userId().toString());
+        if (socketUser == null) {
+            return false;
+        }
+        return socketUser.getSessions().stream()
+                .flatMap(session -> session.getSubscriptions().stream())
+                .anyMatch(subscription -> subscription.getDestination().equals(ApiRoutes.INGEST_PROGRESS));
+    }
+
+    private TrackIngestResponse uploadWhisper(final Users uploader) {
+        final var token = token(uploader);
+        final var group = api.createIngestGroup(token, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+                .expectStatus()
+                .isCreated()
+                .expectBody(IngestGroupResponse.class)
+                .returnResult()
+                .getResponseBody();
+        return api.uploadTrack(token, group.groupIngestId(), "09 A Whisper.flac", whisper())
+                .expectStatus()
+                .isCreated()
+                .expectBody(TrackIngestResponse.class)
+                .returnResult()
+                .getResponseBody();
     }
 
     private static byte[] whisper() {

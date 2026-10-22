@@ -56,25 +56,21 @@ public final class ApiRoutes {
      */
     public static final String SOCKET = API + "/socket";
     /**
-     * Destinations under here are the broker's: subscribers get every message sent to them.
+     * Destinations under here are the broker's. Each user has their own copy of one, which they subscribe to under
+     * {@link #SOCKET_USER}.
      */
-    public static final String SOCKET_TOPICS = "/topic";
+    public static final String SOCKET_QUEUES = "/queue";
     /**
-     * Destinations under here are answered by Sona, once, to the one subscriber.
+     * A client subscribes to its user's own copy of a queue under here, as {@code /user/queue/…}.
      */
-    public static final String SOCKET_APP = "/app";
+    public static final String SOCKET_USER = "/user";
 
     /**
-     * Each ingest's new state, whenever it changes.
+     * Where Sona sends an uploader each new state of their ingests.
      */
-    public static final String INGEST_PROGRESS = SOCKET_TOPICS + "/ingests";
+    public static final String INGEST_PROGRESS_QUEUE = SOCKET_QUEUES + "/ingests";
     /**
-     * The {@code @SubscribeMapping} of {@link #UNFINISHED_INGESTS}, which is under {@link #SOCKET_APP}.
+     * Where an uploader subscribes to {@link #INGEST_PROGRESS_QUEUE}, for the ingests of the groups they created.
      */
-    public static final String UNFINISHED_INGESTS_MAPPING = "/ingests";
-    /**
-     * Answers with every ingest that hasn't completed, so a client can subscribe here after {@link #INGEST_PROGRESS}
-     * to catch up on what it missed.
-     */
-    public static final String UNFINISHED_INGESTS = SOCKET_APP + UNFINISHED_INGESTS_MAPPING;
+    public static final String INGEST_PROGRESS = SOCKET_USER + INGEST_PROGRESS_QUEUE;
 }

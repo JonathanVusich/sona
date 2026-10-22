@@ -22,6 +22,7 @@ import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
@@ -35,6 +36,7 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -168,12 +170,15 @@ public class DevLibraryRunner implements ApplicationRunner {
     private final TrackDao trackDao;
     private final IngestGroupDao ingestGroupDao;
     private final TrackToIngestDao trackToIngestDao;
+    private final UserDao userDao;
 
     @Override
     public void run(final ApplicationArguments args) {
+        // DevUserRunner runs first, so admin exists.
+        final var uploader = userDao.loadByUsername("admin").orElseThrow();
         final var artists = upsertArtists();
         for (final var devRelease : RELEASES) {
-            final var release = storeRelease(devRelease, artists);
+            final var release = storeRelease(devRelease, artists, uploader);
             log.info(
                     "Dev release {} is at /releases/{}, in /release-groups/{}",
                     release.name(),
@@ -189,7 +194,7 @@ public class DevLibraryRunner implements ApplicationRunner {
                 .collect(toUnmodifiableMap(Artist::name, Function.identity()));
     }
 
-    private Release storeRelease(final DevRelease devRelease, final Map<String, Artist> artists) {
+    private Release storeRelease(final DevRelease devRelease, final Map<String, Artist> artists, final Users uploader) {
         final var devGroup = devRelease.releaseGroup();
         final var artistId = artists.get(devGroup.artist()).artistId();
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
@@ -214,7 +219,7 @@ public class DevLibraryRunner implements ApplicationRunner {
         final var media = upsertMedia(release, devRelease.media());
         // Tracks are only inserted, so a release that has them was stored by an earlier start.
         if (release.trackCount() == 0) {
-            insertTracks(devRelease.media(), media, artists);
+            insertTracks(devRelease.media(), media, artists, uploader);
         }
         return release;
     }
@@ -244,21 +249,29 @@ public class DevLibraryRunner implements ApplicationRunner {
     }
 
     private void insertTracks(
-            final List<DevMedium> devMedia, final List<Medium> media, final Map<String, Artist> artists) {
+            final List<DevMedium> devMedia,
+            final List<Medium> media,
+            final Map<String, Artist> artists,
+            final Users uploader) {
         for (var mediumIndex = 0; mediumIndex < devMedia.size(); mediumIndex++) {
             final var tracks = devMedia.get(mediumIndex).tracks();
             final var mediumId = media.get(mediumIndex).mediumId();
             for (var trackIndex = 0; trackIndex < tracks.size(); trackIndex++) {
                 final var devTrack = tracks.get(trackIndex);
-                insertTrack(devTrack, mediumId, trackIndex + 1, artists.get(devTrack.artist()));
+                insertTrack(devTrack, mediumId, trackIndex + 1, artists.get(devTrack.artist()), uploader);
             }
         }
     }
 
-    private void insertTrack(final DevTrack devTrack, final UUID mediumId, final int position, final Artist artist) {
+    private void insertTrack(
+            final DevTrack devTrack,
+            final UUID mediumId,
+            final int position,
+            final Artist artist,
+            final Users uploader) {
         final var trackId = uuidv7();
         final var fileName = trackId + ".flac";
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
         ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), fileName, IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);

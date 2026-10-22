@@ -1,6 +1,7 @@
 package org.sona.auth;
 
 import java.util.Set;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -8,7 +9,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * A request authenticated by an access token. The token is trusted as it is, so its user's permissions follow from
  * the role it states.
  */
-public final class UserAuthentication extends AbstractAuthenticationToken {
+public final class UserAuthentication extends AbstractAuthenticationToken implements DestinationUserNameProvider {
 
     private final SignedInUser user;
     private final Jwt token;
@@ -44,5 +45,13 @@ public final class UserAuthentication extends AbstractAuthenticationToken {
     @Override
     public String getName() {
         return user.username();
+    }
+
+    /**
+     * Sona sends a user their messages by their ID, as that's what rows such as an ingest group store.
+     */
+    @Override
+    public String getDestinationUserName() {
+        return user.userId().toString();
     }
 }

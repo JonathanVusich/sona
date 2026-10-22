@@ -8,11 +8,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.sona.auth.UserAuthentication;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestGroupDao;
-import org.sona.engine.IngestProgressPublisher;
 import org.sona.exception.IngestGroupNotFoundException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
@@ -47,15 +47,17 @@ public class IngestController {
     private final IngestGroupDao ingestGroupDao;
     private final IngestGroupResponseMapper ingestGroupResponseMapper;
     private final TrackIngestResponseMapper mapper;
-    private final IngestProgressPublisher progressPublisher;
 
     /**
-     * Creates a group under a new ID, which its files are then uploaded under.
+     * Creates a group under a new ID, which its files are then uploaded under. Only its uploader is told how they are
+     * ingested.
      */
     @PostMapping(ApiRoutes.INGEST_GROUPS)
     @ResponseStatus(HttpStatus.CREATED)
-    public IngestGroupResponse createIngestGroup(@RequestBody @Valid final IngestGroupRequest request) {
-        final var group = new IngestGroup(uuidv7(), request.kind(), request.name());
+    public IngestGroupResponse createIngestGroup(
+            final UserAuthentication authentication, @RequestBody @Valid final IngestGroupRequest request) {
+        final var group = new IngestGroup(
+                uuidv7(), request.kind(), request.name(), authentication.user().userId());
         ingestGroupDao.insert(group);
         return ingestGroupResponseMapper.toResponse(group);
     }
@@ -78,8 +80,6 @@ public class IngestController {
                 .loadById(groupIngestId)
                 .orElseThrow(() -> new IngestGroupNotFoundException(groupIngestId));
         final var ingest = library.storeIngestTrack(group, filename, body);
-        // Other uploaders' pages learn of the file from this; the uploader learns of it from the response too.
-        progressPublisher.publish(ingest, ingest.state());
         return mapper.toResponse(ingest);
     }
 }

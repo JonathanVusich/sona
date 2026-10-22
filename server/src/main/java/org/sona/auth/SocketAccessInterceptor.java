@@ -1,7 +1,6 @@
 package org.sona.auth;
 
 import static org.sona.controller.ApiRoutes.INGEST_PROGRESS;
-import static org.sona.controller.ApiRoutes.UNFINISHED_INGESTS;
 
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +28,7 @@ public final class SocketAccessInterceptor implements ChannelInterceptor {
     /**
      * What a user needs to subscribe to each destination. Any other is refused.
      */
-    private static final Map<String, Permission> SUBSCRIPTIONS = Map.of(
-            INGEST_PROGRESS, Permission.LIBRARY_UPLOAD,
-            UNFINISHED_INGESTS, Permission.LIBRARY_UPLOAD);
+    private static final Map<String, Permission> SUBSCRIPTIONS = Map.of(INGEST_PROGRESS, Permission.LIBRARY_UPLOAD);
 
     private final JwtDecoder tokenDecoder;
     private final SonaJwtConverter converter = new SonaJwtConverter();
