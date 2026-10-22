@@ -1,5 +1,6 @@
 package org.sona.format;
 
+import java.util.Arrays;
 import java.util.List;
 import lombok.Getter;
 import org.sona.model.enums.AudioFormat;
@@ -12,6 +13,15 @@ public enum Format {
 
     Format(final String... extensions) {
         this.extensions = List.of(extensions);
+    }
+
+    /**
+     * @return the extensions of every format Sona can ingest, lowercase and without the dot
+     */
+    public static List<String> supportedExtensions() {
+        return Arrays.stream(values())
+                .flatMap(format -> format.getExtensions().stream())
+                .toList();
     }
 
     /**

@@ -1,5 +1,7 @@
 // Response bodies, as the server's controller.response records define them.
 
+import type { IngestGroupKind } from "./requests";
+
 export const UserRole = {
   ADMIN: "ADMIN",
   USER: "USER",
@@ -44,6 +46,10 @@ export interface CurrentUserResponse {
   state: SessionState;
   /** What the user may do now, which is nothing while they must change their password. */
   permissions: Permission[];
+  /** The largest file Sona accepts as an upload, in bytes. */
+  maxUploadSize: number;
+  /** The extensions of the files Sona can ingest, lowercase and without the dot. */
+  uploadExtensions: string[];
 }
 
 /** Why Sona refused a request. Clients branch on the number, which never changes once released. */
@@ -67,8 +73,12 @@ export const ErrorCode = {
   RELEASE_NOT_FOUND: 300,
   RELEASE_GROUP_NOT_FOUND: 301,
   ARTIST_NOT_FOUND: 302,
+  UNSUPPORTED_FORMAT: 303,
+  INGEST_GROUP_NOT_FOUND: 304,
+  FILE_TOO_LARGE: 305,
 
   INVALID_PARAMETER: 400,
+  UNSUPPORTED_CONTENT_TYPE: 401,
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -229,4 +239,31 @@ export interface ErrorResponse {
   code: ErrorCode;
   /** What went wrong, for people. */
   reason: string;
+}
+
+/** How far a file's ingest has got. */
+export const IngestState = {
+  PENDING: "PENDING",
+  INPUT_REQUIRED: "INPUT_REQUIRED",
+  MOVE_FAILED: "MOVE_FAILED",
+  FAILED: "FAILED",
+  COMPLETED: "COMPLETED",
+} as const;
+
+export type IngestState = (typeof IngestState)[keyof typeof IngestState];
+
+/** A group of files to upload, under the ID Sona gave it, which its files are uploaded under. */
+export interface IngestGroupResponse {
+  groupIngestId: string;
+  kind: IngestGroupKind;
+  name: string;
+}
+
+/** One uploaded file, and how far its ingest has got. */
+export interface TrackIngestResponse {
+  trackIngestId: string;
+  groupIngestId: string;
+  /** The file's name where it was uploaded from. */
+  originalFileName: string;
+  state: IngestState;
 }

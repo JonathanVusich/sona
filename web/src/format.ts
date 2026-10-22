@@ -25,6 +25,22 @@ export function irregularPlural(count: number, word: string, pluralWord: string)
   return `${count} ${pluralWord}`;
 }
 
+// Sizes in binary units, as the server's DataSize reads "2GB": a megabyte is 1024² bytes.
+const MEGABYTE = 1024 * 1024;
+const GIGABYTE = 1024 * MEGABYTE;
+const MEGABYTE_FORMAT = new Intl.NumberFormat(undefined, { style: "unit", unit: "megabyte", maximumFractionDigits: 1 });
+const GIGABYTE_FORMAT = new Intl.NumberFormat(undefined, { style: "unit", unit: "gigabyte", maximumFractionDigits: 1 });
+
+/**
+ * @returns a file's size, like "24.3 MB", or in gigabytes once it's a gigabyte or more
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes >= GIGABYTE) {
+    return GIGABYTE_FORMAT.format(bytes / GIGABYTE);
+  }
+  return MEGABYTE_FORMAT.format(bytes / MEGABYTE);
+}
+
 // Only the year: MusicBrainz stores a partial date as the first of what it knows, so "2002" is 2002-01-01, and Sona
 // doesn't keep how much of a date is known.
 const YEAR_FORMAT = new Intl.DateTimeFormat(undefined, { year: "numeric", timeZone: "UTC" });

@@ -7,6 +7,7 @@ import org.sona.auth.UserAuthentication;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
+import org.sona.format.Format;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,7 +33,13 @@ public final class UserController {
         final var permissions = authentication.permissions().stream().sorted().toList();
         final var maxUploadSize = libraryProperties.maxUploadSize().toBytes();
         return new CurrentUserResponse(
-                user.userId(), user.username(), user.role(), user.state(), permissions, maxUploadSize);
+                user.userId(),
+                user.username(),
+                user.role(),
+                user.state(),
+                permissions,
+                maxUploadSize,
+                Format.supportedExtensions());
     }
 
     /**

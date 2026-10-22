@@ -8,4 +8,5 @@ export const ApiRoutes = {
   RELEASES: "/api/releases",
   RELEASE_GROUPS: "/api/release-groups",
   ARTISTS: "/api/artists",
+  INGEST_GROUPS: "/api/ingest-groups",
 } as const;

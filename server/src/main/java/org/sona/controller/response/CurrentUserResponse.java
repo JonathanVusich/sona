@@ -10,6 +10,8 @@ import org.sona.model.enums.UserRole;
  * @param permissions   what the user may do now, which is nothing while they must change their password
  * @param maxUploadSize the largest file Sona accepts as an upload, in bytes, so uploaders can leave out larger ones
  *                      rather than send them only to be refused
+ * @param uploadExtensions the extensions of the files Sona can ingest, lowercase and without the dot, so uploaders can
+ *                      leave out other files rather than send them only to be refused
  */
 public record CurrentUserResponse(
         UUID userId,
@@ -17,4 +19,5 @@ public record CurrentUserResponse(
         UserRole role,
         SessionState state,
         List<Permission> permissions,
-        long maxUploadSize) {}
+        long maxUploadSize,
+        List<String> uploadExtensions) {}

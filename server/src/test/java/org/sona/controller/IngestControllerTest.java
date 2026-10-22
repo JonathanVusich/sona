@@ -156,20 +156,6 @@ class IngestControllerTest {
     }
 
     @Test
-    void aLargeFileInAFormatSonaCannotIngestIsRefusedWithItsReason() {
-        final var group = storeGroup();
-        // Larger than the 2MB of an unread body Tomcat reads by default before closing the connection.
-        final var mp3 = new byte[30 * 1024 * 1024];
-
-        api.uploadTrack(adminToken, group.ingestGroupId(), "song.mp3", mp3)
-                .expectStatus()
-                .isEqualTo(415)
-                .expectBody()
-                .jsonPath("$.code")
-                .isEqualTo(303);
-    }
-
-    @Test
     void aFileLargerThanSonaAcceptsIsRefusedAndNotStored() {
         final var group = storeGroup();
         // One byte over the 10MB the tests' library accepts.

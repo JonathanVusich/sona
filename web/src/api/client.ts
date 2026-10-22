@@ -1,14 +1,22 @@
-import { PagePosition, type ChangePasswordRequest, type LoginRequest, type PageRequest } from "./requests";
+import {
+  PagePosition,
+  type ChangePasswordRequest,
+  type IngestGroupRequest,
+  type LoginRequest,
+  type PageRequest,
+} from "./requests";
 import type {
   ArtistDetailsResponse,
   ArtistPageResponse,
   CurrentUserResponse,
   ErrorCode,
   ErrorResponse,
+  IngestGroupResponse,
   ReleaseGroupPageResponse,
   ReleaseGroupResponse,
   ReleaseResponse,
   TokenResponse,
+  TrackIngestResponse,
 } from "./responses";
 import { ApiRoutes } from "./routes";
 
@@ -40,9 +48,11 @@ const HttpMethod = {
 type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 
 // What a request sends as JSON.
-type RequestBody = LoginRequest | ChangePasswordRequest;
+type RequestBody = LoginRequest | ChangePasswordRequest | IngestGroupRequest;
 
 const JSON_CONTENT = { "Content-Type": "application/json" };
+// Sona reads an uploaded file as the raw request body; a form type would have it read the file as form fields.
+const FILE_CONTENT = { "Content-Type": "application/octet-stream" };
 
 const UNREACHABLE: ApiResult<never> = {
   kind: ResultKind.FAILED,
@@ -99,6 +109,29 @@ export async function fetchArtist(accessToken: string, artistId: string): Promis
   return sendForJson(path, getAsUser(accessToken));
 }
 
+/**
+ * Creates an ingest group, under an ID Sona gives it.
+ */
+export async function createIngestGroup(
+  accessToken: string,
+  request: IngestGroupRequest,
+): Promise<ApiResult<IngestGroupResponse>> {
+  return sendForJson(ApiRoutes.INGEST_GROUPS, postJsonAsUser(accessToken, request));
+}
+
+/**
+ * Uploads one file into an ingest group, under the ID Sona gave the group.
+ */
+export async function uploadTrack(
+  accessToken: string,
+  groupIngestId: string,
+  file: File,
+): Promise<ApiResult<TrackIngestResponse>> {
+  const query = new URLSearchParams({ filename: file.name });
+  const path = `${ApiRoutes.INGEST_GROUPS}/${encodeURIComponent(groupIngestId)}/tracks?${query}`;
+  return sendForJson(path, postFileAsUser(accessToken, file));
+}
+
 function pageQuery(page: PageRequest): string {
   switch (page.position) {
     case PagePosition.FIRST:
@@ -129,6 +162,10 @@ function postJsonAsUser(accessToken: string, body: RequestBody): RequestInit {
     headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT },
     body: JSON.stringify(body),
   };
+}
+
+function postFileAsUser(accessToken: string, file: File): RequestInit {
+  return { method: HttpMethod.POST, headers: { ...authorizationHeader(accessToken), ...FILE_CONTENT }, body: file };
 }
 
 function authorizationHeader(accessToken: string): Record<string, string> {
