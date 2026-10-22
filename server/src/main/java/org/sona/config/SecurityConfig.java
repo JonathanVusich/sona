@@ -12,6 +12,7 @@ import static org.sona.controller.ApiRoutes.JWKS;
 import static org.sona.controller.ApiRoutes.OIDC_AUTHORIZE;
 import static org.sona.controller.ApiRoutes.OIDC_CALLBACK;
 import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
+import static org.sona.controller.ApiRoutes.SOCKET;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -64,6 +65,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, AUTH_TOKEN, AUTH_REFRESH, AUTH_LOGOUT, AUTH_REGISTER)
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, JWKS, OIDC_PROVIDERS)
+                        .permitAll()
+                        // Browsers can't send a token with the WebSocket handshake, so SocketAccessInterceptor
+                        // authenticates the STOMP connection instead.
+                        .requestMatchers(HttpMethod.GET, SOCKET)
                         .permitAll()
                         // The web frontend's files are public; it signs in through the API like any other client.
                         .requestMatchers(SecurityConfig::isFrontendRequest)

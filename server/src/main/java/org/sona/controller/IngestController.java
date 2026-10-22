@@ -12,6 +12,7 @@ import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestGroupDao;
+import org.sona.engine.IngestProgressPublisher;
 import org.sona.exception.IngestGroupNotFoundException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
@@ -46,6 +47,7 @@ public class IngestController {
     private final IngestGroupDao ingestGroupDao;
     private final IngestGroupResponseMapper ingestGroupResponseMapper;
     private final TrackIngestResponseMapper mapper;
+    private final IngestProgressPublisher progressPublisher;
 
     /**
      * Creates a group under a new ID, which its files are then uploaded under.
@@ -76,6 +78,8 @@ public class IngestController {
                 .loadById(groupIngestId)
                 .orElseThrow(() -> new IngestGroupNotFoundException(groupIngestId));
         final var ingest = library.storeIngestTrack(group, filename, body);
+        // Other uploaders' pages learn of the file from this; the uploader learns of it from the response too.
+        progressPublisher.publish(ingest, ingest.state());
         return mapper.toResponse(ingest);
     }
 }

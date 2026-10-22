@@ -20,6 +20,7 @@ public final class DefaultIngestWorker implements IngestWorker {
 
     private final IngestionEngine engine;
     private final TrackToIngestDao trackToIngestDao;
+    private final IngestProgressPublisher progressPublisher;
 
     @Scheduled(cron = "${sona.ingest-worker.cron}")
     @Override
@@ -54,6 +55,7 @@ public final class DefaultIngestWorker implements IngestWorker {
             // straight away.
             if (trackToIngestDao.loadById(ingest.trackIngestId()).state() == IngestState.PENDING) {
                 trackToIngestDao.updateState(ingest.trackIngestId(), IngestState.FAILED);
+                progressPublisher.publish(ingest, IngestState.FAILED);
             }
         }
     }

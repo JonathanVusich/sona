@@ -49,4 +49,32 @@ public final class ApiRoutes {
     public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
 
     public static final String JWKS = "/.well-known/jwks.json";
+
+    /**
+     * Where clients open a STOMP connection over WebSocket, for what Sona pushes to them. Browsers can't set headers on
+     * the handshake, so the access token goes in the CONNECT frame's {@code Authorization} header instead.
+     */
+    public static final String SOCKET = API + "/socket";
+    /**
+     * Destinations under here are the broker's: subscribers get every message sent to them.
+     */
+    public static final String SOCKET_TOPICS = "/topic";
+    /**
+     * Destinations under here are answered by Sona, once, to the one subscriber.
+     */
+    public static final String SOCKET_APP = "/app";
+
+    /**
+     * Each ingest's new state, whenever it changes.
+     */
+    public static final String INGEST_PROGRESS = SOCKET_TOPICS + "/ingests";
+    /**
+     * The {@code @SubscribeMapping} of {@link #UNFINISHED_INGESTS}, which is under {@link #SOCKET_APP}.
+     */
+    public static final String UNFINISHED_INGESTS_MAPPING = "/ingests";
+    /**
+     * Answers with every ingest that hasn't completed, so a client can subscribe here after {@link #INGEST_PROGRESS}
+     * to catch up on what it missed.
+     */
+    public static final String UNFINISHED_INGESTS = SOCKET_APP + UNFINISHED_INGESTS_MAPPING;
 }
