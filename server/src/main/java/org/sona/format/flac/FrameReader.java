@@ -2,7 +2,6 @@ package org.sona.format.flac;
 
 import dev.javax.bitstream.BitInputStream;
 import dev.javax.bitstream.ByteSource;
-import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,8 +23,7 @@ final class FrameReader {
     private int bytesInFrame;
 
     FrameReader(final InputStream inputStream) {
-        // The bit stream reads a byte or two at a time.
-        this.inputStream = new BufferedInputStream(inputStream, 64 * 1024);
+        this.inputStream = inputStream;
         this.bits = BitInputStream.wrap(new FrameByteSource(), ByteOrder.BIG_ENDIAN);
     }
 
@@ -93,20 +91,34 @@ final class FrameReader {
     }
 
     // The bit stream only takes the bytes whose bits it needs, so the CRCs cover exactly the frame's bytes read.
+    // It buffers the stream itself, as the bit stream takes a byte or two at a time, and a BufferedInputStream's checks
+    // and locking on each of those reads cost more than decoding them.
     private final class FrameByteSource implements ByteSource {
 
+        private final byte[] buffer = new byte[64 * 1024];
+        private int position;
+        private int limit;
+
         @Override
-        public void read(final byte[] buffer, final int numBytes) throws IOException {
-            final var read = inputStream.readNBytes(buffer, 0, numBytes);
-            for (var i = 0; i < read; i++) {
-                final var value = buffer[i] & 0xFF;
+        public void read(final byte[] destination, final int numBytes) throws IOException {
+            for (var i = 0; i < numBytes; i++) {
+                if (position == limit && !fill()) {
+                    throw new EOFException("FLAC stream ends in the middle of a frame!");
+                }
+                final var value = buffer[position++] & 0xFF;
+                destination[i] = (byte) value;
                 crc8 = CRC8_TABLE[crc8 ^ value];
                 crc16 = ((crc16 << 8) ^ CRC16_TABLE[(crc16 >>> 8) ^ value]) & 0xFFFF;
+                bytesInFrame++;
             }
-            bytesInFrame += read;
-            if (read != numBytes) {
-                throw new EOFException("FLAC stream ends in the middle of a frame!");
-            }
+        }
+
+        // @return false at the end of the stream
+        private boolean fill() throws IOException {
+            final var read = inputStream.read(buffer);
+            position = 0;
+            limit = Math.max(read, 0);
+            return read > 0;
         }
 
         @Override
