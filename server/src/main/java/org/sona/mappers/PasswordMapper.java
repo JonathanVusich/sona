@@ -8,5 +8,6 @@ import org.sona.model.tables.records.PasswordRecord;
 public interface PasswordMapper {
 
     PasswordRecord toRecord(Password password);
+
     Password fromRecord(PasswordRecord password);
 }

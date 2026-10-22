@@ -46,8 +46,7 @@ public final class AuthController {
     }
 
     @PostMapping(ApiRoutes.AUTH_LOGOUT)
-    public ResponseEntity<Void> logout(
-            @CookieValue(name = RefreshCookieService.NAME) final String refreshToken) {
+    public ResponseEntity<Void> logout(@CookieValue(name = RefreshCookieService.NAME) final String refreshToken) {
         tokenIssuer.endSession(refreshToken);
         final var cookie = refreshCookies.clearCookie();
         return ResponseEntity.noContent()
@@ -57,7 +56,9 @@ public final class AuthController {
 
     private ResponseEntity<TokenResponse> tokenResponse(final Tokens tokens) {
         final var cookie = refreshCookies.issueCookie(tokens.refreshToken());
-        final var body = new TokenResponse(tokens.accessToken(), TokenType.BEARER,
+        final var body = new TokenResponse(
+                tokens.accessToken(),
+                TokenType.BEARER,
                 properties.accessTokenLifetime().toSeconds());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())

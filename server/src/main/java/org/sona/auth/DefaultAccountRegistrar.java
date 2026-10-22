@@ -40,8 +40,8 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
 
     @Override
     public ProviderUser registerUser(final String registrationToken, final String username) {
-        final var user = registrationTokens.readToken(registrationToken)
-                .orElseThrow(InvalidRegistrationTokenException::new);
+        final var user =
+                registrationTokens.readToken(registrationToken).orElseThrow(InvalidRegistrationTokenException::new);
         if (userDao.loadById(user.userId()).isPresent()) {
             throw new AlreadyRegisteredException();
         }

@@ -1,12 +1,11 @@
 package org.sona.mappers;
 
+import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.sona.db.ArtistDetails;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.ReleaseGroup;
-
-import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ArtistDetailsMapper {

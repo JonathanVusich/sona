@@ -37,7 +37,10 @@ export default function ChangePassword() {
   };
 
   return (
-    <Show when={currentUser()?.state === SessionState.PASSWORD_CHANGE_REQUIRED} fallback={<Navigate href={AppRoutes.HOME} />}>
+    <Show
+      when={currentUser()?.state === SessionState.PASSWORD_CHANGE_REQUIRED}
+      fallback={<Navigate href={AppRoutes.HOME} />}
+    >
       <div class="login">
         <form class="login-card" onSubmit={submit}>
           <h1 class="brand">sona</h1>

@@ -1,5 +1,16 @@
 package org.sona.engine;
 
+import static java.util.Map.entry;
+import static java.util.stream.Collectors.toMap;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.db.ArtistDao;
@@ -33,25 +44,12 @@ import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
-import static java.util.stream.Collectors.toMap;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @Service
 @RequiredArgsConstructor
 public final class DefaultIngestionEngine implements IngestionEngine {
 
-    private static final Map<String, Parser> PARSERS = Stream.of(
-            new FlacParser()
-    ).flatMap(p -> p.format().getExtensions().stream().map(ext -> entry(ext, p)))
+    private static final Map<String, Parser> PARSERS = Stream.of(new FlacParser())
+            .flatMap(p -> p.format().getExtensions().stream().map(ext -> entry(ext, p)))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     private final Library library;
@@ -66,18 +64,21 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final TrackDao trackDao;
 
     @Override
-    public void processTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException {
+    public void processTrack(final TrackToIngest trackToIngest)
+            throws InvalidFormatException, IOException, InterruptedException {
         switch (trackToIngest.state()) {
             case PENDING, INPUT_REQUIRED -> ingestTrack(trackToIngest);
             case MOVE_FAILED -> retryMove(trackToIngest);
-            case FAILED -> throw new IllegalStateException(
-                    "Track %s can't be imported".formatted(trackToIngest.trackIngestId()));
-            case COMPLETED -> throw new IllegalStateException(
-                    "Track %s has already been imported".formatted(trackToIngest.trackIngestId()));
+            case FAILED ->
+                throw new IllegalStateException("Track %s can't be imported".formatted(trackToIngest.trackIngestId()));
+            case COMPLETED ->
+                throw new IllegalStateException(
+                        "Track %s has already been imported".formatted(trackToIngest.trackIngestId()));
         }
     }
 
-    private void ingestTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException, InterruptedException {
+    private void ingestTrack(final TrackToIngest trackToIngest)
+            throws InvalidFormatException, IOException, InterruptedException {
         final Parser parser;
         final RawMetadata metadata;
         try {
@@ -88,8 +89,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             markState(trackToIngest.trackIngestId(), IngestState.FAILED);
             throw e;
         }
-        final var resolved = resolver.resolveTrack(trackToIngest, metadata)
-                .orElse(null);
+        final var resolved = resolver.resolveTrack(trackToIngest, metadata).orElse(null);
 
         // No MusicBrainz track info present!
         if (resolved == null) {
@@ -116,17 +116,19 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
-    private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest,
-                                          final Parser parser) throws IOException, InvalidFormatException {
+    private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest, final Parser parser)
+            throws IOException, InvalidFormatException {
         try (final var inputStream = library.readIngestTrack(trackToIngest)) {
             return parser.parseMetadata(inputStream);
         }
     }
 
-    private void importTrack(final TrackToIngest trackToIngest,
-                             final ResolvedTrack resolved,
-                             final Duration duration,
-                             final Format format) throws IOException {
+    private void importTrack(
+            final TrackToIngest trackToIngest,
+            final ResolvedTrack resolved,
+            final Duration duration,
+            final Format format)
+            throws IOException {
         final var track = storeTrack(trackToIngest, resolved, duration, format);
         moveIntoLibrary(trackToIngest, track);
     }
@@ -157,19 +159,23 @@ public final class DefaultIngestionEngine implements IngestionEngine {
      * the rows.
      * A release or artist already stored isn't looked up again, which saves MusicBrainz requests.
      */
-    private Track storeTrack(final TrackToIngest trackToIngest,
-                             final ResolvedTrack resolved,
-                             final Duration duration,
-                             final Format format) {
+    private Track storeTrack(
+            final TrackToIngest trackToIngest,
+            final ResolvedTrack resolved,
+            final Duration duration,
+            final Format format) {
         // Tracks from the same MusicBrainz release share its rows, and so its library folder.
-        final var release = releaseDao.loadByMusicBrainzId(resolved.releaseId())
+        final var release = releaseDao
+                .loadByMusicBrainzId(resolved.releaseId())
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
-        final var releaseGroup = releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
-        final var medium = mediumDao.loadByPosition(release.releaseId(), resolved.discNumber())
+        final var releaseGroup =
+                releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
+        final var medium = mediumDao
+                .loadByPosition(release.releaseId(), resolved.discNumber())
                 .orElseGet(() -> completeRelease(release, resolved));
         final var artistId = resolved.artist().artistId();
-        final var artist = artistDao.loadByMusicBrainzId(artistId)
-                .orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
+        final var artist =
+                artistDao.loadByMusicBrainzId(artistId).orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
         final var track = newTrack(trackToIngest, resolved, artist, releaseGroup, release, medium, duration, format);
         trackDao.insert(track);
         return track;
@@ -178,11 +184,25 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private Release storeRelease(final ResolvedRelease resolved) {
         final var group = resolved.releaseGroup();
         final var groupArtist = upsertArtist(group.artist());
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), group.title(), group.type(),
-                group.firstReleaseDate(), groupArtist.artistId(), 0, group.releaseGroupId()));
+        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(),
+                group.title(),
+                group.type(),
+                group.firstReleaseDate(),
+                groupArtist.artistId(),
+                0,
+                group.releaseGroupId()));
         final var releaseArtist = upsertArtist(resolved.artist());
-        final var release = releaseDao.upsert(new Release(uuidv7(), resolved.title(), null, resolved.date(),
-                resolved.country(), 0, releaseGroup.releaseGroupId(), releaseArtist.artistId(), resolved.releaseId()));
+        final var release = releaseDao.upsert(new Release(
+                uuidv7(),
+                resolved.title(),
+                null,
+                resolved.date(),
+                resolved.country(),
+                0,
+                releaseGroup.releaseGroupId(),
+                releaseArtist.artistId(),
+                resolved.releaseId()));
         storeReleaseParts(release, resolved);
         return release;
     }
@@ -216,8 +236,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return media.stream()
                 .filter(medium -> medium.position() == resolved.discNumber())
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Release %s has no medium %d"
-                        .formatted(release.releaseId(), resolved.discNumber())));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Release %s has no medium %d".formatted(release.releaseId(), resolved.discNumber())));
     }
 
     private List<Medium> storeMedia(final Release release, final List<ResolvedMedium> media) {
@@ -230,14 +250,15 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return artistDao.upsert(new Artist(uuidv7(), artist.name(), artist.country(), null, 0, artist.artistId()));
     }
 
-    private Track newTrack(final TrackToIngest trackToIngest,
-                           final ResolvedTrack resolved,
-                           final Artist artist,
-                           final ReleaseGroup releaseGroup,
-                           final Release release,
-                           final Medium medium,
-                           final Duration duration,
-                           final Format format) {
+    private Track newTrack(
+            final TrackToIngest trackToIngest,
+            final ResolvedTrack resolved,
+            final Artist artist,
+            final ReleaseGroup releaseGroup,
+            final Release release,
+            final Medium medium,
+            final Duration duration,
+            final Format format) {
         final var trackId = uuidv7();
         return new Track(
                 trackId,
@@ -248,7 +269,6 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 medium.mediumId(),
                 resolved.trackNumber(),
                 artist.artistId(),
-                trackToIngest.trackIngestId()
-        );
+                trackToIngest.trackIngestId());
     }
 }

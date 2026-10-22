@@ -1,16 +1,15 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.excluded;
+import static org.sona.model.Tables.LABEL;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.LabelMapper;
 import org.sona.model.tables.pojos.Label;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-
-import static org.jooq.impl.DSL.excluded;
-import static org.sona.model.Tables.LABEL;
 
 @Component
 @RequiredArgsConstructor

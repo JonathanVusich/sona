@@ -2,6 +2,9 @@ package org.sona.auth;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
 import org.sona.model.enums.UserRole;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -13,10 +16,6 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
 
 /**
  * Short-lived tokens that let a user who signed in through an OIDC provider, but has no account yet, create one. They
@@ -37,7 +36,8 @@ public final class RegistrationTokenService {
 
     public RegistrationTokenService(final JwtEncoder encoder, final RSAKey signingKey) throws JOSEException {
         this.encoder = encoder;
-        final var decoder = NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
+        final var decoder =
+                NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
         this.decoder = decoder;
     }
@@ -64,8 +64,10 @@ public final class RegistrationTokenService {
     public Optional<ProviderUser> readToken(final String token) {
         try {
             final var jwt = decoder.decode(token);
-            final var user = new ProviderUser(jwt.getClaimAsString(PROVIDER_CLAIM),
-                    jwt.getClaimAsString(OIDC_ISSUER_CLAIM), jwt.getClaimAsString(OIDC_SUBJECT_CLAIM),
+            final var user = new ProviderUser(
+                    jwt.getClaimAsString(PROVIDER_CLAIM),
+                    jwt.getClaimAsString(OIDC_ISSUER_CLAIM),
+                    jwt.getClaimAsString(OIDC_SUBJECT_CLAIM),
                     parseRole(jwt.getClaimAsString(ROLE_CLAIM)));
             return Optional.of(user);
         } catch (final JwtException _) {

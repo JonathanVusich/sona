@@ -1,6 +1,9 @@
 package org.sona.e2e;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import com.microsoft.playwright.Page;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
@@ -9,10 +12,6 @@ import org.sona.db.UserDao;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
 @E2ETest
 class LoginE2ETest {

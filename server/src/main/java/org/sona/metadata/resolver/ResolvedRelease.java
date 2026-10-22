@@ -19,6 +19,4 @@ public record ResolvedRelease(
         List<ResolvedLabel> labels,
         List<ResolvedMedium> media,
         ResolvedArtist artist,
-        ResolvedReleaseGroup releaseGroup
-) {
-}
+        ResolvedReleaseGroup releaseGroup) {}

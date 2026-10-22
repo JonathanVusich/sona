@@ -1,13 +1,13 @@
 package org.sona.auth;
 
+import static org.sona.auth.OidcUtils.silentIfAsked;
+
 import jakarta.servlet.http.HttpServletRequest;
 import org.sona.controller.ApiRoutes;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
-
-import static org.sona.auth.OidcUtils.silentIfAsked;
 
 /**
  * Builds the request that sends the browser to an OIDC provider to sign in. With {@code ?prompt=none}, the provider is

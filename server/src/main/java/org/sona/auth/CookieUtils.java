@@ -1,10 +1,9 @@
 package org.sona.auth;
 
+import java.time.Duration;
 import lombok.experimental.UtilityClass;
 import org.sona.controller.ApiRoutes;
 import org.springframework.http.ResponseCookie;
-
-import java.time.Duration;
 
 /**
  * The cookies Sona sets.

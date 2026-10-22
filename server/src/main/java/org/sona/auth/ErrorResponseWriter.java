@@ -1,14 +1,13 @@
 package org.sona.auth;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.io.IOException;
 
 /**
  * Writes an {@link ErrorResponse} from the security filters, which refuse requests before any controller runs.

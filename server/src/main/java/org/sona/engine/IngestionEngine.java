@@ -1,9 +1,8 @@
 package org.sona.engine;
 
+import java.io.IOException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.model.tables.pojos.TrackToIngest;
-
-import java.io.IOException;
 
 /**
  * Ingest path:

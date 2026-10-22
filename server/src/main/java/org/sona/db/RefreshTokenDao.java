@@ -1,19 +1,18 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.currentOffsetDateTime;
+import static org.jooq.impl.DSL.select;
+import static org.sona.model.Tables.REFRESH_TOKEN;
+
+import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.RefreshTokenMapper;
 import org.sona.model.tables.pojos.RefreshToken;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.currentOffsetDateTime;
-import static org.jooq.impl.DSL.select;
-import static org.sona.model.Tables.REFRESH_TOKEN;
 
 @Component
 @RequiredArgsConstructor
@@ -24,9 +23,7 @@ public class RefreshTokenDao {
     private final RefreshTokenMapper mapper;
 
     public void insert(final RefreshToken token) {
-        dsl.insertInto(REFRESH_TOKEN)
-                .set(mapper.toRecord(token))
-                .execute();
+        dsl.insertInto(REFRESH_TOKEN).set(mapper.toRecord(token)).execute();
     }
 
     public Optional<RefreshToken> loadByHash(final String tokenHash) {
@@ -57,8 +54,8 @@ public class RefreshTokenDao {
      *
      * @return the family's valid token, now revoked, or empty if this token was replaced earlier or its family has ended
      */
-    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(final String tokenHash,
-                                                                      final OffsetDateTime replacedAfter) {
+    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(
+            final String tokenHash, final OffsetDateTime replacedAfter) {
         final var family = select(REFRESH_TOKEN.FAMILY_ID)
                 .from(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))

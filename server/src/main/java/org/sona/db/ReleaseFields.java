@@ -1,5 +1,17 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.select;
+import static org.jooq.impl.DSL.selectFrom;
+import static org.sona.model.Tables.ARTIST;
+import static org.sona.model.Tables.LABEL;
+import static org.sona.model.Tables.MEDIUM;
+import static org.sona.model.Tables.RELEASE_LABEL;
+import static org.sona.model.Tables.TRACK;
+import static org.sona.model.Tables.TRACK_TO_INGEST;
+
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Field;
 import org.sona.mappers.ArtistMapper;
@@ -12,19 +24,6 @@ import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.multiset;
-import static org.jooq.impl.DSL.select;
-import static org.jooq.impl.DSL.selectFrom;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.model.Tables.LABEL;
-import static org.sona.model.Tables.MEDIUM;
-import static org.sona.model.Tables.RELEASE_LABEL;
-import static org.sona.model.Tables.TRACK;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 /**
  * Reads a release's labels and media inside the query of each page that lists them, the release page and the release
@@ -46,10 +45,11 @@ public final class ReleaseFields {
      * @return the release's labels by name
      */
     public Field<List<Label>> releaseLabels(final Field<UUID> releaseId) {
-        final var releaseLabelIds = select(RELEASE_LABEL.LABEL_ID)
-                .from(RELEASE_LABEL)
-                .where(RELEASE_LABEL.RELEASE_ID.eq(releaseId));
-        return multiset(selectFrom(LABEL).where(LABEL.LABEL_ID.in(releaseLabelIds)).orderBy(LABEL.NAME))
+        final var releaseLabelIds =
+                select(RELEASE_LABEL.LABEL_ID).from(RELEASE_LABEL).where(RELEASE_LABEL.RELEASE_ID.eq(releaseId));
+        return multiset(selectFrom(LABEL)
+                        .where(LABEL.LABEL_ID.in(releaseLabelIds))
+                        .orderBy(LABEL.NAME))
                 .convertFrom(labels -> labels.map(labelMapper::fromRecord));
     }
 
@@ -58,7 +58,9 @@ public final class ReleaseFields {
      * @return the release's media in order
      */
     public Field<List<Medium>> releaseMedia(final Field<UUID> releaseId) {
-        return multiset(selectFrom(MEDIUM).where(MEDIUM.RELEASE_ID.eq(releaseId)).orderBy(MEDIUM.POSITION))
+        return multiset(selectFrom(MEDIUM)
+                        .where(MEDIUM.RELEASE_ID.eq(releaseId))
+                        .orderBy(MEDIUM.POSITION))
                 .convertFrom(media -> media.map(mediumMapper::fromRecord));
     }
 
@@ -69,11 +71,11 @@ public final class ReleaseFields {
      */
     public Field<List<MediumWithTracks>> releaseMediaWithTracks(final Field<UUID> releaseId) {
         return multiset(select(MEDIUM.convertFrom(mediumMapper::fromRecord), tracks())
-                .from(MEDIUM)
-                .where(MEDIUM.RELEASE_ID.eq(releaseId))
-                .orderBy(MEDIUM.POSITION))
-                .convertFrom(media -> media.map(medium -> mediumWithTracksMapper.fromPojos(medium.value1(),
-                        medium.value2())));
+                        .from(MEDIUM)
+                        .where(MEDIUM.RELEASE_ID.eq(releaseId))
+                        .orderBy(MEDIUM.POSITION))
+                .convertFrom(media ->
+                        media.map(medium -> mediumWithTracksMapper.fromPojos(medium.value1(), medium.value2())));
     }
 
     /**
@@ -83,15 +85,18 @@ public final class ReleaseFields {
     private Field<List<TrackWithArtist>> tracks() {
         // Aliased apart from the release's artist, which the outer query joins as ARTIST.
         final var trackArtist = ARTIST.as("track_artist");
-        return multiset(select(TRACK.convertFrom(trackMapper::fromRecord),
-                        trackArtist.convertFrom(artistMapper::fromRecord))
-                .from(TRACK)
-                .join(trackArtist).on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
-                .join(TRACK_TO_INGEST).on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
-                .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
-                .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
-                .orderBy(TRACK.POSITION))
-                .convertFrom(tracks -> tracks.map(track -> trackWithArtistMapper.fromPojos(track.value1(),
-                        track.value2())));
+        return multiset(select(
+                                TRACK.convertFrom(trackMapper::fromRecord),
+                                trackArtist.convertFrom(artistMapper::fromRecord))
+                        .from(TRACK)
+                        .join(trackArtist)
+                        .on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
+                        .join(TRACK_TO_INGEST)
+                        .on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
+                        .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
+                        .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
+                        .orderBy(TRACK.POSITION))
+                .convertFrom(
+                        tracks -> tracks.map(track -> trackWithArtistMapper.fromPojos(track.value1(), track.value2())));
     }
 }

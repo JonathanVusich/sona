@@ -16,6 +16,16 @@ plugins {
     id("org.springframework.boot").version("4.1.1")
     id("org.jooq.jooq-codegen-gradle").version("3.21.7")
     id("org.flywaydb.flyway").version("11.16.0")
+    id("com.diffplug.spotless")
+}
+
+// Formats the Java sources: `spotlessApply` rewrites them, and `check` (so `build`) fails on any it would change.
+spotless {
+    java {
+        // Only hand-written sources; jOOQ's generated ones are a source directory too.
+        target("src/**/*.java")
+        palantirJavaFormat("2.102.0")
+    }
 }
 
 sourceSets {

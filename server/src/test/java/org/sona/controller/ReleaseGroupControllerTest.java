@@ -1,5 +1,12 @@
 package org.sona.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,33 +47,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.IntStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @IntegrationTest
 class ReleaseGroupControllerTest {
 
     @Autowired
     JwtEncoder encoder;
+
     @Autowired
     ArtistDao artistDao;
+
     @Autowired
     ReleaseGroupDao releaseGroupDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     LabelDao labelDao;
+
     @Autowired
     ReleaseLabelDao releaseLabelDao;
+
     @Autowired
     MediumDao mediumDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
 
@@ -102,20 +109,32 @@ class ReleaseGroupControllerTest {
         final var track = insertTrack(disc, keane, "Somewhere Only We Know");
 
         final var response = api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ReleaseGroupResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
-        assertThat(response).isEqualTo(new ReleaseGroupResponse(group.releaseGroupId(), "Hopes and Fears",
-                ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10), artist(keane),
-                // The earliest edition stands for the group, though the deluxe one was stored first.
-                new DefaultReleaseResponse(original.releaseId(), List.of(new MediumResponse(1, "CD", List.of(
-                        new TrackResponse(track.trackId(), "Somewhere Only We Know", 300, 1, artist(keane)))))),
-                List.of(
-                edition(original, 1, List.of(label(interscope), label(island)), List.of("CD", "DVD")),
-                edition(deluxe, 1, List.of(label(island)), List.of("CD", "CD")),
-                // A medium whose format isn't known still counts.
-                edition(undated, 1, List.of(), Arrays.asList((String) null)))));
+        assertThat(response)
+                .isEqualTo(new ReleaseGroupResponse(
+                        group.releaseGroupId(),
+                        "Hopes and Fears",
+                        ReleaseGroupType.ALBUM,
+                        LocalDate.of(2004, 5, 10),
+                        artist(keane),
+                        // The earliest edition stands for the group, though the deluxe one was stored first.
+                        new DefaultReleaseResponse(
+                                original.releaseId(),
+                                List.of(new MediumResponse(
+                                        1,
+                                        "CD",
+                                        List.of(new TrackResponse(
+                                                track.trackId(), "Somewhere Only We Know", 300, 1, artist(keane)))))),
+                        List.of(
+                                edition(original, 1, List.of(label(interscope), label(island)), List.of("CD", "DVD")),
+                                edition(deluxe, 1, List.of(label(island)), List.of("CD", "CD")),
+                                // A medium whose format isn't known still counts.
+                                edition(undated, 1, List.of(), Arrays.asList((String) null)))));
     }
 
     @Test
@@ -152,18 +171,23 @@ class ReleaseGroupControllerTest {
         insertMedia(insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10)), "CD");
 
         api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
-                .expectStatus().isNotFound()
+                .expectStatus()
+                .isNotFound()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(301);
+                .jsonPath("$.code")
+                .isEqualTo(301);
     }
 
     @Test
     void anUnknownReleaseGroupIsNotFound() {
         api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + uuidv7(), token)
-                .expectStatus().isNotFound()
+                .expectStatus()
+                .isNotFound()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(301)
-                .jsonPath("$.reason").isEqualTo("This release group isn't in the library.");
+                .jsonPath("$.code")
+                .isEqualTo(301)
+                .jsonPath("$.reason")
+                .isEqualTo("This release group isn't in the library.");
     }
 
     @Test
@@ -177,8 +201,10 @@ class ReleaseGroupControllerTest {
         final var first = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=2");
         final var second = loadPage(ApiRoutes.RELEASE_GROUPS + "?limit=2&after=" + first.next());
 
-        assertThat(first).isEqualTo(new ReleaseGroupPageResponse(
-                List.of(summary(aRush, coldplay), summary(hopesAndFears, keane)), hopesAndFears.releaseGroupId()));
+        assertThat(first)
+                .isEqualTo(new ReleaseGroupPageResponse(
+                        List.of(summary(aRush, coldplay), summary(hopesAndFears, keane)),
+                        hopesAndFears.releaseGroupId()));
         assertThat(second).isEqualTo(new ReleaseGroupPageResponse(List.of(summary(parachutes, coldplay)), null));
     }
 
@@ -203,31 +229,37 @@ class ReleaseGroupControllerTest {
         insertReleaseGroup(coldplay, "X&Y");
         insertRelease(insertReleaseGroup(coldplay, "Viva la Vida"), "Viva la Vida", LocalDate.of(2008, 6, 12));
 
-        assertThat(loadPage(ApiRoutes.RELEASE_GROUPS)).isEqualTo(new ReleaseGroupPageResponse(
-                List.of(summary(parachutes, coldplay)), null));
+        assertThat(loadPage(ApiRoutes.RELEASE_GROUPS))
+                .isEqualTo(new ReleaseGroupPageResponse(List.of(summary(parachutes, coldplay)), null));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"0", "101", "many"})
     void aLimitThatIsntOneToAHundredIsRefused(final String limit) {
         api.getWithToken(ApiRoutes.RELEASE_GROUPS + "?limit=" + limit, token)
-                .expectStatus().isBadRequest()
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     private ReleaseGroupResponse loadReleaseGroup(final ReleaseGroup group) {
         return api.getWithToken(ApiRoutes.RELEASE_GROUPS + "/" + group.releaseGroupId(), token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ReleaseGroupResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
     }
 
     private ReleaseGroupPageResponse loadPage(final String uri) {
         return api.getWithToken(uri, token)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(ReleaseGroupPageResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
     }
 
     private Artist insertArtist(final String name) {
@@ -235,8 +267,8 @@ class ReleaseGroupControllerTest {
     }
 
     private ReleaseGroup insertReleaseGroup(final Artist artist, final String name) {
-        return releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, ReleaseGroupType.ALBUM,
-                LocalDate.of(2004, 5, 10), artist.artistId(), 0, uuidv7()));
+        return releaseGroupDao.upsert(new ReleaseGroup(
+                uuidv7(), name, ReleaseGroupType.ALBUM, LocalDate.of(2004, 5, 10), artist.artistId(), 0, uuidv7()));
     }
 
     /**
@@ -250,8 +282,8 @@ class ReleaseGroupControllerTest {
     }
 
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {
-        return releaseDao.upsert(new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(),
-                group.artistId(), uuidv7()));
+        return releaseDao.upsert(
+                new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(), group.artistId(), uuidv7()));
     }
 
     private Label insertLabel(final String name) {
@@ -274,21 +306,29 @@ class ReleaseGroupControllerTest {
     private Track insertTrack(final Medium medium, final Artist artist, final String name) {
         final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
-        final var track = new Track(uuidv7(), name, 300, AudioFormat.FLAC, name + ".flac", medium.mediumId(), 1,
-                artist.artistId(), ingest.trackIngestId());
+        final var track = new Track(
+                uuidv7(),
+                name,
+                300,
+                AudioFormat.FLAC,
+                name + ".flac",
+                medium.mediumId(),
+                1,
+                artist.artistId(),
+                ingest.trackIngestId());
         trackDao.insert(track);
         return track;
     }
 
-    private static EditionResponse edition(final Release release, final int trackCount,
-                                           final List<LabelResponse> labels, final List<String> formats) {
-        return new EditionResponse(release.releaseId(), release.name(), release.date(), release.country(), trackCount,
-                labels, formats);
+    private static EditionResponse edition(
+            final Release release, final int trackCount, final List<LabelResponse> labels, final List<String> formats) {
+        return new EditionResponse(
+                release.releaseId(), release.name(), release.date(), release.country(), trackCount, labels, formats);
     }
 
     private static ReleaseGroupSummaryResponse summary(final ReleaseGroup group, final Artist artist) {
-        return new ReleaseGroupSummaryResponse(group.releaseGroupId(), group.name(), group.type(),
-                group.firstReleaseDate(), artist(artist));
+        return new ReleaseGroupSummaryResponse(
+                group.releaseGroupId(), group.name(), group.type(), group.firstReleaseDate(), artist(artist));
     }
 
     private static ArtistResponse artist(final Artist artist) {

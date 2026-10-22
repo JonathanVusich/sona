@@ -1,5 +1,7 @@
 package org.sona.engine;
 
+import static org.sona.config.IngestExecutorConfig.INGEST_EXECUTOR;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.TrackToIngestDao;
@@ -9,8 +11,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import static org.sona.config.IngestExecutorConfig.INGEST_EXECUTOR;
 
 /**
  * Takes pending ingests from the database, so those still pending when Sona stopped are processed when it starts

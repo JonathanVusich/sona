@@ -35,8 +35,8 @@ public final class UserController {
      * Changes the password and ends every session the user has, so they log in again with the new one.
      */
     @PostMapping(ApiRoutes.CURRENT_USER_PASSWORD)
-    public ResponseEntity<Void> changePassword(final UserAuthentication authentication,
-                                               @RequestBody @Valid final ChangePasswordRequest request) {
+    public ResponseEntity<Void> changePassword(
+            final UserAuthentication authentication, @RequestBody @Valid final ChangePasswordRequest request) {
         passwordChecker.changePassword(authentication.user(), request.currentPassword(), request.newPassword());
         return ResponseEntity.noContent().build();
     }

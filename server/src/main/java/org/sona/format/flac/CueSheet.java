@@ -8,6 +8,5 @@ public record CueSheet(
         String mediaCatalogNumber,
         long leadInSamples,
         CueSheetMedium medium,
-        List<CueSheetTrack> tracks
-) implements Block {
-}
+        List<CueSheetTrack> tracks)
+        implements Block {}

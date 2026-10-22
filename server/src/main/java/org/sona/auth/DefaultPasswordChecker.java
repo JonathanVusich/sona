@@ -24,8 +24,11 @@ public class DefaultPasswordChecker implements PasswordChecker {
      */
     private final String unknownUserHash;
 
-    public DefaultPasswordChecker(final UserDao userDao, final PasswordDao passwordDao, final PasswordEncoder encoder,
-                                  final TokenIssuer tokenIssuer) {
+    public DefaultPasswordChecker(
+            final UserDao userDao,
+            final PasswordDao passwordDao,
+            final PasswordEncoder encoder,
+            final TokenIssuer tokenIssuer) {
         this.userDao = userDao;
         this.passwordDao = passwordDao;
         this.encoder = encoder;
@@ -54,8 +57,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
     }
 
     @Override
-    public void changePassword(final SignedInUser signedIn, final String currentPassword,
-                               final String newPassword) {
+    public void changePassword(final SignedInUser signedIn, final String currentPassword, final String newPassword) {
         final var user = userDao.loadById(signedIn.userId()).orElseThrow();
         switch (user.type()) {
             case LOCAL -> changeLocalPassword(user, currentPassword, newPassword);

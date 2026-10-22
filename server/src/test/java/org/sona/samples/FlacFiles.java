@@ -1,12 +1,11 @@
 package org.sona.samples;
 
-import lombok.experimental.UtilityClass;
-import org.sona.format.flac.FlacWriter;
-import org.sona.metadata.RawMetadata;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import lombok.experimental.UtilityClass;
+import org.sona.format.flac.FlacWriter;
+import org.sona.metadata.RawMetadata;
 
 /**
  * Tiny synthetic FLAC files for tests, written by {@link FlacWriter}.

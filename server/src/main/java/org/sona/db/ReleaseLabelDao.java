@@ -1,15 +1,14 @@
 package org.sona.db;
 
+import static org.sona.model.Tables.RELEASE_LABEL;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.ReleaseLabelMapper;
 import org.sona.model.tables.pojos.ReleaseLabel;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-
-import static org.sona.model.Tables.RELEASE_LABEL;
 
 @Component
 @RequiredArgsConstructor

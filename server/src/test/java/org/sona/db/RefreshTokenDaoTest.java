@@ -1,5 +1,10 @@
 package org.sona.db;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
@@ -9,12 +14,6 @@ import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.RefreshToken;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.OffsetDateTime;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
 class RefreshTokenDaoTest {
@@ -79,7 +78,8 @@ class RefreshTokenDaoTest {
         final var bob = new Users(uuidv7(), UserType.LOCAL, "bob", UserRole.USER, AccountState.ACTIVE);
         userDao.insert(bob);
         dao.insert(newToken(uuidv7(), "alice's", OffsetDateTime.now().plusDays(1)));
-        dao.insert(new RefreshToken(uuidv7(), bob.userId(), uuidv7(), "bob's", OffsetDateTime.now().plusDays(1), null));
+        dao.insert(new RefreshToken(
+                uuidv7(), bob.userId(), uuidv7(), "bob's", OffsetDateTime.now().plusDays(1), null));
 
         dao.revokeAll(alice.userId());
 
@@ -92,10 +92,12 @@ class RefreshTokenDaoTest {
         final var family = uuidv7();
         dao.insert(newToken(family, "replaced", OffsetDateTime.now().plusDays(1)));
         dao.revokeIfValid("replaced");
-        final var replacement = newToken(family, "replacement", OffsetDateTime.now().plusDays(1));
+        final var replacement =
+                newToken(family, "replacement", OffsetDateTime.now().plusDays(1));
         dao.insert(replacement);
 
-        final var revoked = dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().minusMinutes(1))
+        final var revoked = dao.revokeFamilyTokenIfRecentlyReplaced(
+                        "replaced", OffsetDateTime.now().minusMinutes(1))
                 .orElseThrow();
 
         assertThat(revoked.refreshTokenId()).isEqualTo(replacement.refreshTokenId());
@@ -109,7 +111,9 @@ class RefreshTokenDaoTest {
         dao.revokeIfValid("replaced");
         dao.insert(newToken(family, "replacement", OffsetDateTime.now().plusDays(1)));
 
-        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().plusMinutes(1))).isEmpty();
+        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced(
+                        "replaced", OffsetDateTime.now().plusMinutes(1)))
+                .isEmpty();
         assertThat(dao.revokeIfValid("replacement")).isPresent();
     }
 
@@ -121,7 +125,9 @@ class RefreshTokenDaoTest {
         dao.insert(newToken(family, "replacement", OffsetDateTime.now().plusDays(1)));
         dao.revokeFamily(family);
 
-        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced("replaced", OffsetDateTime.now().minusMinutes(1))).isEmpty();
+        assertThat(dao.revokeFamilyTokenIfRecentlyReplaced(
+                        "replaced", OffsetDateTime.now().minusMinutes(1)))
+                .isEmpty();
     }
 
     private RefreshToken newToken(final UUID familyId, final String tokenHash, final OffsetDateTime expiresAt) {

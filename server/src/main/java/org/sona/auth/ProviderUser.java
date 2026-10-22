@@ -1,10 +1,9 @@
 package org.sona.auth;
 
-import org.sona.model.enums.UserRole;
+import static org.sona.utils.IDGenerator.uuidv5;
 
 import java.util.UUID;
-
-import static org.sona.utils.IDGenerator.uuidv5;
+import org.sona.model.enums.UserRole;
 
 /**
  * A user as an OIDC provider describes them when they sign in.

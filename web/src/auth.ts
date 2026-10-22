@@ -98,7 +98,9 @@ export function hasPermission(permission: Permission): boolean {
 /**
  * Calls Sona as the current user. An expired access token is refreshed once and the call made again.
  */
-export async function sendAsCurrentUser<T>(call: (accessToken: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
+export async function sendAsCurrentUser<T>(
+  call: (accessToken: string) => Promise<ApiResult<T>>,
+): Promise<ApiResult<T>> {
   const result = await sendWithSession(call);
   if (!isRefused(result, ErrorCode.NOT_SIGNED_IN)) {
     return result;

@@ -4,11 +4,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.sona.controller.ApiRoutes;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
 
 /**
  * Marks each read of Sona's API for {@link SingleQueryListener} to check. Signing in (under {@link ApiRoutes#AUTH})
@@ -24,9 +23,9 @@ public final class SingleQueryFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(final HttpServletRequest request,
-                                    final HttpServletResponse response,
-                                    final FilterChain chain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            final HttpServletRequest request, final HttpServletResponse response, final FilterChain chain)
+            throws ServletException, IOException {
         SingleQueryListener.startRequest(request.getMethod() + " " + request.getRequestURI());
         try {
             chain.doFilter(request, response);

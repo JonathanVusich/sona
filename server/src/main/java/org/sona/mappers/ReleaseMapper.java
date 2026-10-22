@@ -8,5 +8,6 @@ import org.sona.model.tables.records.ReleaseRecord;
 public interface ReleaseMapper {
 
     ReleaseRecord toRecord(Release release);
+
     Release fromRecord(ReleaseRecord release);
 }

@@ -1,5 +1,9 @@
 package org.sona.db;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sona.utils.IDGenerator.uuidv7;
+
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
@@ -8,10 +12,6 @@ import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 @IntegrationTest
 class UserDaoTest {
@@ -53,7 +53,8 @@ class UserDaoTest {
 
         final var upserted = dao.upsert(newUser("admin", UserRole.ADMIN, AccountState.ACTIVE));
 
-        assertThat(upserted).isEqualTo(new Users(stored.userId(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE));
+        assertThat(upserted)
+                .isEqualTo(new Users(stored.userId(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE));
     }
 
     @Test

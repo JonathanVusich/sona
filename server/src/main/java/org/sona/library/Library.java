@@ -1,15 +1,14 @@
 package org.sona.library;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.UUID;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.UUID;
 
 public interface Library {
 

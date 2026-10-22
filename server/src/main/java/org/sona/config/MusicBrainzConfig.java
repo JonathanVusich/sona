@@ -25,8 +25,8 @@ public class MusicBrainzConfig {
     public RestClient musicBrainzRestClient(UriBuilderFactory uriBuilderFactory, JsonMapper mapper) {
         return RestClient.builder()
                 .uriBuilderFactory(uriBuilderFactory)
-                .configureMessageConverters(converters -> converters
-                        .withJsonConverter(new JacksonJsonHttpMessageConverter(mapper)))
+                .configureMessageConverters(
+                        converters -> converters.withJsonConverter(new JacksonJsonHttpMessageConverter(mapper)))
                 .build();
     }
 }

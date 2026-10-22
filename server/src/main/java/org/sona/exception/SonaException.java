@@ -5,18 +5,18 @@ package org.sona.exception;
  * Services and controllers throw these rather than deciding on HTTP responses, and {@code ApiExceptionHandler}
  * answers each kind with its error code. The hierarchy is sealed, so a new kind doesn't compile until it has one.
  */
-public abstract sealed class SonaException extends RuntimeException permits
-        ReleaseNotFoundException,
-        ReleaseGroupNotFoundException,
-        ArtistNotFoundException,
-        InvalidCredentialsException,
-        InvalidRefreshTokenException,
-        IncorrectPasswordException,
-        UnchangedPasswordException,
-        PasswordManagedByProviderException,
-        InvalidRegistrationTokenException,
-        AlreadyRegisteredException,
-        UsernameTakenException {
+public abstract sealed class SonaException extends RuntimeException
+        permits ReleaseNotFoundException,
+                ReleaseGroupNotFoundException,
+                ArtistNotFoundException,
+                InvalidCredentialsException,
+                InvalidRefreshTokenException,
+                IncorrectPasswordException,
+                UnchangedPasswordException,
+                PasswordManagedByProviderException,
+                InvalidRegistrationTokenException,
+                AlreadyRegisteredException,
+                UsernameTakenException {
 
     protected SonaException(final String message) {
         super(message);

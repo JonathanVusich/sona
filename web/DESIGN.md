@@ -19,15 +19,15 @@ screen does one job, and anything that isn't needed for that job isn't on the sc
 
 All colours are CSS custom properties in `src/styles.css`, defined for light and dark.
 
-| Token | Use |
-|---|---|
-| `--bg` | Page background |
-| `--surface` | Cards, menus, panels |
-| `--surface-2` | Hover fills, secondary buttons, active nav pill |
+| Token                              | Use                                                         |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `--bg`                             | Page background                                             |
+| `--surface`                        | Cards, menus, panels                                        |
+| `--surface-2`                      | Hover fills, secondary buttons, active nav pill             |
 | `--text` / `--text-2` / `--text-3` | Primary text, secondary text, tertiary (timestamps, counts) |
-| `--border` | Hairlines only; prefer spacing over borders |
-| `--accent` / `--accent-soft` | State only: now playing, toggles on, focus ring |
-| `--danger` | Destructive text actions |
+| `--border`                         | Hairlines only; prefer spacing over borders                 |
+| `--accent` / `--accent-soft`       | State only: now playing, toggles on, focus ring             |
+| `--danger`                         | Destructive text actions                                    |
 
 Primary buttons are the inverse of the page (`--text` on `--bg`), not the accent.
 

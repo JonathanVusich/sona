@@ -1,5 +1,18 @@
 package org.sona.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.OIDC_SESSION;
+import static org.sona.model.Tables.USERS;
+import static org.sona.utils.IDGenerator.uuidv5;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.net.HttpCookie;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,20 +35,6 @@ import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.net.HttpCookie;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.sona.model.Tables.OIDC_SESSION;
-import static org.sona.model.Tables.USERS;
-import static org.sona.utils.IDGenerator.uuidv5;
-import static org.sona.utils.IDGenerator.uuidv7;
 
 /**
  * Signing in through an OIDC provider with the authorization code flow, registering on the first sign-in, and
@@ -87,10 +86,12 @@ class OidcSignInTest {
     void aSilentSignInWithoutAProviderSessionLeavesTheUserToSignIn() {
         final var start = startSignIn(api.startSilentOidcSignIn(FakeOidcProvider.ID));
 
-        final var signIn = api.failOidcSignIn(FakeOidcProvider.ID, "login_required", start.state(),
-                        start.sessionCookie())
-                .expectStatus().isFound()
-                .expectBody().isEmpty();
+        final var signIn = api.failOidcSignIn(
+                        FakeOidcProvider.ID, "login_required", start.state(), start.sessionCookie())
+                .expectStatus()
+                .isFound()
+                .expectBody()
+                .isEmpty();
 
         assertThat(redirectLocation(signIn)).isEqualTo("/#error=108");
     }
@@ -154,8 +155,10 @@ class OidcSignInTest {
         final var start = startSignIn();
 
         final var signIn = api.finishOidcSignIn(FakeOidcProvider.ID, "code", "forged-state", start.sessionCookie())
-                .expectStatus().isFound()
-                .expectBody().isEmpty();
+                .expectStatus()
+                .isFound()
+                .expectBody()
+                .isEmpty();
 
         assertThat(redirectLocation(signIn)).isEqualTo("/#error=106");
     }
@@ -163,8 +166,10 @@ class OidcSignInTest {
     @Test
     void registeringCreatesTheAccount() {
         final var registered = api.registerUser(registrationToken("alice-id"), "alice")
-                .expectStatus().isCreated()
-                .expectBody().isEmpty();
+                .expectStatus()
+                .isCreated()
+                .expectBody()
+                .isEmpty();
 
         assertThat(registered.getResponseHeaders().getLocation())
                 .hasToString(ApiRoutes.OIDC_AUTHORIZE + "/" + FakeOidcProvider.ID);
@@ -180,15 +185,21 @@ class OidcSignInTest {
         existingUser("other-id", "bob");
 
         api.registerUser(registrationToken("bob-id"), "bob")
-                .expectStatus().isEqualTo(409)
-                .expectBody().jsonPath("$.code").isEqualTo(203);
+                .expectStatus()
+                .isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(203);
     }
 
     @Test
     void aBlankUsernameIsRefused() {
         api.registerUser(registrationToken("alice-id"), " ")
-                .expectStatus().isBadRequest()
-                .expectBody().jsonPath("$.code").isEqualTo(400);
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
@@ -197,20 +208,28 @@ class OidcSignInTest {
         api.registerUser(token, "alice").expectStatus().isCreated();
 
         api.registerUser(token, "alice2")
-                .expectStatus().isEqualTo(409)
-                .expectBody().jsonPath("$.code").isEqualTo(205);
+                .expectStatus()
+                .isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(205);
     }
 
     @Test
     void anInvalidRegistrationTokenIsRefused() {
         api.registerUser("not-a-token", "alice")
-                .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.code").isEqualTo(107);
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(107);
     }
 
     @Test
     void aRegistrationTokenIsNotAnAccessToken() {
-        api.getWithToken(ApiRoutes.CURRENT_USER, registrationToken("alice-id")).expectStatus().isUnauthorized();
+        api.getWithToken(ApiRoutes.CURRENT_USER, registrationToken("alice-id"))
+                .expectStatus()
+                .isUnauthorized();
     }
 
     @Test
@@ -219,8 +238,11 @@ class OidcSignInTest {
         final var session = providerSession("alice-id", List.of());
 
         api.changePassword(session.accessToken(), "old", "new")
-                .expectStatus().isBadRequest()
-                .expectBody().jsonPath("$.code").isEqualTo(202);
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(202);
     }
 
     @Test
@@ -239,8 +261,10 @@ class OidcSignInTest {
         provider.acceptCodeWithoutRefreshToken(code, idToken);
 
         final var signIn = api.finishOidcSignIn(FakeOidcProvider.ID, code, start.state(), start.sessionCookie())
-                .expectStatus().isFound()
-                .expectBody().isEmpty();
+                .expectStatus()
+                .isFound()
+                .expectBody()
+                .isEmpty();
 
         assertThat(redirectLocation(signIn)).isEqualTo("/#error=106");
     }
@@ -267,8 +291,11 @@ class OidcSignInTest {
         provider.rejectRefresh("alice-refresh");
 
         api.refreshSession(cookie)
-                .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.code").isEqualTo(102);
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(102);
     }
 
     @Test
@@ -287,8 +314,7 @@ class OidcSignInTest {
      *
      * @param sessionCookie the cookie Sona keeps the sign-in's state in
      */
-    private record StartedSignIn(String state, String nonce, HttpCookie sessionCookie) {
-    }
+    private record StartedSignIn(String state, String nonce, HttpCookie sessionCookie) {}
 
     private void existingUser(final String subject, final String username) {
         final var userId = userId(subject);
@@ -301,7 +327,9 @@ class OidcSignInTest {
      */
     private String registrationToken(final String subject) {
         final var signIn = signIn(subject, List.of());
-        final var fragment = UriComponentsBuilder.fromUriString(redirectLocation(signIn)).build().getFragment();
+        final var fragment = UriComponentsBuilder.fromUriString(redirectLocation(signIn))
+                .build()
+                .getFragment();
         return fragment.substring("registration_token=".length());
     }
 
@@ -310,11 +338,12 @@ class OidcSignInTest {
     }
 
     private StartedSignIn startSignIn(final RestTestClient.ResponseSpec response) {
-        final var start = response.expectStatus().isFound()
-                .expectBody().isEmpty();
+        final var start = response.expectStatus().isFound().expectBody().isEmpty();
         final var parameters = authorizeParameters(start);
         final var setCookie = start.getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
-        return new StartedSignIn(urlDecode(parameters.getFirst("state")), urlDecode(parameters.getFirst("nonce")),
+        return new StartedSignIn(
+                urlDecode(parameters.getFirst("state")),
+                urlDecode(parameters.getFirst("nonce")),
                 HttpCookie.parse(setCookie).getFirst());
     }
 
@@ -322,11 +351,14 @@ class OidcSignInTest {
      * @return the query parameters Sona sends the browser to the provider with
      */
     private static MultiValueMap<String, String> authorizeParameters(final RestTestClient.ResponseSpec response) {
-        return authorizeParameters(response.expectStatus().isFound().expectBody().isEmpty());
+        return authorizeParameters(
+                response.expectStatus().isFound().expectBody().isEmpty());
     }
 
     private static MultiValueMap<String, String> authorizeParameters(final EntityExchangeResult<Void> start) {
-        return UriComponentsBuilder.fromUri(start.getResponseHeaders().getLocation()).build().getQueryParams();
+        return UriComponentsBuilder.fromUri(start.getResponseHeaders().getLocation())
+                .build()
+                .getQueryParams();
     }
 
     /**
@@ -341,15 +373,18 @@ class OidcSignInTest {
     /**
      * @param providerRefreshToken the refresh token the provider gives Sona
      */
-    private EntityExchangeResult<Void> signIn(final String subject, final List<String> groups,
-                                              final String providerRefreshToken) {
+    private EntityExchangeResult<Void> signIn(
+            final String subject, final List<String> groups, final String providerRefreshToken) {
         final var start = startSignIn();
         final var code = "code-" + uuidv7();
-        final var idToken = provider.idToken(start.nonce(), claims -> claims.subject(subject).claim("groups", groups));
+        final var idToken = provider.idToken(
+                start.nonce(), claims -> claims.subject(subject).claim("groups", groups));
         provider.acceptCode(code, idToken, providerRefreshToken);
         return api.finishOidcSignIn(FakeOidcProvider.ID, code, start.state(), start.sessionCookie())
-                .expectStatus().isFound()
-                .expectBody().isEmpty();
+                .expectStatus()
+                .isFound()
+                .expectBody()
+                .isEmpty();
     }
 
     /**
@@ -365,8 +400,7 @@ class OidcSignInTest {
     /**
      * @return the refresh cookie of a sign-in that must start a session
      */
-    private String signedInCookie(final String subject, final List<String> groups,
-                                  final String providerRefreshToken) {
+    private String signedInCookie(final String subject, final List<String> groups, final String providerRefreshToken) {
         final var signIn = signIn(subject, groups, providerRefreshToken);
         assertThat(redirectLocation(signIn)).isEqualTo("/");
         return refreshCookie(signIn).orElseThrow();
@@ -377,8 +411,8 @@ class OidcSignInTest {
     }
 
     private static Optional<String> findCookie(final EntityExchangeResult<Void> result, final String name) {
-        final var setCookies = Objects.requireNonNullElse(result.getResponseHeaders().get(HttpHeaders.SET_COOKIE),
-                List.<String>of());
+        final var setCookies =
+                Objects.requireNonNullElse(result.getResponseHeaders().get(HttpHeaders.SET_COOKIE), List.<String>of());
         return setCookies.stream()
                 .map(setCookie -> HttpCookie.parse(setCookie).getFirst())
                 .filter(cookie -> cookie.getName().equals(name))
@@ -388,9 +422,11 @@ class OidcSignInTest {
 
     private CurrentUserResponse currentUser(final String accessToken) {
         return api.getWithToken(ApiRoutes.CURRENT_USER, accessToken)
-                .expectStatus().isOk()
+                .expectStatus()
+                .isOk()
                 .expectBody(CurrentUserResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
     }
 
     private UUID userId(final String subject) {

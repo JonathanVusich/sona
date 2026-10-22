@@ -19,5 +19,4 @@ export type PagePosition = (typeof PagePosition)[keyof typeof PagePosition];
 
 /** Which page of a list to load: the first, or the one after a given item. */
 export type PageRequest =
-  | { position: typeof PagePosition.FIRST }
-  | { position: typeof PagePosition.AFTER; after: string };
+  { position: typeof PagePosition.FIRST } | { position: typeof PagePosition.AFTER; after: string };

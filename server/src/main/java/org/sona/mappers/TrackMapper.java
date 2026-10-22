@@ -8,5 +8,6 @@ import org.sona.model.tables.records.TrackRecord;
 public interface TrackMapper {
 
     TrackRecord toRecord(Track track);
+
     Track fromRecord(TrackRecord track);
 }

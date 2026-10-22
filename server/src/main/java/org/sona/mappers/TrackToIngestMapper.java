@@ -8,5 +8,6 @@ import org.sona.model.tables.records.TrackToIngestRecord;
 public interface TrackToIngestMapper {
 
     TrackToIngestRecord toRecord(TrackToIngest trackToIngest);
+
     TrackToIngest fromRecord(TrackToIngestRecord trackToIngest);
 }

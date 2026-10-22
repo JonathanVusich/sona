@@ -1,15 +1,14 @@
 package org.sona.db;
 
+import static org.sona.model.Tables.TRACK;
+
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.sona.mappers.TrackMapper;
 import org.sona.model.tables.pojos.Track;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
-
-import static org.sona.model.Tables.TRACK;
 
 @Component
 @RequiredArgsConstructor
@@ -20,9 +19,7 @@ public class TrackDao {
     private final TrackMapper mapper;
 
     public void insert(final Track track) {
-        dsl.insertInto(TRACK)
-                .set(mapper.toRecord(track))
-                .execute();
+        dsl.insertInto(TRACK).set(mapper.toRecord(track)).execute();
     }
 
     public Track loadByIngest(final UUID trackIngestId) {

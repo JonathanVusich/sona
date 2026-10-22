@@ -1,5 +1,14 @@
 package org.sona.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.sona.model.Tables.TRACK_TO_INGEST;
+import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.utils.IDGenerator.uuidv7;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.util.UUID;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,27 +29,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
-import static org.sona.samples.FlacFiles.flacFile;
-import static org.sona.utils.IDGenerator.uuidv7;
-
 @IntegrationTest
 class IngestControllerTest {
 
     @Autowired
     JwtEncoder encoder;
+
     @Autowired
     TrackToIngestDao trackToIngestDao;
+
     @Autowired
     TrackDao trackDao;
+
     @Autowired
     ReleaseDao releaseDao;
+
     @Autowired
     Library library;
     // For rows the DAOs have no lookup for.
@@ -66,9 +69,11 @@ class IngestControllerTest {
         final var groupIngestId = uuidv7();
 
         final var response = api.uploadTrack(adminToken, groupIngestId, "09 A Whisper.flac", flac)
-                .expectStatus().isCreated()
+                .expectStatus()
+                .isCreated()
                 .expectBody(TrackIngestResponse.class)
-                .returnResult().getResponseBody();
+                .returnResult()
+                .getResponseBody();
 
         assertThat(response.groupIngestId()).isEqualTo(groupIngestId);
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
@@ -94,7 +99,7 @@ class IngestControllerTest {
 
     @Test
     void anUploadedFileThatIsNotFlacFails() {
-        final var ingestId = uploadTrack("song.flac", new byte[]{1, 2, 3, 4});
+        final var ingestId = uploadTrack("song.flac", new byte[] {1, 2, 3, 4});
 
         awaitState(ingestId, IngestState.FAILED);
     }
@@ -113,11 +118,14 @@ class IngestControllerTest {
     void aFileInAFormatSonaCannotIngestIsRefused() {
         final var groupIngestId = uuidv7();
 
-        api.uploadTrack(adminToken, groupIngestId, "song.mp3", new byte[]{1, 2, 3})
-                .expectStatus().isEqualTo(415)
+        api.uploadTrack(adminToken, groupIngestId, "song.mp3", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isEqualTo(415)
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(303)
-                .jsonPath("$.reason").isEqualTo("Sona can't ingest files in this format yet.");
+                .jsonPath("$.code")
+                .isEqualTo(303)
+                .jsonPath("$.reason")
+                .isEqualTo("Sona can't ingest files in this format yet.");
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
@@ -126,9 +134,11 @@ class IngestControllerTest {
         final var groupIngestId = uuidv7();
 
         api.uploadTrackAsForm(adminToken, groupIngestId, "song.flac", flacFile(whisperMetadata()))
-                .expectStatus().isEqualTo(415)
+                .expectStatus()
+                .isEqualTo(415)
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(401);
+                .jsonPath("$.code")
+                .isEqualTo(401);
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
@@ -136,21 +146,24 @@ class IngestControllerTest {
     void aFileWithoutANameIsRefused() {
         final var groupIngestId = uuidv7();
 
-        api.uploadTrackWithoutFilename(adminToken, groupIngestId, new byte[]{1, 2, 3})
-                .expectStatus().isBadRequest()
+        api.uploadTrackWithoutFilename(adminToken, groupIngestId, new byte[] {1, 2, 3})
+                .expectStatus()
+                .isBadRequest()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
     void aUserMayNotUpload() {
-        final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER,
-                SessionState.ACTIVE);
+        final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER, SessionState.ACTIVE);
 
-        api.uploadTrack(userToken, uuidv7(), "song.flac", new byte[]{1, 2, 3})
-                .expectStatus().isForbidden()
+        api.uploadTrack(userToken, uuidv7(), "song.flac", new byte[] {1, 2, 3})
+                .expectStatus()
+                .isForbidden()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(104);
+                .jsonPath("$.code")
+                .isEqualTo(104);
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
@@ -159,14 +172,19 @@ class IngestControllerTest {
      */
     private UUID uploadTrack(final String filename, final byte[] file) {
         return api.uploadTrack(adminToken, uuidv7(), filename, file)
-                .expectStatus().isCreated()
+                .expectStatus()
+                .isCreated()
                 .expectBody(TrackIngestResponse.class)
-                .returnResult().getResponseBody().trackIngestId();
+                .returnResult()
+                .getResponseBody()
+                .trackIngestId();
     }
 
     private void awaitState(final UUID trackIngestId, final IngestState state) {
         await().atMost(Duration.ofSeconds(10))
-                .untilAsserted(() -> assertThat(trackToIngestDao.loadById(trackIngestId).state()).isEqualTo(state));
+                .untilAsserted(() -> assertThat(
+                                trackToIngestDao.loadById(trackIngestId).state())
+                        .isEqualTo(state));
     }
 
     private static RawMetadata whisperMetadata() {

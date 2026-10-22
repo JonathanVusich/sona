@@ -1,5 +1,13 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.noCondition;
+import static org.jooq.impl.DSL.row;
+import static org.jooq.impl.DSL.select;
+import static org.sona.model.Tables.ARTIST;
+import static org.sona.model.Tables.RELEASE_GROUP;
+
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -8,15 +16,6 @@ import org.sona.mappers.ReleaseGroupMapper;
 import org.sona.mappers.ReleaseGroupSummaryMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
-
-import static org.jooq.impl.DSL.noCondition;
-import static org.jooq.impl.DSL.row;
-import static org.jooq.impl.DSL.select;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.model.Tables.RELEASE_GROUP;
 
 /**
  * Lists the release groups in the library: those with a release stored.
@@ -50,10 +49,12 @@ public class ReleaseGroupSummaryDao {
     }
 
     private List<ReleaseGroupSummary> loadPage(final Condition start, final int size) {
-        return dsl.select(RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
+        return dsl.select(
+                        RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
                         ARTIST.convertFrom(artistMapper::fromRecord))
                 .from(RELEASE_GROUP)
-                .join(ARTIST).on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
+                .join(ARTIST)
+                .on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
                 .where(RELEASE_GROUP.RELEASE_COUNT.gt(0))
                 .and(start)
                 .orderBy(RELEASE_GROUP.NAME, RELEASE_GROUP.RELEASE_GROUP_ID)
@@ -63,9 +64,7 @@ public class ReleaseGroupSummaryDao {
 
     private static Condition afterReleaseGroup(final UUID after) {
         final var last = RELEASE_GROUP.as("last");
-        final var lastKey = select(last.NAME, last.RELEASE_GROUP_ID)
-                .from(last)
-                .where(last.RELEASE_GROUP_ID.eq(after));
+        final var lastKey = select(last.NAME, last.RELEASE_GROUP_ID).from(last).where(last.RELEASE_GROUP_ID.eq(after));
         return row(RELEASE_GROUP.NAME, RELEASE_GROUP.RELEASE_GROUP_ID).gt(lastKey);
     }
 }

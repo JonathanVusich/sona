@@ -1,10 +1,9 @@
 package org.sona.config;
 
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.web.servlet.resource.PathResourceResolver;
-
-import java.io.IOException;
 
 /**
  * Finds the web frontend's files, and answers every other path with its index.html, where the frontend's router takes

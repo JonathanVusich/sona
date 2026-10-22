@@ -1,11 +1,10 @@
 package org.sona.auth;
 
-import org.junit.jupiter.api.Test;
-import org.sona.controller.ApiRoutes;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.sona.controller.ApiRoutes;
 
 class CookieUtilsTest {
 
