@@ -1,5 +1,6 @@
 package org.sona.format.flac;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -47,10 +48,20 @@ public final class FlacDecoder {
     public Optional<int[][]> readFrame() throws IOException, InvalidFormatException {
         // A stream may end with other data, like an ID3v1 tag, so stop at the length STREAMINFO gives when it has one.
         final var totalSamples = streamInfo.interChannelSamples();
-        if ((totalSamples > 0 && samplesDecoded >= totalSamples) || !reader.startFrame()) {
+        if (totalSamples > 0 && samplesDecoded >= totalSamples) {
             return Optional.empty();
         }
-        final var header = readFrameHeader();
+        reader.startFrame();
+        final FrameHeader header;
+        try {
+            header = readFrameHeader();
+        } catch (EOFException e) {
+            // Without a length, the stream ends where the next frame would start. Anywhere else, it's cut short.
+            if (totalSamples == 0 && reader.bytesInFrame() == 0) {
+                return Optional.empty();
+            }
+            throw e;
+        }
         final var channels = new long[header.channels()][];
         for (var channel = 0; channel < channels.length; channel++) {
             channels[channel] = readSubframe(header.blockSize(), header.subframeBitsPerSample(channel));
@@ -243,14 +254,16 @@ public final class FlacDecoder {
         for (var partition = 0; partition < 1 << partitionOrder; partition++) {
             final var end = (partition + 1) * partitionSize;
             final var parameter = (int) reader.readBits(parameterBits);
+            // Either may be 0 bits, which the bit stream can't read, and stands for all-zero values.
             if (parameter == escape) {
                 final var bits = (int) reader.readBits(5);
                 for (; i < end; i++) {
-                    residual[i] = reader.readSigned(bits);
+                    residual[i] = bits == 0 ? 0 : reader.readSigned(bits);
                 }
             } else {
                 for (; i < end; i++) {
-                    final var folded = ((long) reader.readUnary() << parameter) | reader.readBits(parameter);
+                    final var quotient = (long) reader.readUnary() << parameter;
+                    final var folded = parameter == 0 ? quotient : quotient | reader.readBits(parameter);
                     residual[i] = (folded >>> 1) ^ -(folded & 1);
                 }
             }

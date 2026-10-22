@@ -1,8 +1,12 @@
 package org.sona.format.flac;
 
+import dev.javax.bitstream.BitInputStream;
+import dev.javax.bitstream.ByteSource;
+import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteOrder;
 
 /**
  * Reads the bits of FLAC frames, most significant first, and keeps the CRC-8 of the frame header and the CRC-16 of
@@ -14,48 +18,39 @@ final class FrameReader {
     private static final int[] CRC16_TABLE = crcTable(0x8005, 16);
 
     private final InputStream inputStream;
-    private final byte[] buffer = new byte[64 * 1024];
-    private int position;
-    private int limit;
-
-    // The low `cachedBits` bits of `cache` are the next bits to read. A byte is only taken from the buffer once one
-    // of its bits is needed, so the CRCs cover exactly the bytes read so far.
-    private long cache;
-    private int cachedBits;
-
+    private final BitInputStream bits;
     private int crc8;
     private int crc16;
+    private int bytesInFrame;
 
     FrameReader(final InputStream inputStream) {
-        this.inputStream = inputStream;
+        // The bit stream reads a byte or two at a time.
+        this.inputStream = new BufferedInputStream(inputStream, 64 * 1024);
+        this.bits = BitInputStream.wrap(new FrameByteSource(), ByteOrder.BIG_ENDIAN);
     }
 
     /**
-     * Starts the CRCs over for a new frame.
-     *
-     * @return false if the stream has no more bytes
+     * Starts the CRCs and the count of the frame's bytes over for a new frame.
      */
-    boolean startFrame() throws IOException {
+    void startFrame() {
         crc8 = 0;
         crc16 = 0;
-        return cachedBits > 0 || position < limit || fill();
+        bytesInFrame = 0;
     }
 
+    /**
+     * @param count from 1 to 63
+     */
     long readBits(final int count) throws IOException {
-        while (cachedBits < count) {
-            cache = (cache << 8) | nextByte();
-            cachedBits += 8;
-        }
-        cachedBits -= count;
-        return (cache >>> cachedBits) & ((1L << count) - 1);
+        return bits.readBits(count);
     }
 
+    /**
+     * @param count from 1 to 63
+     */
     long readSigned(final int count) throws IOException {
-        if (count == 0) {
-            return 0;
-        }
         final var shift = 64 - count;
-        return (readBits(count) << shift) >> shift;
+        return (bits.readBits(count) << shift) >> shift;
     }
 
     /**
@@ -63,29 +58,17 @@ final class FrameReader {
      */
     int readUnary() throws IOException {
         var zeros = 0;
-        while (true) {
-            if (cachedBits == 0) {
-                cache = nextByte();
-                cachedBits = 8;
-            }
-            final var window = cache & ((1L << cachedBits) - 1);
-            if (window == 0) {
-                zeros += cachedBits;
-                cachedBits = 0;
-            } else {
-                final var highestOne = 63 - Long.numberOfLeadingZeros(window);
-                zeros += cachedBits - 1 - highestOne;
-                cachedBits = highestOne;
-                return zeros;
-            }
+        while (bits.readBits(1) == 0) {
+            zeros++;
         }
+        return zeros;
     }
 
     /**
      * Skips to the start of the next byte, as each frame's subframes are padded to whole bytes.
      */
     void alignToByte() {
-        cachedBits -= cachedBits % 8;
+        bits.alignToByte();
     }
 
     /**
@@ -102,21 +85,34 @@ final class FrameReader {
         return crc16;
     }
 
-    private int nextByte() throws IOException {
-        if (position == limit && !fill()) {
-            throw new EOFException("FLAC frame ends before its last byte!");
-        }
-        final var value = buffer[position++] & 0xFF;
-        crc8 = CRC8_TABLE[crc8 ^ value];
-        crc16 = ((crc16 << 8) ^ CRC16_TABLE[(crc16 >>> 8) ^ value]) & 0xFFFF;
-        return value;
+    /**
+     * @return how many of the frame's bytes have been read, even when a read ran out of bytes part-way
+     */
+    int bytesInFrame() {
+        return bytesInFrame;
     }
 
-    private boolean fill() throws IOException {
-        final var read = inputStream.read(buffer);
-        position = 0;
-        limit = Math.max(read, 0);
-        return read > 0;
+    // The bit stream only takes the bytes whose bits it needs, so the CRCs cover exactly the frame's bytes read.
+    private final class FrameByteSource implements ByteSource {
+
+        @Override
+        public void read(final byte[] buffer, final int numBytes) throws IOException {
+            final var read = inputStream.readNBytes(buffer, 0, numBytes);
+            for (var i = 0; i < read; i++) {
+                final var value = buffer[i] & 0xFF;
+                crc8 = CRC8_TABLE[crc8 ^ value];
+                crc16 = ((crc16 << 8) ^ CRC16_TABLE[(crc16 >>> 8) ^ value]) & 0xFFFF;
+            }
+            bytesInFrame += read;
+            if (read != numBytes) {
+                throw new EOFException("FLAC stream ends in the middle of a frame!");
+            }
+        }
+
+        @Override
+        public void close() {
+            // The decoder's caller owns the stream.
+        }
     }
 
     // A table of the CRC of each byte, for a CRC of the given width with no reflection and no final XOR.

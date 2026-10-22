@@ -7,10 +7,12 @@ import dev.javax.bitstream.BitOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -28,29 +30,45 @@ class FlacDecoderTest {
         try (final var inputStream = sample.inputStream()) {
             final var decoder = FlacDecoder.open(inputStream);
             final var streamInfo = decoder.streamInfo();
-            final var md5 = MessageDigest.getInstance("MD5");
-            final var bytesPerSample = (streamInfo.bitsPerSample() + 7) / 8;
-            var samples = 0L;
 
-            var frame = decoder.readFrame();
-            while (frame.isPresent()) {
-                final var channels = frame.get();
-                assertThat(channels.length).isEqualTo(streamInfo.numberOfChannels());
-                // The MD5 is of the samples interleaved, as little-endian signed integers in whole bytes.
-                for (var i = 0; i < channels[0].length; i++) {
-                    for (final var channel : channels) {
-                        for (var b = 0; b < bytesPerSample; b++) {
-                            md5.update((byte) (channel[i] >> (8 * b)));
-                        }
-                    }
-                }
-                samples += channels[0].length;
-                frame = decoder.readFrame();
-            }
+            final var decoded = decodeAll(decoder);
 
-            assertThat(samples).isEqualTo(streamInfo.interChannelSamples());
-            assertThat(md5.digest()).isEqualTo(streamInfo.checksum().getChecksum());
+            assertThat(decoded.samples()).isEqualTo(streamInfo.interChannelSamples());
+            assertThat(decoded.md5()).isEqualTo(streamInfo.checksum().getChecksum());
         }
+    }
+
+    // STREAMINFO may leave the length unknown (0), so the decoder reads frames until the stream ends between two.
+    @ParameterizedTest
+    @EnumSource(FlacAudioSample.class)
+    void decodesStreamOfUnknownLength(FlacAudioSample sample)
+            throws IOException, InvalidFormatException, NoSuchAlgorithmException {
+        final var original = withUnknownLength(sample);
+        final var decoder = FlacDecoder.open(new ByteArrayInputStream(original.bytes()));
+
+        final var decoded = decodeAll(decoder);
+
+        assertThat(decoded.samples()).isEqualTo(original.streamInfo().interChannelSamples());
+        assertThat(decoded.md5()).isEqualTo(original.streamInfo().checksum().getChecksum());
+    }
+
+    @Test
+    void refusesStreamOfUnknownLengthCutShortInAFrame() throws IOException, InvalidFormatException {
+        final var bytes = withUnknownLength(FlacAudioSample.STEREO_16_BIT_LPC).bytes();
+        final var decoder = FlacDecoder.open(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)));
+
+        assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(EOFException.class);
+    }
+
+    @Test
+    void refusesStreamCutShortOfItsLength() throws IOException, InvalidFormatException {
+        final byte[] bytes;
+        try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
+            bytes = inputStream.readAllBytes();
+        }
+        final var decoder = FlacDecoder.open(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)));
+
+        assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(EOFException.class);
     }
 
     // Neither encoder writes escaped residual partitions, so this frame is built by hand.
@@ -126,6 +144,65 @@ class FlacDecoderTest {
                     }
                 })
                 .isInstanceOf(InvalidFormatException.class);
+    }
+
+    private record Decoded(long samples, byte[] md5) {}
+
+    private static Decoded decodeAll(final FlacDecoder decoder)
+            throws IOException, InvalidFormatException, NoSuchAlgorithmException {
+        final var streamInfo = decoder.streamInfo();
+        final var md5 = MessageDigest.getInstance("MD5");
+        final var bytesPerSample = (streamInfo.bitsPerSample() + 7) / 8;
+        var samples = 0L;
+        var frame = decoder.readFrame();
+        while (frame.isPresent()) {
+            final var channels = frame.get();
+            assertThat(channels.length).isEqualTo(streamInfo.numberOfChannels());
+            // The MD5 is of the samples interleaved, as little-endian signed integers in whole bytes.
+            for (var i = 0; i < channels[0].length; i++) {
+                for (final var channel : channels) {
+                    for (var b = 0; b < bytesPerSample; b++) {
+                        md5.update((byte) (channel[i] >> (8 * b)));
+                    }
+                }
+            }
+            samples += channels[0].length;
+            frame = decoder.readFrame();
+        }
+        return new Decoded(samples, md5.digest());
+    }
+
+    private record Rewritten(byte[] bytes, StreamInfo streamInfo) {}
+
+    /**
+     * @return the sample with its STREAMINFO saying its length is unknown, and the STREAMINFO it had
+     */
+    private static Rewritten withUnknownLength(final FlacAudioSample sample)
+            throws IOException, InvalidFormatException {
+        try (final var inputStream = sample.inputStream()) {
+            // Leaves the stream at the first frame.
+            final var streamInfo =
+                    new FlacParser().parseAllMetadata(inputStream).streamInfo().orElseThrow();
+            final var output = new ByteArrayOutputStream();
+            final var dataOutputStream = new DataOutputStream(output);
+            final var writer = new FlacWriter();
+            writer.writeFlacHeader(dataOutputStream);
+            writer.writeBlock(
+                    dataOutputStream,
+                    new StreamInfo(
+                            new BlockHeader(BlockPosition.LAST, BlockType.STREAM_INFO, 34),
+                            streamInfo.checksum(),
+                            streamInfo.minBlockSize(),
+                            streamInfo.maxBlockSize(),
+                            streamInfo.minFrameSize(),
+                            streamInfo.maxFrameSize(),
+                            streamInfo.sampleRate(),
+                            streamInfo.numberOfChannels(),
+                            streamInfo.bitsPerSample(),
+                            0));
+            inputStream.transferTo(output);
+            return new Rewritten(output.toByteArray(), streamInfo);
+        }
     }
 
     // A CRC with no reflection and no final XOR, as FLAC's frames use, worked out a bit at a time.
