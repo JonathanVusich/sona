@@ -4,6 +4,7 @@ import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.ArtistNotFoundException;
+import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IncorrectPasswordException;
 import org.sona.exception.IngestGroupNotFoundException;
 import org.sona.exception.InvalidCredentialsException;
@@ -105,6 +106,7 @@ public final class ApiExceptionHandler {
             case ReleaseGroupNotFoundException _ -> ErrorCode.RELEASE_GROUP_NOT_FOUND;
             case ArtistNotFoundException _ -> ErrorCode.ARTIST_NOT_FOUND;
             case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
+            case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;
             case InvalidRefreshTokenException _ -> ErrorCode.INVALID_REFRESH_TOKEN;
             case IncorrectPasswordException _ -> ErrorCode.INCORRECT_CURRENT_PASSWORD;

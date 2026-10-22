@@ -248,7 +248,7 @@ class ReleaseE2ETest {
     private void insertTrackInState(
             final Medium medium, final Artist artist, final String name, final IngestState state) {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", state);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(

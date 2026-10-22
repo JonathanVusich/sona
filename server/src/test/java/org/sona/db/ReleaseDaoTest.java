@@ -143,7 +143,7 @@ class ReleaseDaoTest {
                 .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(

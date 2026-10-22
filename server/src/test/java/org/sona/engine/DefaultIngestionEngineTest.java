@@ -262,7 +262,7 @@ class DefaultIngestionEngineTest {
     void rejectUnsupportedFormat() {
         // The library refuses to store such a file, so the ingest is inserted as it would be by an older upload.
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.mp3", IngestState.PENDING);
         trackToIngestDao.insert(ingest);
 
@@ -288,7 +288,7 @@ class DefaultIngestionEngineTest {
     private TrackToIngest storeIngest(final byte[] flac, final String fileName)
             throws InvalidFormatException, IOException {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         return library.storeIngestTrack(group, fileName, new ByteArrayInputStream(flac));
     }
 

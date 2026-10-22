@@ -233,7 +233,7 @@ class ReleaseDetailsDaoTest {
     private Track storeTrackInState(
             final Medium medium, final Artist artist, final int position, final IngestState state) {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
         trackToIngestDao.insert(ingest);
         final var track = new Track(

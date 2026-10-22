@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.PasswordChecker;
 import org.sona.auth.UserAuthentication;
+import org.sona.config.properties.LibraryProperties;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
 import org.springframework.http.ResponseEntity;
@@ -20,15 +21,18 @@ import org.springframework.web.bind.annotation.RestController;
 public final class UserController {
 
     private final PasswordChecker passwordChecker;
+    private final LibraryProperties libraryProperties;
 
     /**
-     * Answered from the access token alone, which carries everything here.
+     * Answered from the access token alone, which carries everything here but Sona's own settings.
      */
     @GetMapping(ApiRoutes.CURRENT_USER)
     public CurrentUserResponse currentUser(final UserAuthentication authentication) {
         final var user = authentication.user();
         final var permissions = authentication.permissions().stream().sorted().toList();
-        return new CurrentUserResponse(user.userId(), user.username(), user.role(), user.state(), permissions);
+        final var maxUploadSize = libraryProperties.maxUploadSize().toBytes();
+        return new CurrentUserResponse(
+                user.userId(), user.username(), user.role(), user.state(), permissions, maxUploadSize);
     }
 
     /**

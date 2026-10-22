@@ -105,7 +105,7 @@ class DefaultIngestWorkerTest {
 
     private TrackToIngest storeIngest(final byte[] file) throws InvalidFormatException, IOException {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
     }
 

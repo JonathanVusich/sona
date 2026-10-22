@@ -10,6 +10,7 @@ import org.sona.config.properties.MusicBrainzProperties;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.util.unit.DataSize;
 
 /**
  * Points the library at an in-memory filesystem and MusicBrainz at a WireMock server that serves the stubs in
@@ -22,7 +23,8 @@ public class TestLibraryConfig {
     @Primary
     LibraryProperties inMemoryLibrary() {
         final var fs = Jimfs.newFileSystem(Configuration.unix());
-        return new LibraryProperties(fs.getPath("/ingest"), fs.getPath("/media"));
+        // Small, so a test can send a file larger than Sona accepts without filling memory.
+        return new LibraryProperties(fs.getPath("/ingest"), fs.getPath("/media"), DataSize.ofMegabytes(10));
     }
 
     @Bean(destroyMethod = "stop")

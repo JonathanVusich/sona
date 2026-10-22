@@ -10,6 +10,7 @@ public abstract sealed class SonaException extends RuntimeException
                 ReleaseGroupNotFoundException,
                 ArtistNotFoundException,
                 IngestGroupNotFoundException,
+                FileTooLargeException,
                 InvalidCredentialsException,
                 InvalidRefreshTokenException,
                 IncorrectPasswordException,

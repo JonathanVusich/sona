@@ -142,16 +142,15 @@ public final class ApiClient {
                 .exchange();
     }
 
-    public RestTestClient.ResponseSpec putIngestGroup(
-            final String accessToken, final UUID groupIngestId, final IngestGroupRequest request) {
-        return putJson(accessToken, ApiRoutes.INGEST_GROUPS + "/" + groupIngestId, request);
+    public RestTestClient.ResponseSpec createIngestGroup(final String accessToken, final IngestGroupRequest request) {
+        return postJson(accessToken, ApiRoutes.INGEST_GROUPS, request);
     }
 
     /**
      * Sends any JSON, such as a body no request record can hold.
      */
-    public RestTestClient.ResponseSpec putJson(final String accessToken, final String path, final Object body) {
-        return client.put()
+    public RestTestClient.ResponseSpec postJson(final String accessToken, final String path, final Object body) {
+        return client.post()
                 .uri(path)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_JSON)

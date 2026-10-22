@@ -15,6 +15,7 @@ import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
 import org.sona.controller.request.IngestGroupRequest;
+import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
@@ -59,35 +60,34 @@ class IngestControllerTest {
     }
 
     @Test
-    void aGroupIsCreatedUnderTheIdTheUploaderMadeUp() {
-        final var groupIngestId = uuidv7();
-
-        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+    void aGroupIsCreatedUnderANewId() {
+        final var created = api.createIngestGroup(
+                        adminToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
                 .expectStatus()
-                .isNoContent();
+                .isCreated()
+                .expectBody(IngestGroupResponse.class)
+                .returnResult()
+                .getResponseBody();
 
-        assertThat(ingestGroupDao.loadById(groupIngestId))
-                .contains(new IngestGroup(groupIngestId, IngestGroupKind.ALBUM, "Parachutes"));
+        assertThat(created.kind()).isEqualTo(IngestGroupKind.ALBUM);
+        assertThat(created.name()).isEqualTo("Parachutes");
+        assertThat(ingestGroupDao.loadById(created.groupIngestId()))
+                .contains(new IngestGroup(created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes"));
     }
 
     @Test
-    void aGroupSentAgainIsUpdated() {
-        final var groupIngestId = uuidv7();
-        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
-                .expectStatus()
-                .isNoContent();
+    void eachGroupGetsItsOwnId() {
+        final var request = new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes");
 
-        api.putIngestGroup(adminToken, groupIngestId, new IngestGroupRequest(IngestGroupKind.UNKNOWN, "Loose tracks"))
-                .expectStatus()
-                .isNoContent();
+        final var first = createGroup(request);
+        final var second = createGroup(request);
 
-        assertThat(ingestGroupDao.loadById(groupIngestId))
-                .contains(new IngestGroup(groupIngestId, IngestGroupKind.UNKNOWN, "Loose tracks"));
+        assertThat(first.groupIngestId()).isNotEqualTo(second.groupIngestId());
     }
 
     @Test
     void aGroupWithoutANameIsRefused() {
-        api.putIngestGroup(adminToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.UNKNOWN, " "))
+        api.createIngestGroup(adminToken, new IngestGroupRequest(IngestGroupKind.UNKNOWN, " "))
                 .expectStatus()
                 .isBadRequest()
                 .expectBody()
@@ -97,7 +97,7 @@ class IngestControllerTest {
 
     @Test
     void aGroupOfAnUnknownKindIsRefused() {
-        api.putJson(adminToken, ApiRoutes.INGEST_GROUPS + "/" + uuidv7(), Map.of("kind", "PLAYLIST", "name", "Mix"))
+        api.postJson(adminToken, ApiRoutes.INGEST_GROUPS, Map.of("kind", "PLAYLIST", "name", "Mix"))
                 .expectStatus()
                 .isBadRequest()
                 .expectBody()
@@ -170,6 +170,34 @@ class IngestControllerTest {
     }
 
     @Test
+    void aFileLargerThanSonaAcceptsIsRefusedAndNotStored() {
+        final var group = storeGroup();
+        // One byte over the 10MB the tests' library accepts.
+        final var flac = new byte[10 * 1024 * 1024 + 1];
+
+        api.uploadTrack(adminToken, group.ingestGroupId(), "song.flac", flac)
+                .expectStatus()
+                .isEqualTo(413)
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(305)
+                .jsonPath("$.reason")
+                .isEqualTo("This file is larger than Sona accepts.");
+        assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
+    }
+
+    @Test
+    void aFileAsLargeAsSonaAcceptsIsStored() {
+        final var group = storeGroup();
+        final var flac = new byte[10 * 1024 * 1024];
+
+        api.uploadTrack(adminToken, group.ingestGroupId(), "song.flac", flac)
+                .expectStatus()
+                .isCreated();
+        assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isOne();
+    }
+
+    @Test
     void aFileSentAsAFormIsRefused() {
         final var group = storeGroup();
 
@@ -199,7 +227,7 @@ class IngestControllerTest {
         final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER, SessionState.ACTIVE);
         final var group = storeGroup();
 
-        api.putIngestGroup(userToken, uuidv7(), new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+        api.createIngestGroup(userToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
                 .expectStatus()
                 .isForbidden()
                 .expectBody()
@@ -214,9 +242,18 @@ class IngestControllerTest {
         assertThat(dsl.fetchCount(TRACK_TO_INGEST)).isZero();
     }
 
+    private IngestGroupResponse createGroup(final IngestGroupRequest request) {
+        return api.createIngestGroup(adminToken, request)
+                .expectStatus()
+                .isCreated()
+                .expectBody(IngestGroupResponse.class)
+                .returnResult()
+                .getResponseBody();
+    }
+
     private IngestGroup storeGroup() {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         return group;
     }
 }

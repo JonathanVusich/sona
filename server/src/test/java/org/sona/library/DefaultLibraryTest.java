@@ -118,7 +118,7 @@ class DefaultLibraryTest {
 
     private IngestGroup storeGroup() {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         return group;
     }
 

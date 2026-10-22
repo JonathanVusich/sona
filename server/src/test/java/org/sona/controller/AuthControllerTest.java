@@ -26,6 +26,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @IntegrationTest
 class AuthControllerTest {
 
+    // The 10MB the tests' library accepts.
+    private static final long MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+
     @Autowired
     UserDao userDao;
 
@@ -78,7 +81,12 @@ class AuthControllerTest {
 
         assertThat(me)
                 .isEqualTo(new CurrentUserResponse(
-                        alice.userId(), "alice", UserRole.USER, SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
+                        alice.userId(),
+                        "alice",
+                        UserRole.USER,
+                        SessionState.ACTIVE,
+                        List.of(Permission.LIBRARY_READ),
+                        MAX_UPLOAD_SIZE));
     }
 
     @Test

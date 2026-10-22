@@ -18,6 +18,8 @@ public interface Library {
      * @param filename    the file's name where it was uploaded from, whose extension says its format
      * @return the stored ingest, waiting to be processed
      * @throws InvalidFormatException if the file isn't in a format Sona supports, in which case nothing is stored
+     * @throws org.sona.exception.FileTooLargeException if the file is larger than {@code library.maxUploadSize}, in
+     *     which case nothing is stored
      */
     TrackToIngest storeIngestTrack(IngestGroup ingestGroup, String filename, InputStream inputStream)
             throws InvalidFormatException, IOException;

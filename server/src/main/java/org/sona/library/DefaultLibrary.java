@@ -12,8 +12,10 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.TrackToIngestDao;
+import org.sona.exception.FileTooLargeException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
@@ -56,8 +58,8 @@ public final class DefaultLibrary implements Library {
         final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
 
         try {
-            Files.copy(inputStream, ingestTarget);
-        } catch (IOException e) {
+            copyUpload(inputStream, ingestTarget);
+        } catch (IOException | FileTooLargeException e) {
             // An upload cut short leaves part of a file, which no ingest row would ever point at.
             Files.deleteIfExists(ingestTarget);
             throw e;
@@ -107,6 +109,20 @@ public final class DefaultLibrary implements Library {
     @Override
     public InputStream readTrack(final Track track) throws IOException {
         return Files.newInputStream(resolveLibraryPath(track.path()), StandardOpenOption.READ);
+    }
+
+    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it.
+    private void copyUpload(final InputStream inputStream, final Path target) throws IOException {
+        final var maxBytes = config.maxUploadSize().toBytes();
+        final var bounded = BoundedInputStream.builder()
+                .setInputStream(inputStream)
+                .setMaxCount(maxBytes + 1)
+                .setPropagateClose(false)
+                .get();
+        final var copied = Files.copy(bounded, target);
+        if (copied > maxBytes) {
+            throw new FileTooLargeException(config.maxUploadSize());
+        }
     }
 
     private static void checkFormat(final String filename) throws InvalidFormatException {

@@ -259,7 +259,7 @@ public class DevLibraryRunner implements ApplicationRunner {
         final var trackId = uuidv7();
         final var fileName = trackId + ".flac";
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), fileName, IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(

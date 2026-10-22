@@ -1,6 +1,5 @@
 package org.sona.db;
 
-import static org.jooq.impl.DSL.excluded;
 import static org.sona.model.Tables.INGEST_GROUP;
 
 import java.util.Optional;
@@ -20,18 +19,8 @@ public class IngestGroupDao {
     private final DSLContext dsl;
     private final IngestGroupMapper mapper;
 
-    /**
-     * Stores the group, or overwrites its kind and name if it's stored, so the uploader can send it again after a
-     * connection breaks.
-     */
-    public void upsert(final IngestGroup ingestGroup) {
-        dsl.insertInto(INGEST_GROUP)
-                .set(mapper.toRecord(ingestGroup))
-                .onConflict(INGEST_GROUP.INGEST_GROUP_ID)
-                .doUpdate()
-                .set(INGEST_GROUP.KIND, excluded(INGEST_GROUP.KIND))
-                .set(INGEST_GROUP.NAME, excluded(INGEST_GROUP.NAME))
-                .execute();
+    public void insert(final IngestGroup ingestGroup) {
+        dsl.insertInto(INGEST_GROUP).set(mapper.toRecord(ingestGroup)).execute();
     }
 
     public Optional<IngestGroup> loadById(final UUID ingestGroupId) {

@@ -23,7 +23,7 @@ class TrackToIngestDaoTest {
     @Test
     void insertAndLoad() {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var trackToIngest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "filename", IngestState.PENDING);
 
         dao.insert(trackToIngest);
@@ -34,7 +34,7 @@ class TrackToIngestDaoTest {
     @Test
     void updateStateSetsTheState() {
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
-        ingestGroupDao.upsert(group);
+        ingestGroupDao.insert(group);
         final var trackToIngest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "filename", IngestState.PENDING);
         dao.insert(trackToIngest);
 
