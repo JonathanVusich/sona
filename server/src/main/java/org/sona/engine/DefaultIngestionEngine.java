@@ -119,7 +119,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest, final Parser parser)
             throws IOException, InvalidFormatException {
         try (final var inputStream = library.readIngestTrack(trackToIngest)) {
-            return parser.parseMetadata(inputStream);
+            return parser.parse(inputStream).metadata();
         }
     }
 

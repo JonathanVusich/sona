@@ -226,6 +226,6 @@ class FlacParserTest {
     }
 
     private static RawMetadata parseFlac(final InputStream inputStream) throws IOException, InvalidFormatException {
-        return new FlacParser().parseMetadata(inputStream);
+        return new FlacParser().parse(inputStream).metadata();
     }
 }

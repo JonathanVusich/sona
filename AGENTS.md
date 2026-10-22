@@ -49,7 +49,7 @@ IngestWorker (every second, oldest PENDING first) ◄─────────
    ▼
 IngestionEngine.processTrack
    1. pick a Parser by file extension (format/, case-insensitive)
-   2. Parser.parseMetadata(InputStream) ──► RawMetadata = tags + duration (metadata/)
+   2. Parser.parse(InputStream) ──► ParsedAudio: RawMetadata = tags + duration (metadata/)
    3. MetadataResolver.resolveTrack ──► MusicBrainz search (client/) ──► ResolvedTrack (MBIDs + titles)
         └─ no match ──► state = INPUT_REQUIRED, file stays in the ingest area
    4. store the rows the track references: each is loaded, or resolved from MusicBrainz and upserted if it
@@ -73,8 +73,8 @@ the library yet: the pages and lists leave them out.
 | Package | Responsibility |
 |---|---|
 | `engine` | `IngestionEngine` / `DefaultIngestionEngine`: orchestrates parse → resolve → persist → import. Holds the extension → `Parser` registry. `IngestWorker` / `DefaultIngestWorker`: a `@Scheduled` pass every second (`sona.ingest-worker.cron`) processes the pending ingests oldest first, and does nothing when there are none, so ingests left pending by a restart are picked up too. Tests turn the schedule off (`-`) and run passes themselves. |
-| `format` | Audio container parsing/writing. `Parser`, `Writer`, `Format` (supported formats + extensions), `MD5Checksum`. |
-| `format.flac` | Hand-written FLAC metadata reader per [RFC 9639](https://www.rfc-editor.org/rfc/rfc9639.html). Each metadata block type is a record implementing the sealed `Block` interface. `FlacTag` maps Vorbis comment field names to the format-agnostic `metadata.Tag`. Bit-level reads use `dev.javax:bitstream`. |
+| `format` | Audio container parsing/writing. `Parser`, `Writer`, `Format` (supported formats + extensions), `MD5Checksum`, `PcmFrame` (a block of decoded samples). `Crc` is the unreflected CRC audio formats check frames with, and `ChecksummedByteSource` feeds a bit stream the bytes of an input stream, updating checksums with each byte read. |
+| `format.flac` | Hand-written FLAC metadata reader per [RFC 9639](https://www.rfc-editor.org/rfc/rfc9639.html). Each metadata block type is a record implementing the sealed `Block` interface. `FlacTag` maps Vorbis comment field names to the format-agnostic `metadata.Tag`. Bit-level reads use `dev.javax:bitstream`. `FlacParser.parse` reads the metadata blocks and returns a `ParsedFlac`: its `RawMetadata`, and a `FlacDecoder`, an `Iterable<PcmFrame>` that decodes the audio frames from the same stream a frame at a time as it's iterated, so nothing past the metadata is read unless it is. `FrameReader` reads its bits through `dev.javax:bitstream` too, from a `ChecksummedByteSource` that keeps each frame's CRCs. |
 | `metadata` | Format-agnostic tag model: `Tag` (known tags), `TagValue` (sealed: `Str`, `Int`, `Binary`), `RawMetadata` (known + unknown tags, multi-valued). |
 | `metadata.resolver` | `MetadataResolver` / `MusicBrainzResolver`: turns `RawMetadata` into a `ResolvedTrack` via MusicBrainz search. `MusicBrainzTag` lists the Picard `musicbrainz_*` tag names. |
 | `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). |
@@ -129,6 +129,7 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
 ./gradlew :server:e2eTest                            # builds web/, then drives it in Firefox against a test server
 ./gradlew :server:e2eTest -Pe2eBrowser=webkit        # or chromium; CI runs all three
+./gradlew :server:jmh -PbenchmarkFlac=<file.flac>    # JMH benchmarks (src/jmh): decoding a FLAC file
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
 ./gradlew spotlessApply                              # format the Java sources (palantir-java-format)
@@ -163,6 +164,7 @@ Test notes:
   `curl -G -A "Sona/0.1.0 ( jonathan@vusich.cloud )" https://musicbrainz.org/ws/2/recording --data-urlencode 'query=…' --data-urlencode fmt=json`.
 - **Audio fixtures:** prefer `FlacBuilder` (`flac().tag("TITLE", "…").build()`) to generate tiny synthetic FLACs
   in-test. `FlacSample` exposes real-world files trimmed to their metadata blocks, with the audio frames removed.
+  `FlacAudioSample` exposes short synthetic files with their audio, encoded to cover every kind of subframe.
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
 - **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in a real browser with
   [Playwright for Java](https://playwright.dev/java/), as a user would: Firefox locally, and Chromium, Firefox and

@@ -17,6 +17,18 @@ plugins {
     id("org.jooq.jooq-codegen-gradle").version("3.21.7")
     id("org.flywaydb.flyway").version("11.16.0")
     id("com.diffplug.spotless")
+    id("me.champeau.jmh").version("0.7.3")
+}
+
+// Benchmarks in src/jmh, run with `jmh`. Those that read a file take it from `-PbenchmarkFlac=<path>`.
+jmh {
+    jmhVersion = "1.37"
+    includeTests = false
+    // The benchmark jar bundles every runtime dependency, more files than a plain zip holds.
+    zip64 = true
+    providers.gradleProperty("benchmarkFlac").orNull?.let {
+        benchmarkParameters.put("file", objects.listProperty<String>().value(listOf(it)))
+    }
 }
 
 // Formats the Java sources: `spotlessApply` rewrites them, and `check` (so `build`) fails on any it would change.
