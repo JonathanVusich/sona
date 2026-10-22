@@ -32,7 +32,7 @@ class FlacDecoderTest {
     void decodesAudioMatchingItsMd5(FlacAudioSample sample)
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
         try (final var inputStream = sample.inputStream()) {
-            final var decoder = new FlacParser().decodeAudio(inputStream);
+            final var decoder = new FlacParser().parse(inputStream).audio();
             final var streamInfo = decoder.streamInfo();
 
             final var decoded = decodeAll(decoder);
@@ -48,7 +48,9 @@ class FlacDecoderTest {
     void decodesStreamOfUnknownLength(FlacAudioSample sample)
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
         final var original = withUnknownLength(sample);
-        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(original.bytes()));
+        final var decoder = new FlacParser()
+                .parse(new ByteArrayInputStream(original.bytes()))
+                .audio();
 
         final var decoded = decodeAll(decoder);
 
@@ -59,8 +61,9 @@ class FlacDecoderTest {
     @Test
     void refusesStreamOfUnknownLengthCutShortInAFrame() throws IOException, InvalidFormatException {
         final var bytes = withUnknownLength(FlacAudioSample.STEREO_16_BIT_LPC).bytes();
-        final var decoder =
-                new FlacParser().decodeAudio(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)));
+        final var decoder = new FlacParser()
+                .parse(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)))
+                .audio();
 
         assertThatThrownBy(() -> decodeAll(decoder))
                 .isInstanceOf(UncheckedIOException.class)
@@ -73,8 +76,9 @@ class FlacDecoderTest {
         try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
             bytes = inputStream.readAllBytes();
         }
-        final var decoder =
-                new FlacParser().decodeAudio(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)));
+        final var decoder = new FlacParser()
+                .parse(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)))
+                .audio();
 
         assertThatThrownBy(() -> decodeAll(decoder))
                 .isInstanceOf(UncheckedIOException.class)
@@ -130,7 +134,9 @@ class FlacDecoderTest {
                         4));
         file.write(frame.toByteArray());
 
-        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(file.toByteArray()));
+        final var decoder = new FlacParser()
+                .parse(new ByteArrayInputStream(file.toByteArray()))
+                .audio();
 
         final var frames = decoder.iterator();
         final var decoded = frames.next();
@@ -151,7 +157,8 @@ class FlacDecoderTest {
         // Flip a bit in the middle of the audio, which the frame's CRC-16 catches.
         bytes[bytes.length / 2] ^= 0x10;
 
-        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(bytes));
+        final var decoder =
+                new FlacParser().parse(new ByteArrayInputStream(bytes)).audio();
 
         assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(UncheckedInvalidFormatException.class);
     }
@@ -160,7 +167,7 @@ class FlacDecoderTest {
     @Test
     void refusesSecondIteration() throws IOException, InvalidFormatException {
         try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
-            final var decoder = new FlacParser().decodeAudio(inputStream);
+            final var decoder = new FlacParser().parse(inputStream).audio();
             decoder.iterator();
 
             assertThatThrownBy(decoder::iterator).isInstanceOf(IllegalStateException.class);

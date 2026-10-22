@@ -26,7 +26,9 @@ class FlacWriterTest {
         metadata.addTag(Tag.RELEASE_YEAR, new TagValue.Int(2002));
         metadata.addUnknownTag("musicbrainz_trackid", "1b3c1a6e-5d2b-4d0e-9a52-6ad0a6a0e1f2");
 
-        final var parsed = new FlacParser().parseMetadata(new ByteArrayInputStream(writeFlac(metadata)));
+        final var parsed = new FlacParser()
+                .parse(new ByteArrayInputStream(writeFlac(metadata)))
+                .metadata();
 
         assertThat(parsed.duration()).isEqualTo(metadata.duration());
         for (final var tag : Tag.values()) {

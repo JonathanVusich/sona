@@ -13,7 +13,7 @@ import org.sona.format.PcmFrame;
 
 /**
  * Decodes the audio frames of a FLAC stream to PCM samples (RFC 9639 section 9), a frame at a time as it's iterated,
- * so callers that only need the start of the audio can stop early. {@link FlacParser#decodeAudio} opens one. It reads
+ * so callers that only need the start of the audio can stop early. {@link FlacParser#parse} opens one, in its {@link ParsedFlac}. It reads
  * the stream once, so it can only be iterated once.
  *
  * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, with an {@link EOFException}
