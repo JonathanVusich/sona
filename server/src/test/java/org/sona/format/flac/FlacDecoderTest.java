@@ -1,0 +1,143 @@
+package org.sona.format.flac;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import dev.javax.bitstream.BitOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.ByteOrder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.sona.exception.InvalidFormatException;
+import org.sona.format.MD5Checksum;
+import org.sona.samples.FlacAudioSample;
+
+class FlacDecoderTest {
+
+    // STREAMINFO holds the MD5 of the decoded audio, so a decoder that matches it is bit-exact.
+    @ParameterizedTest
+    @EnumSource(FlacAudioSample.class)
+    void decodesAudioMatchingItsMd5(FlacAudioSample sample)
+            throws IOException, InvalidFormatException, NoSuchAlgorithmException {
+        try (final var inputStream = sample.inputStream()) {
+            final var decoder = FlacDecoder.open(inputStream);
+            final var streamInfo = decoder.streamInfo();
+            final var md5 = MessageDigest.getInstance("MD5");
+            final var bytesPerSample = (streamInfo.bitsPerSample() + 7) / 8;
+            var samples = 0L;
+
+            var frame = decoder.readFrame();
+            while (frame.isPresent()) {
+                final var channels = frame.get();
+                assertThat(channels.length).isEqualTo(streamInfo.numberOfChannels());
+                // The MD5 is of the samples interleaved, as little-endian signed integers in whole bytes.
+                for (var i = 0; i < channels[0].length; i++) {
+                    for (final var channel : channels) {
+                        for (var b = 0; b < bytesPerSample; b++) {
+                            md5.update((byte) (channel[i] >> (8 * b)));
+                        }
+                    }
+                }
+                samples += channels[0].length;
+                frame = decoder.readFrame();
+            }
+
+            assertThat(samples).isEqualTo(streamInfo.interChannelSamples());
+            assertThat(md5.digest()).isEqualTo(streamInfo.checksum().getChecksum());
+        }
+    }
+
+    // Neither encoder writes escaped residual partitions, so this frame is built by hand.
+    @Test
+    void decodesEscapedResidualPartition() throws IOException, InvalidFormatException {
+        final var header = new ByteArrayOutputStream();
+        final var headerBits = BitOutputStream.wrap(header, ByteOrder.BIG_ENDIAN);
+        // Sync code, then a block size stored in the next 8 bits, STREAMINFO's sample rate, mono and 8 bits a sample.
+        headerBits.writeBits(0xFFF8, 16);
+        headerBits.writeBits(0x60, 8);
+        headerBits.writeBits(0x02, 8);
+        // Frame 0, then a block of 4 samples.
+        headerBits.writeBits(0, 8);
+        headerBits.writeBits(3, 8);
+        headerBits.flush();
+        header.write(crc(header.toByteArray(), 0x07, 8));
+
+        final var frame = new ByteArrayOutputStream();
+        frame.write(header.toByteArray());
+        final var frameBits = BitOutputStream.wrap(frame, ByteOrder.BIG_ENDIAN);
+        // A fixed predictor of order 1, warmed up with 5.
+        frameBits.writeBits(0b0_001001_0, 8);
+        frameBits.writeBits(5, 8);
+        // One partition of 4-bit Rice parameters, escaped to residuals of 4 bits each: 3, -2 and 7.
+        frameBits.writeBits(0b00_0000_1111L, 10);
+        frameBits.writeBits(4, 5);
+        frameBits.writeBits(0b0011_1110_0111, 12);
+        frameBits.flush();
+        final var crc16 = crc(frame.toByteArray(), 0x8005, 16);
+        frame.write(crc16 >> 8);
+        frame.write(crc16);
+
+        final var file = new ByteArrayOutputStream();
+        final var writer = new FlacWriter();
+        final var dataOutputStream = new DataOutputStream(file);
+        writer.writeFlacHeader(dataOutputStream);
+        writer.writeBlock(
+                dataOutputStream,
+                new StreamInfo(
+                        new BlockHeader(BlockPosition.LAST, BlockType.STREAM_INFO, 34),
+                        new MD5Checksum(new byte[16]),
+                        4,
+                        4,
+                        0,
+                        0,
+                        8000,
+                        1,
+                        8,
+                        4));
+        file.write(frame.toByteArray());
+
+        final var decoder = FlacDecoder.open(new ByteArrayInputStream(file.toByteArray()));
+
+        assertThat(decoder.readFrame())
+                .hasValueSatisfying(channels -> assertThat(channels[0]).containsExactly(5, 8, 6, 13));
+        assertThat(decoder.readFrame()).isEmpty();
+    }
+
+    @Test
+    void refusesCorruptFrame() throws IOException, InvalidFormatException {
+        final byte[] bytes;
+        try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
+            bytes = inputStream.readAllBytes();
+        }
+        // Flip a bit in the middle of the audio, which the frame's CRC-16 catches.
+        bytes[bytes.length / 2] ^= 0x10;
+
+        final var decoder = FlacDecoder.open(new ByteArrayInputStream(bytes));
+
+        assertThatThrownBy(() -> {
+                    while (decoder.readFrame().isPresent()) {
+                        // Decode up to the corrupt frame.
+                    }
+                })
+                .isInstanceOf(InvalidFormatException.class);
+    }
+
+    // A CRC with no reflection and no final XOR, as FLAC's frames use, worked out a bit at a time.
+    private static int crc(final byte[] bytes, final int polynomial, final int width) {
+        final var mask = (1 << width) - 1;
+        var crc = 0;
+        for (final var b : bytes) {
+            crc ^= (b & 0xFF) << (width - 8);
+            for (var bit = 0; bit < 8; bit++) {
+                crc = (crc & (1 << (width - 1))) != 0 ? (crc << 1) ^ polynomial : crc << 1;
+            }
+        }
+        return crc & mask;
+    }
+}
