@@ -990,6 +990,47 @@ a.player-artist:hover {
   white-space: nowrap;
 }
 
+.upload-group {
+  margin-top: 20px;
+}
+
+.upload-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.upload-group-name {
+  flex: 1;
+  min-width: 160px;
+  font-weight: 600;
+}
+
+.upload-group-merge {
+  margin-left: auto;
+}
+
+.upload-group-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.upload-group .hint {
+  margin: 0 0 8px;
+}
+
+.upload-status {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.upload-status.error {
+  color: var(--danger);
+}
+
 .muted {
   color: var(--text-3);
 }

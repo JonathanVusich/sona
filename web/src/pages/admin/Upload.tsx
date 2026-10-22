@@ -1,13 +1,16 @@
-import { Navigate, useNavigate } from "@solidjs/router";
-import { createSignal, For, Show } from "solid-js";
+import { Navigate } from "@solidjs/router";
+import { createSignal, Index, Show } from "solid-js";
 import { fromDataTransfer, fromFileList, type PickedFile } from "../../audioFiles";
 import { PageBody, PageHead } from "../../components/PageLayout";
 import { PageHeader } from "../../components/Section";
+import UploadGroupEditor from "../../components/UploadGroupEditor";
+import UploadProgress from "../../components/UploadProgress";
 import { Permission } from "../../api/responses";
-import { hasPermission } from "../../auth";
-import { plural } from "../../format";
-import { importFiles } from "../../library";
+import { currentUser, hasPermission } from "../../auth";
+import { formatFileSize, plural } from "../../format";
 import { AppRoutes } from "../../routes";
+import { addPickedFiles, type UploadGroup } from "../../uploadGroups";
+import { fileUploads, startUploads } from "../../uploads";
 
 // Whether files are being dragged over the drop zone.
 const DropZone = {
@@ -18,18 +21,42 @@ const DropZone = {
 type DropZone = (typeof DropZone)[keyof typeof DropZone];
 
 export default function Upload() {
-  const [pending, setPending] = createSignal<PickedFile[]>([]);
+  return (
+    <Show when={hasPermission(Permission.LIBRARY_UPLOAD)} fallback={<Navigate href={AppRoutes.HOME} />}>
+      <>
+        <PageHead>
+          <PageHeader title="Upload music" />
+        </PageHead>
+        <PageBody>
+          <Show when={fileUploads().length > 0} fallback={<UploadSelection />}>
+            <UploadProgress />
+          </Show>
+        </PageBody>
+      </>
+    </Show>
+  );
+}
+
+// Picks the files to upload, sorted into a group per folder, which the uploader can then rearrange.
+function UploadSelection() {
+  const [groups, setGroups] = createSignal<readonly UploadGroup[]>([]);
   const [dropZone, setDropZone] = createSignal<DropZone>(DropZone.IDLE);
-  const navigate = useNavigate();
+  // The files of the last pick that are too large for Sona to accept, which were left out.
+  const [tooLarge, setTooLarge] = createSignal<readonly PickedFile[]>([]);
   let filesInput: HTMLInputElement | undefined;
   let folderInput: HTMLInputElement | undefined;
 
   const add = (picked: PickedFile[]) => {
-    setPending((current) => {
-      const known = new Set(current.map((p) => p.path));
-      return [...current, ...picked.filter((p) => !known.has(p.path))];
-    });
+    setTooLarge(picked.filter(isTooLarge));
+    const accepted = picked.filter((file) => !isTooLarge(file));
+    setGroups((current) => addPickedFiles(current, accepted));
   };
+  const clear = () => {
+    setGroups([]);
+    setTooLarge([]);
+  };
+  const fileCount = () => groups().reduce((count, group) => count + group.files.length, 0);
+  const unnamed = () => groups().some((group) => group.name.trim() === "");
 
   const onPick = (event: Event & { currentTarget: HTMLInputElement }) => {
     const input = event.currentTarget;
@@ -48,79 +75,79 @@ export default function Upload() {
     }
   };
 
-  const submit = () => {
-    importFiles(pending());
-    navigate(AppRoutes.ADMIN_LIBRARY);
-  };
-
   return (
-    <Show when={hasPermission(Permission.LIBRARY_UPLOAD)} fallback={<Navigate href={AppRoutes.HOME} />}>
-      <>
-        <PageHead>
-          <PageHeader title="Upload music" />
-        </PageHead>
-        <PageBody>
-          <div
-            class="dropzone"
-            classList={{ dragging: dropZone() === DropZone.DRAGGED_OVER }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDropZone(DropZone.DRAGGED_OVER);
-            }}
-            onDragLeave={() => setDropZone(DropZone.IDLE)}
-            onDrop={onDrop}
-          >
-            <p>Drag and drop audio files or folders here</p>
-            <div class="dropzone-actions">
-              <button onClick={() => filesInput?.click()}>Choose files</button>
-              <button onClick={() => folderInput?.click()}>Choose folder</button>
-            </div>
-            <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
-            <input
-              ref={(el) => {
-                folderInput = el;
-                el.webkitdirectory = true;
-              }}
-              type="file"
-              multiple
-              hidden
-              onChange={onPick}
-            />
-          </div>
+    <>
+      <div
+        class="dropzone"
+        classList={{ dragging: dropZone() === DropZone.DRAGGED_OVER }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDropZone(DropZone.DRAGGED_OVER);
+        }}
+        onDragLeave={() => setDropZone(DropZone.IDLE)}
+        onDrop={onDrop}
+      >
+        <p>Drag and drop audio files or folders here</p>
+        <div class="dropzone-actions">
+          <button onClick={() => filesInput?.click()}>Choose files</button>
+          <button onClick={() => folderInput?.click()}>Choose folder</button>
+        </div>
+        <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
+        <input
+          ref={(el) => {
+            folderInput = el;
+            el.webkitdirectory = true;
+          }}
+          type="file"
+          multiple
+          hidden
+          onChange={onPick}
+        />
+      </div>
 
-          <Show
-            when={pending().length > 0}
-            fallback={<p class="muted">No files selected. Only audio files are kept.</p>}
-          >
-            <div class="pending-header">
-              <span>{plural(pending().length, "file")} ready</span>
-              <div class="dropzone-actions">
-                <button onClick={() => setPending([])}>Clear</button>
-                <button class="primary" onClick={submit}>
-                  Add to library
-                </button>
-              </div>
-            </div>
-            <ul class="pending-list">
-              <For each={pending()}>
-                {(picked) => (
-                  <li>
-                    <span class="pending-path">{picked.path}</span>
-                    <span class="muted">{(picked.file.size / (1024 * 1024)).toFixed(1)} MB</span>
-                    <button
-                      class="link"
-                      aria-label={`Remove ${picked.path}`}
-                      onClick={() => setPending((current) => current.filter((p) => p !== picked))}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                )}
-              </For>
-            </ul>
+      <Show when={currentUser()}>
+        {(user) => (
+          <Show when={tooLarge().length > 0}>
+            <p class="error">
+              Left out {plural(tooLarge().length, "file")} larger than {formatFileSize(user().maxUploadSize)}:{" "}
+              {tooLarge()
+                .map((file) => file.path)
+                .join(", ")}
+            </p>
           </Show>
-        </PageBody>
-      </>
-    </Show>
+        )}
+      </Show>
+
+      <Show when={groups().length > 0} fallback={<p class="muted">No files selected. Only audio files are kept.</p>}>
+        <div class="pending-header">
+          <span>
+            {plural(fileCount(), "file")} in {plural(groups().length, "group")}
+          </span>
+          <div class="dropzone-actions">
+            <button onClick={clear}>Clear</button>
+            <button class="primary" disabled={unnamed()} onClick={() => startUploads(groups())}>
+              Upload
+            </button>
+          </div>
+        </div>
+        <Show when={unnamed()}>
+          <p class="error">Give every group a name.</p>
+        </Show>
+        <p class="muted">
+          Each folder is a group of files that belong together, such as one album. Move files between groups to fix them
+          before uploading.
+        </p>
+        {/* Index rather than For, so renaming a group, which replaces it, keeps its name field focused. */}
+        <Index each={groups()}>
+          {(group) => <UploadGroupEditor group={group()} groups={groups()} onChange={setGroups} />}
+        </Index>
+      </Show>
+    </>
   );
+}
+
+// Whether Sona would refuse the file for its size, so it's better left out than sent.
+function isTooLarge(file: PickedFile): boolean {
+  const user = currentUser();
+  return user !== null && file.file.size > user.maxUploadSize;
 }
