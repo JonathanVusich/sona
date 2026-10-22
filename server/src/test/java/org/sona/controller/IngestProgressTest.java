@@ -115,7 +115,7 @@ class IngestProgressTest {
 
         connection.subscribeToProgress();
 
-        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /user/queue/ingests");
+        assertThat(connection.awaitError()).isEqualTo("Access Denied");
     }
 
     @Test
@@ -125,7 +125,7 @@ class IngestProgressTest {
 
         connection.subscribeToProgress();
 
-        assertThat(connection.awaitError()).isEqualTo("Not allowed to subscribe to /user/queue/ingests");
+        assertThat(connection.awaitError()).isEqualTo("Access Denied");
     }
 
     private Users storeAdmin(final String username) {

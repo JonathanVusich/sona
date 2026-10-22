@@ -5,17 +5,15 @@ import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationResult;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 /**
- * Allows requests only from users whose account is active, so a user who must change their password can't do
- * anything else first.
+ * Allows requests (and STOMP messages) only from users whose account is active, so a user who must change their
+ * password can't do anything else first.
  */
-public final class ActiveUserService implements AuthorizationManager<RequestAuthorizationContext> {
+public final class ActiveUserService<T> implements AuthorizationManager<T> {
 
     @Override
-    public AuthorizationResult authorize(
-            final Supplier<? extends Authentication> authentication, final RequestAuthorizationContext context) {
+    public AuthorizationResult authorize(final Supplier<? extends Authentication> authentication, final T context) {
         return switch (authentication.get()) {
             case UserAuthentication user ->
                 new AuthorizationDecision(user.user().state() == SessionState.ACTIVE);
