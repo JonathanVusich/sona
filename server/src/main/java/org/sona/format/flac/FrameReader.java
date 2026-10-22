@@ -17,23 +17,23 @@ final class FrameReader {
     private static final int[] CRC16_TABLE = crcTable(0x8005, 16);
 
     private final InputStream inputStream;
+    private final FrameByteSource bytes;
     private final BitInputStream bits;
     private int crc8;
     private int crc16;
-    private int bytesInFrame;
 
     FrameReader(final InputStream inputStream) {
         this.inputStream = inputStream;
-        this.bits = BitInputStream.wrap(new FrameByteSource(), ByteOrder.BIG_ENDIAN);
+        this.bytes = new FrameByteSource();
+        this.bits = BitInputStream.wrap(bytes, ByteOrder.BIG_ENDIAN);
     }
 
     /**
-     * Starts the CRCs and the count of the frame's bytes over for a new frame.
+     * Starts the CRCs over for a new frame.
      */
     void startFrame() {
         crc8 = 0;
         crc16 = 0;
-        bytesInFrame = 0;
     }
 
     /**
@@ -84,10 +84,10 @@ final class FrameReader {
     }
 
     /**
-     * @return how many of the frame's bytes have been read, even when a read ran out of bytes part-way
+     * @return whether the stream has bytes left after those read, which between frames means another frame
      */
-    int bytesInFrame() {
-        return bytesInFrame;
+    boolean hasMoreBytes() throws IOException {
+        return bytes.hasMoreBytes();
     }
 
     // The bit stream only takes the bytes whose bits it needs, so the CRCs cover exactly the frame's bytes read.
@@ -102,19 +102,21 @@ final class FrameReader {
         @Override
         public void read(final byte[] destination, final int numBytes) throws IOException {
             for (var i = 0; i < numBytes; i++) {
-                if (position == limit && !fill()) {
+                if (!hasMoreBytes()) {
                     throw new EOFException("FLAC stream ends in the middle of a frame!");
                 }
                 final var value = buffer[position++] & 0xFF;
                 destination[i] = (byte) value;
                 crc8 = CRC8_TABLE[crc8 ^ value];
                 crc16 = ((crc16 << 8) ^ CRC16_TABLE[(crc16 >>> 8) ^ value]) & 0xFFFF;
-                bytesInFrame++;
             }
         }
 
-        // @return false at the end of the stream
-        private boolean fill() throws IOException {
+        // Refills the buffer once it has been read to the end.
+        boolean hasMoreBytes() throws IOException {
+            if (position < limit) {
+                return true;
+            }
             final var read = inputStream.read(buffer);
             position = 0;
             limit = Math.max(read, 0);

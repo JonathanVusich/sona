@@ -51,13 +51,10 @@ public class FlacDecoderBenchmark {
         final var decoder = FlacDecoder.open(new ByteArrayInputStream(bytes));
         final var samples = (long) decoder.streamInfo().sampleRate() * SECONDS;
         var decoded = 0L;
-        while (decoded < samples) {
+        while (decoded < samples && decoder.hasNextFrame()) {
             final var frame = decoder.readFrame();
-            if (frame.isEmpty()) {
-                break;
-            }
-            blackhole.consume(frame.get());
-            decoded += frame.get()[0].length;
+            blackhole.consume(frame);
+            decoded += frame.sampleCount();
         }
     }
 }

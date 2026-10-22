@@ -4,8 +4,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Optional;
+import java.util.NoSuchElementException;
 import org.sona.exception.InvalidFormatException;
+import org.sona.format.PcmFrame;
 
 /**
  * Decodes the audio frames of a FLAC stream to PCM samples (RFC 9639 section 9), a frame at a time, so callers that
@@ -43,25 +44,29 @@ public final class FlacDecoder {
     }
 
     /**
-     * @return the samples of the next frame, one array per channel, or empty once every frame has been read
+     * @return whether there's another frame for {@link #readFrame()} to read
      */
-    public Optional<int[][]> readFrame() throws IOException, InvalidFormatException {
+    public boolean hasNextFrame() throws IOException {
         // A stream may end with other data, like an ID3v1 tag, so stop at the length STREAMINFO gives when it has one.
         final var totalSamples = streamInfo.interChannelSamples();
-        if (totalSamples > 0 && samplesDecoded >= totalSamples) {
-            return Optional.empty();
+        if (totalSamples > 0) {
+            return samplesDecoded < totalSamples;
+        }
+        // Without a length, the stream ends where the next frame would start. Anywhere else, it's cut short.
+        return reader.hasMoreBytes();
+    }
+
+    /**
+     * @return the samples of the next frame
+     * @throws NoSuchElementException once every frame has been read
+     * @throws EOFException when the stream ends before the frame does
+     */
+    public PcmFrame readFrame() throws IOException, InvalidFormatException {
+        if (!hasNextFrame()) {
+            throw new NoSuchElementException("FLAC stream has no more frames!");
         }
         reader.startFrame();
-        final FrameHeader header;
-        try {
-            header = readFrameHeader();
-        } catch (EOFException e) {
-            // Without a length, the stream ends where the next frame would start. Anywhere else, it's cut short.
-            if (totalSamples == 0 && reader.bytesInFrame() == 0) {
-                return Optional.empty();
-            }
-            throw e;
-        }
+        final var header = readFrameHeader();
         final var channels = new long[header.channels()][];
         for (var channel = 0; channel < channels.length; channel++) {
             channels[channel] = readSubframe(header.blockSize(), header.subframeBitsPerSample(channel));
@@ -72,7 +77,7 @@ public final class FlacDecoder {
             throw new InvalidFormatException("FLAC frame fails its CRC-16 check!");
         }
         samplesDecoded += header.blockSize();
-        return Optional.of(decorrelate(header.channelAssignment(), channels));
+        return new PcmFrame(decorrelate(header.channelAssignment(), channels));
     }
 
     private FrameHeader readFrameHeader() throws IOException, InvalidFormatException {

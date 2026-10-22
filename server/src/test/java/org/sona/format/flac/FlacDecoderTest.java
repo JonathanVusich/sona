@@ -13,6 +13,8 @@ import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.NoSuchElementException;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -122,9 +124,13 @@ class FlacDecoderTest {
 
         final var decoder = FlacDecoder.open(new ByteArrayInputStream(file.toByteArray()));
 
-        assertThat(decoder.readFrame())
-                .hasValueSatisfying(channels -> assertThat(channels[0]).containsExactly(5, 8, 6, 13));
-        assertThat(decoder.readFrame()).isEmpty();
+        final var decoded = decoder.readFrame();
+
+        assertThat(decoded.channelCount()).isEqualTo(1);
+        assertThat(IntStream.range(0, decoded.sampleCount()).map(i -> decoded.channelSample(0, i)))
+                .containsExactly(5, 8, 6, 13);
+        assertThat(decoder.hasNextFrame()).isFalse();
+        assertThatThrownBy(decoder::readFrame).isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
@@ -139,8 +145,9 @@ class FlacDecoderTest {
         final var decoder = FlacDecoder.open(new ByteArrayInputStream(bytes));
 
         assertThatThrownBy(() -> {
-                    while (decoder.readFrame().isPresent()) {
-                        // Decode up to the corrupt frame.
+                    // Decode up to the corrupt frame.
+                    while (decoder.hasNextFrame()) {
+                        decoder.readFrame();
                     }
                 })
                 .isInstanceOf(InvalidFormatException.class);
@@ -154,20 +161,19 @@ class FlacDecoderTest {
         final var md5 = MessageDigest.getInstance("MD5");
         final var bytesPerSample = (streamInfo.bitsPerSample() + 7) / 8;
         var samples = 0L;
-        var frame = decoder.readFrame();
-        while (frame.isPresent()) {
-            final var channels = frame.get();
-            assertThat(channels.length).isEqualTo(streamInfo.numberOfChannels());
+        while (decoder.hasNextFrame()) {
+            final var frame = decoder.readFrame();
+            assertThat(frame.channelCount()).isEqualTo(streamInfo.numberOfChannels());
             // The MD5 is of the samples interleaved, as little-endian signed integers in whole bytes.
-            for (var i = 0; i < channels[0].length; i++) {
-                for (final var channel : channels) {
+            for (var i = 0; i < frame.sampleCount(); i++) {
+                for (var channel = 0; channel < frame.channelCount(); channel++) {
+                    final var sample = frame.channelSample(channel, i);
                     for (var b = 0; b < bytesPerSample; b++) {
-                        md5.update((byte) (channel[i] >> (8 * b)));
+                        md5.update((byte) (sample >> (8 * b)));
                     }
                 }
             }
-            samples += channels[0].length;
-            frame = decoder.readFrame();
+            samples += frame.sampleCount();
         }
         return new Decoded(samples, md5.digest());
     }
