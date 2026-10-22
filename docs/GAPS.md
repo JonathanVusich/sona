@@ -22,12 +22,13 @@ Data a page will show that its endpoint doesn't serve yet.
 ## Bitstream library
 
 Sona's hand-written decoders read bits through `dev.javax:bitstream` (0.1.0-RC), which reads 1 to 63 bits at a time,
-most or least significant bit first, and aligns to the next byte. Its buffered bits are private, so a decoder can't
-make up for the reads below on its own: each costs a decoder speed, or in the case of Huffman codes rules out the usual
-way of decoding them. Decoding two minutes of CD audio as FLAC takes 293 ms (`FlacDecoderBenchmark`).
+most or least significant bit first, and aligns to the next byte. It takes from its byte source only the bytes a read
+needs, by design, so a decoder knows exactly which bytes have been read (`FrameReader` keeps FLAC's CRCs over them) and
+buffers its source itself. Its buffered bits are private, so a decoder can't make up for the reads below on its own:
+each costs a decoder speed, or in the case of Huffman codes rules out the usual way of decoding them. Decoding two
+minutes of CD audio as FLAC takes 293 ms (`FlacDecoderBenchmark`).
 
 | Operation | Formats that need it | Until the library has it |
 |---|---|---|
-| **Refill a whole word at a time.** `refill` takes only the 1 or 2 bytes the current read is short of, so the byte source is called every few bits. It should take up to eight, and only fewer at the end of the data. | Every format. | `FrameReader` buffers the stream itself, which took decoding from 379 to 293 ms, and still hands the library its bytes one or two at a time. Once the library reads ahead, FLAC's CRCs, which `FrameReader` keeps over the bytes the library has taken, need the library to say how many bytes its reads have used. |
 | **Unary codes.** Count the 0 bits before a 1, or the 1 bits before a 0, from the buffered word with `Long.numberOfLeadingZeros` (or trailing, reading least significant bit first) rather than a read per bit. | FLAC's Rice codes (zeros); ALAC's capped Rice prefix, AAC's spectral escape codes and WavPack's residuals (ones). | `FrameReader.readUnary` calls `readBits(1)` per bit, which JFR put at 14% of decoding time when it took 379 ms. |
 | **Peek and skip.** Look at the next n bits without consuming them, then consume only as many as the code they start turned out to be, padding with 0 bits past the end of the data. Huffman decoders look codes up in a table this way. | MP3's big-values and count1 tables, AAC's spectral and scale factor codebooks, Vorbis codebooks. | Nothing yet: FLAC has no Huffman codes. Without it, a decoder walks the Huffman tree a bit at a time. |
