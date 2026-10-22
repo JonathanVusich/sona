@@ -12,11 +12,14 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.TrackToIngestDao;
+import org.sona.exception.FileTooLargeException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -41,26 +44,29 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
-    public TrackToIngest storeIngestTrack(final UUID ingestGroup, final String filename, final InputStream inputStream)
+    public TrackToIngest storeIngestTrack(
+            final IngestGroup ingestGroup, final String filename, final InputStream inputStream)
             throws InvalidFormatException, IOException {
         checkFormat(filename);
         final UUID ingestTrackId = uuidv7();
 
-        final var ingestFolder = config.ingestFolder().resolve(ingestGroup.toString());
+        final var ingestFolder =
+                config.ingestFolder().resolve(ingestGroup.ingestGroupId().toString());
 
         Files.createDirectories(ingestFolder);
 
         final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
 
         try {
-            Files.copy(inputStream, ingestTarget);
-        } catch (IOException e) {
+            copyUpload(inputStream, ingestTarget);
+        } catch (IOException | FileTooLargeException e) {
             // An upload cut short leaves part of a file, which no ingest row would ever point at.
             Files.deleteIfExists(ingestTarget);
             throw e;
         }
 
-        final var trackIngest = new TrackToIngest(ingestTrackId, ingestGroup, filename, IngestState.PENDING);
+        final var trackIngest =
+                new TrackToIngest(ingestTrackId, ingestGroup.ingestGroupId(), filename, IngestState.PENDING);
 
         trackToIngestDao.insert(trackIngest);
         return trackIngest;
@@ -103,6 +109,20 @@ public final class DefaultLibrary implements Library {
     @Override
     public InputStream readTrack(final Track track) throws IOException {
         return Files.newInputStream(resolveLibraryPath(track.path()), StandardOpenOption.READ);
+    }
+
+    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it.
+    private void copyUpload(final InputStream inputStream, final Path target) throws IOException {
+        final var maxBytes = config.maxUploadSize().toBytes();
+        final var bounded = BoundedInputStream.builder()
+                .setInputStream(inputStream)
+                .setMaxCount(maxBytes + 1)
+                .setPropagateClose(false)
+                .get();
+        final var copied = Files.copy(bounded, target);
+        if (copied > maxBytes) {
+            throw new FileTooLargeException(config.maxUploadSize());
+        }
     }
 
     private static void checkFormat(final String filename) throws InvalidFormatException {

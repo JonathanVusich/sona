@@ -16,6 +16,7 @@ import org.sona.controller.response.MediumResponse;
 import org.sona.controller.response.ReleaseResponse;
 import org.sona.controller.response.TrackResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
@@ -24,9 +25,11 @@ import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -64,6 +67,9 @@ class ReleaseControllerTest {
 
     @Autowired
     TrackDao trackDao;
+
+    @Autowired
+    IngestGroupDao ingestGroupDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -159,7 +165,9 @@ class ReleaseControllerTest {
     }
 
     private Track insertTrack(final Medium medium, final Artist artist, final String name) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         final var track = new Track(
                 uuidv7(),

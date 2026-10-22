@@ -8,8 +8,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -45,6 +47,9 @@ class ReleaseDetailsDaoTest {
 
     @Autowired
     TrackDao trackDao;
+
+    @Autowired
+    IngestGroupDao ingestGroupDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -227,7 +232,9 @@ class ReleaseDetailsDaoTest {
 
     private Track storeTrackInState(
             final Medium medium, final Artist artist, final int position, final IngestState state) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", state);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
         trackToIngestDao.insert(ingest);
         final var track = new Track(
                 uuidv7(),

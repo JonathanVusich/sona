@@ -1,6 +1,8 @@
 library:
   ingestFolder: "/ingest"
   mediaFolder: "/media"
+  # Large enough for a long hi-res track (24-bit/192 kHz FLAC is about 40MB a minute), or a whole album in one file.
+  maxUploadSize: 2GB
 musicbrainz:
   url: "https://musicbrainz.org/ws/2/"
 auth:

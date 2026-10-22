@@ -4,7 +4,9 @@ import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.ArtistNotFoundException;
+import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IncorrectPasswordException;
+import org.sona.exception.IngestGroupNotFoundException;
 import org.sona.exception.InvalidCredentialsException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.InvalidRefreshTokenException;
@@ -16,6 +18,7 @@ import org.sona.exception.SonaException;
 import org.sona.exception.UnchangedPasswordException;
 import org.sona.exception.UsernameTakenException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestCookieException;
@@ -52,6 +55,14 @@ public final class ApiExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch() {
+        return errorResponse(ErrorCode.INVALID_PARAMETER);
+    }
+
+    /**
+     * A JSON request body that can't be read, such as one with a value no enum has.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody() {
         return errorResponse(ErrorCode.INVALID_PARAMETER);
     }
 
@@ -94,6 +105,8 @@ public final class ApiExceptionHandler {
             case ReleaseNotFoundException _ -> ErrorCode.RELEASE_NOT_FOUND;
             case ReleaseGroupNotFoundException _ -> ErrorCode.RELEASE_GROUP_NOT_FOUND;
             case ArtistNotFoundException _ -> ErrorCode.ARTIST_NOT_FOUND;
+            case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
+            case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;
             case InvalidRefreshTokenException _ -> ErrorCode.INVALID_REFRESH_TOKEN;
             case IncorrectPasswordException _ -> ErrorCode.INCORRECT_CURRENT_PASSWORD;

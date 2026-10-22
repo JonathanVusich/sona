@@ -17,16 +17,19 @@ import org.sona.controller.response.ArtistPageResponse;
 import org.sona.controller.response.ArtistReleaseGroupResponse;
 import org.sona.controller.response.ArtistSummaryResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
@@ -56,6 +59,9 @@ class ArtistControllerTest {
 
     @Autowired
     TrackDao trackDao;
+
+    @Autowired
+    IngestGroupDao ingestGroupDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -278,7 +284,9 @@ class ArtistControllerTest {
         final var medium = mediumDao
                 .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "track.flac", IngestState.COMPLETED);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(
                 uuidv7(),

@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
@@ -37,9 +38,11 @@ import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
@@ -58,6 +61,9 @@ class DefaultIngestionEngineTest {
 
     @Autowired
     private LibraryProperties libraryProperties;
+
+    @Autowired
+    private IngestGroupDao ingestGroupDao;
 
     @Autowired
     private TrackToIngestDao trackToIngestDao;
@@ -255,7 +261,9 @@ class DefaultIngestionEngineTest {
     @Test
     void rejectUnsupportedFormat() {
         // The library refuses to store such a file, so the ingest is inserted as it would be by an older upload.
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), "song.mp3", IngestState.PENDING);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.mp3", IngestState.PENDING);
         trackToIngestDao.insert(ingest);
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
@@ -279,7 +287,9 @@ class DefaultIngestionEngineTest {
 
     private TrackToIngest storeIngest(final byte[] flac, final String fileName)
             throws InvalidFormatException, IOException {
-        return library.storeIngestTrack(uuidv7(), fileName, new ByteArrayInputStream(flac));
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        return library.storeIngestTrack(group, fileName, new ByteArrayInputStream(flac));
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {

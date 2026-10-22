@@ -1,46 +1,29 @@
 package org.sona.engine;
 
-import static org.sona.config.IngestExecutorConfig.INGEST_EXECUTOR;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Takes pending ingests from the database, so those still pending when Sona stopped are processed when it starts
- * again. Every pass runs on the one ingest thread ({@code IngestExecutorConfig}). Not final, so Spring can make the
- * passes asynchronous.
+ * Looks for pending ingests in the database once a second ({@code sona.ingest-worker.cron}), so uploads are processed
+ * soon after they arrive, and those still pending when Sona stopped are processed when it starts again. Passes never
+ * overlap: the next starts only once one has finished.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DefaultIngestWorker implements IngestWorker {
+public final class DefaultIngestWorker implements IngestWorker {
 
     private final IngestionEngine engine;
     private final TrackToIngestDao trackToIngestDao;
 
-    @Async(INGEST_EXECUTOR)
+    @Scheduled(cron = "${sona.ingest-worker.cron}")
     @Override
     public void processPending() {
-        processPendingSafely();
-    }
-
-    /**
-     * Processes the ingests left pending when Sona last stopped.
-     */
-    @Async(INGEST_EXECUTOR)
-    @EventListener(ApplicationReadyEvent.class)
-    public void processLeftoverIngests() {
-        processPendingSafely();
-    }
-
-    private void processPendingSafely() {
         try {
             processEachPending();
         } catch (InterruptedException _) {

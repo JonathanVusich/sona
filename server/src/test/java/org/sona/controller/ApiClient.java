@@ -5,6 +5,7 @@ import static org.sona.auth.RefreshCookieService.NAME;
 import java.net.HttpCookie;
 import java.util.UUID;
 import org.sona.controller.request.ChangePasswordRequest;
+import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.request.LoginRequest;
 import org.sona.controller.request.RegisterRequest;
 import org.sona.controller.response.TokenResponse;
@@ -138,6 +139,22 @@ public final class ApiClient {
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ChangePasswordRequest(currentPassword, newPassword))
+                .exchange();
+    }
+
+    public RestTestClient.ResponseSpec createIngestGroup(final String accessToken, final IngestGroupRequest request) {
+        return postJson(accessToken, ApiRoutes.INGEST_GROUPS, request);
+    }
+
+    /**
+     * Sends any JSON, such as a body no request record can hold.
+     */
+    public RestTestClient.ResponseSpec postJson(final String accessToken, final String path, final Object body) {
+        return client.post()
+                .uri(path)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
                 .exchange();
     }
 

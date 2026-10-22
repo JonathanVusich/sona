@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
@@ -23,10 +24,12 @@ import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -69,6 +72,9 @@ class ReleaseGroupE2ETest {
 
     @Autowired
     TrackDao trackDao;
+
+    @Autowired
+    IngestGroupDao ingestGroupDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -286,7 +292,9 @@ class ReleaseGroupE2ETest {
     }
 
     private void insertTrack(final Medium medium, final Artist artist, final String name) {
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), name + ".flac", IngestState.COMPLETED);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(
                 uuidv7(),

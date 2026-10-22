@@ -14,6 +14,7 @@ import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestGroupDao;
 import org.sona.db.LabelDao;
 import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
@@ -22,9 +23,11 @@ import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -163,6 +166,7 @@ public class DevLibraryRunner implements ApplicationRunner {
     private final ReleaseLabelDao releaseLabelDao;
     private final MediumDao mediumDao;
     private final TrackDao trackDao;
+    private final IngestGroupDao ingestGroupDao;
     private final TrackToIngestDao trackToIngestDao;
 
     @Override
@@ -254,7 +258,9 @@ public class DevLibraryRunner implements ApplicationRunner {
     private void insertTrack(final DevTrack devTrack, final UUID mediumId, final int position, final Artist artist) {
         final var trackId = uuidv7();
         final var fileName = trackId + ".flac";
-        final var ingest = new TrackToIngest(uuidv7(), uuidv7(), fileName, IngestState.COMPLETED);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        ingestGroupDao.insert(group);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), fileName, IngestState.COMPLETED);
         trackToIngestDao.insert(ingest);
         trackDao.insert(new Track(
                 trackId,

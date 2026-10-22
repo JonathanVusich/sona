@@ -27,6 +27,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 @IntegrationTest
 class ApiSecurityTest {
 
+    // The 10MB the tests' library accepts.
+    private static final long MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+
     @Autowired
     JwtEncoder encoder;
 
@@ -49,7 +52,12 @@ class ApiSecurityTest {
 
         assertThat(currentUser(token))
                 .isEqualTo(new CurrentUserResponse(
-                        userId, "alice", UserRole.USER, SessionState.ACTIVE, List.of(Permission.LIBRARY_READ)));
+                        userId,
+                        "alice",
+                        UserRole.USER,
+                        SessionState.ACTIVE,
+                        List.of(Permission.LIBRARY_READ),
+                        MAX_UPLOAD_SIZE));
     }
 
     @Test
