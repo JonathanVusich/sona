@@ -129,6 +129,7 @@ docker compose -f server/docker-compose.yml up -d     # start Postgres
 ./gradlew :server:test --tests 'org.sona.format.flac.FlacParserTest'   # unit test, no Docker needed
 ./gradlew :server:e2eTest                            # builds web/, then drives it in Firefox against a test server
 ./gradlew :server:e2eTest -Pe2eBrowser=webkit        # or chromium; CI runs all three
+./gradlew :server:jmh -PbenchmarkFlac=<file.flac>    # JMH benchmarks (src/jmh): decoding a FLAC file
 ./gradlew :server:bootRun                            # dev profile: admin/admin and user/user
 npm --prefix web run dev                             # frontend on :5173, proxying /api to bootRun on :8080
 ./gradlew spotlessApply                              # format the Java sources (palantir-java-format)
