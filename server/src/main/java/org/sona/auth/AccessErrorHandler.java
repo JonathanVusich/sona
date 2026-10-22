@@ -35,6 +35,6 @@ public final class AccessErrorHandler implements AccessDeniedHandler {
             when user.user().state() == SessionState.PASSWORD_CHANGE_REQUIRED -> ErrorCode.PASSWORD_CHANGE_REQUIRED;
             case null, default -> ErrorCode.ACCESS_DENIED;
         };
-        writer.writeError(response, code);
+        writer.writeError(request, response, code);
     }
 }

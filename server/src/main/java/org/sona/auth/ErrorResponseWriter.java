@@ -1,5 +1,8 @@
 package org.sona.auth;
 
+import static org.sona.utils.HttpUtils.discardRequestBody;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +21,13 @@ public final class ErrorResponseWriter {
 
     private final JsonMapper mapper;
 
-    public void writeError(final HttpServletResponse response, final ErrorCode code) throws IOException {
+    /**
+     * Reads the rest of the request's body first, as a refused upload's hasn't been read (see
+     * {@code HttpUtils.discardRequestBody}).
+     */
+    public void writeError(final HttpServletRequest request, final HttpServletResponse response, final ErrorCode code)
+            throws IOException {
+        discardRequestBody(request);
         response.setStatus(code.getStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         mapper.writeValue(response.getOutputStream(), new ErrorResponse(code));

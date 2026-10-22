@@ -3,19 +3,17 @@ package org.sona.e2e;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.FilePayload;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
-import org.junit.jupiter.api.io.TempDir;
 import org.sona.auth.TestUsers;
 import org.sona.db.IngestGroupDao;
 import org.sona.db.PasswordDao;
@@ -49,25 +47,23 @@ class UploadE2ETest {
     @Autowired
     IngestGroupDao ingestGroupDao;
 
-    @TempDir
-    Path tempDir;
-
     @BeforeEach
     void setUp() {
         new TestUsers(userDao, passwordDao, encoder).createUser("root", UserRole.ADMIN);
     }
 
     @Test
-    // Playwright for Java on Windows sends a folder's file paths to the browser with a backslash before each file's
-    // name, which no browser makes, so the folder isn't recognised. CI runs it on Linux.
-    @DisabledOnOs(OS.WINDOWS)
     void aFolderIsUploadedAsAGroupNamedAfterIt(final Page page) throws IOException {
-        final var album = Files.createDirectories(tempDir.resolve("Keane/Hopes and Fears"));
+        // Playwright names each file of a folder by its path relative to the folder, with the separator of the folder's
+        // file system, and the browser keeps a Windows backslash as part of the name. A Unix file system gives the
+        // browser the paths it gets on any machine.
+        final var files = Jimfs.newFileSystem(Configuration.unix());
+        final var album = Files.createDirectories(files.getPath("/Keane/Hopes and Fears"));
         Files.write(album.resolve("02 Bend and Break.flac"), AUDIO);
         Files.write(album.resolve("01 Somewhere Only We Know.flac"), AUDIO);
         final var uploadPage = logInAndOpen(page);
 
-        uploadPage.chooseFolder(tempDir.resolve("Keane"));
+        uploadPage.chooseFolder(files.getPath("/Keane"));
 
         assertThat(uploadPage.groupFiles("Hopes and Fears")).hasText(new String[] {
             "Keane/Hopes and Fears/01 Somewhere Only We Know.flac", "Keane/Hopes and Fears/02 Bend and Break.flac"
