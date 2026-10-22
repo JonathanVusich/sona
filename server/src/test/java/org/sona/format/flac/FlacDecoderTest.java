@@ -9,6 +9,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sona.exception.InvalidFormatException;
+import org.sona.exception.UncheckedInvalidFormatException;
 import org.sona.format.MD5Checksum;
 import org.sona.samples.FlacAudioSample;
 
@@ -30,7 +32,7 @@ class FlacDecoderTest {
     void decodesAudioMatchingItsMd5(FlacAudioSample sample)
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
         try (final var inputStream = sample.inputStream()) {
-            final var decoder = FlacDecoder.open(inputStream);
+            final var decoder = new FlacParser().decodeAudio(inputStream);
             final var streamInfo = decoder.streamInfo();
 
             final var decoded = decodeAll(decoder);
@@ -46,7 +48,7 @@ class FlacDecoderTest {
     void decodesStreamOfUnknownLength(FlacAudioSample sample)
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
         final var original = withUnknownLength(sample);
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(original.bytes()));
+        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(original.bytes()));
 
         final var decoded = decodeAll(decoder);
 
@@ -57,9 +59,12 @@ class FlacDecoderTest {
     @Test
     void refusesStreamOfUnknownLengthCutShortInAFrame() throws IOException, InvalidFormatException {
         final var bytes = withUnknownLength(FlacAudioSample.STEREO_16_BIT_LPC).bytes();
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)));
+        final var decoder =
+                new FlacParser().decodeAudio(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)));
 
-        assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(EOFException.class);
+        assertThatThrownBy(() -> decodeAll(decoder))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasCauseInstanceOf(EOFException.class);
     }
 
     @Test
@@ -68,9 +73,12 @@ class FlacDecoderTest {
         try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
             bytes = inputStream.readAllBytes();
         }
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)));
+        final var decoder =
+                new FlacParser().decodeAudio(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)));
 
-        assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(EOFException.class);
+        assertThatThrownBy(() -> decodeAll(decoder))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasCauseInstanceOf(EOFException.class);
     }
 
     // Neither encoder writes escaped residual partitions, so this frame is built by hand.
@@ -122,15 +130,16 @@ class FlacDecoderTest {
                         4));
         file.write(frame.toByteArray());
 
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(file.toByteArray()));
+        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(file.toByteArray()));
 
-        final var decoded = decoder.readFrame();
+        final var frames = decoder.iterator();
+        final var decoded = frames.next();
 
         assertThat(decoded.channelCount()).isEqualTo(1);
         assertThat(IntStream.range(0, decoded.sampleCount()).map(i -> decoded.channelSample(0, i)))
                 .containsExactly(5, 8, 6, 13);
-        assertThat(decoder.hasNextFrame()).isFalse();
-        assertThatThrownBy(decoder::readFrame).isInstanceOf(NoSuchElementException.class);
+        assertThat(frames.hasNext()).isFalse();
+        assertThatThrownBy(frames::next).isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
@@ -142,27 +151,30 @@ class FlacDecoderTest {
         // Flip a bit in the middle of the audio, which the frame's CRC-16 catches.
         bytes[bytes.length / 2] ^= 0x10;
 
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(bytes));
+        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(bytes));
 
-        assertThatThrownBy(() -> {
-                    // Decode up to the corrupt frame.
-                    while (decoder.hasNextFrame()) {
-                        decoder.readFrame();
-                    }
-                })
-                .isInstanceOf(InvalidFormatException.class);
+        assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(UncheckedInvalidFormatException.class);
+    }
+
+    // The decoder reads its stream as it goes, so a second pass would start where the first left off.
+    @Test
+    void refusesSecondIteration() throws IOException, InvalidFormatException {
+        try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
+            final var decoder = new FlacParser().decodeAudio(inputStream);
+            decoder.iterator();
+
+            assertThatThrownBy(decoder::iterator).isInstanceOf(IllegalStateException.class);
+        }
     }
 
     private record Decoded(long samples, byte[] md5) {}
 
-    private static Decoded decodeAll(final FlacDecoder decoder)
-            throws IOException, InvalidFormatException, NoSuchAlgorithmException {
+    private static Decoded decodeAll(final FlacDecoder decoder) throws NoSuchAlgorithmException {
         final var streamInfo = decoder.streamInfo();
         final var md5 = MessageDigest.getInstance("MD5");
         final var bytesPerSample = (streamInfo.bitsPerSample() + 7) / 8;
         var samples = 0L;
-        while (decoder.hasNextFrame()) {
-            final var frame = decoder.readFrame();
+        for (final var frame : decoder) {
             assertThat(frame.channelCount()).isEqualTo(streamInfo.numberOfChannels());
             // The MD5 is of the samples interleaved, as little-endian signed integers in whole bytes.
             for (var i = 0; i < frame.sampleCount(); i++) {

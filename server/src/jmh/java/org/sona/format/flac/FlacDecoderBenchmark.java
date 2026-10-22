@@ -48,13 +48,15 @@ public class FlacDecoderBenchmark {
 
     @Benchmark
     public void decodeTwoMinutes(final Blackhole blackhole) throws IOException, InvalidFormatException {
-        final var decoder = FlacDecoder.open(new ByteArrayInputStream(bytes));
+        final var decoder = new FlacParser().decodeAudio(new ByteArrayInputStream(bytes));
         final var samples = (long) decoder.streamInfo().sampleRate() * SECONDS;
         var decoded = 0L;
-        while (decoded < samples && decoder.hasNextFrame()) {
-            final var frame = decoder.readFrame();
+        for (final var frame : decoder) {
             blackhole.consume(frame);
             decoded += frame.sampleCount();
+            if (decoded >= samples) {
+                break;
+            }
         }
     }
 }

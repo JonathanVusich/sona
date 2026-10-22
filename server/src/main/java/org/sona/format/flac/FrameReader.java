@@ -1,11 +1,11 @@
 package org.sona.format.flac;
 
 import dev.javax.bitstream.BitInputStream;
-import dev.javax.bitstream.ByteSource;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
+import org.sona.format.ChecksummedByteSource;
+import org.sona.format.Crc;
 
 /**
  * Reads the bits of FLAC frames, most significant first, and keeps the CRC-8 of the frame header and the CRC-16 of
@@ -13,18 +13,13 @@ import java.nio.ByteOrder;
  */
 final class FrameReader {
 
-    private static final int[] CRC8_TABLE = crcTable(0x07, 8);
-    private static final int[] CRC16_TABLE = crcTable(0x8005, 16);
-
-    private final InputStream inputStream;
-    private final FrameByteSource bytes;
+    private final Crc crc8 = new Crc(0x07, 8);
+    private final Crc crc16 = new Crc(0x8005, 16);
+    private final ChecksummedByteSource bytes;
     private final BitInputStream bits;
-    private int crc8;
-    private int crc16;
 
     FrameReader(final InputStream inputStream) {
-        this.inputStream = inputStream;
-        this.bytes = new FrameByteSource();
+        this.bytes = new ChecksummedByteSource(inputStream, crc8, crc16);
         this.bits = BitInputStream.wrap(bytes, ByteOrder.BIG_ENDIAN);
     }
 
@@ -32,8 +27,8 @@ final class FrameReader {
      * Starts the CRCs over for a new frame.
      */
     void startFrame() {
-        crc8 = 0;
-        crc16 = 0;
+        crc8.reset();
+        crc16.reset();
     }
 
     /**
@@ -72,15 +67,15 @@ final class FrameReader {
     /**
      * @return the CRC-8 of the frame so far: 0 once a frame header has been read along with its CRC
      */
-    int crc8() {
-        return crc8;
+    long crc8() {
+        return crc8.getValue();
     }
 
     /**
      * @return the CRC-16 of the frame so far: 0 once a whole frame has been read along with its CRC
      */
-    int crc16() {
-        return crc16;
+    long crc16() {
+        return crc16.getValue();
     }
 
     /**
@@ -88,59 +83,5 @@ final class FrameReader {
      */
     boolean hasMoreBytes() throws IOException {
         return bytes.hasMoreBytes();
-    }
-
-    // The bit stream only takes the bytes whose bits it needs, so the CRCs cover exactly the frame's bytes read.
-    // It buffers the stream itself, as the bit stream takes a byte or two at a time, and a BufferedInputStream's checks
-    // and locking on each of those reads cost more than decoding them.
-    private final class FrameByteSource implements ByteSource {
-
-        private final byte[] buffer = new byte[64 * 1024];
-        private int position;
-        private int limit;
-
-        @Override
-        public void read(final byte[] destination, final int numBytes) throws IOException {
-            for (var i = 0; i < numBytes; i++) {
-                if (!hasMoreBytes()) {
-                    throw new EOFException("FLAC stream ends in the middle of a frame!");
-                }
-                final var value = buffer[position++] & 0xFF;
-                destination[i] = (byte) value;
-                crc8 = CRC8_TABLE[crc8 ^ value];
-                crc16 = ((crc16 << 8) ^ CRC16_TABLE[(crc16 >>> 8) ^ value]) & 0xFFFF;
-            }
-        }
-
-        // Refills the buffer once it has been read to the end.
-        boolean hasMoreBytes() throws IOException {
-            if (position < limit) {
-                return true;
-            }
-            final var read = inputStream.read(buffer);
-            position = 0;
-            limit = Math.max(read, 0);
-            return read > 0;
-        }
-
-        @Override
-        public void close() {
-            // The decoder's caller owns the stream.
-        }
-    }
-
-    // A table of the CRC of each byte, for a CRC of the given width with no reflection and no final XOR.
-    private static int[] crcTable(final int polynomial, final int width) {
-        final var topBit = 1 << (width - 1);
-        final var mask = (1 << width) - 1;
-        final var table = new int[256];
-        for (var value = 0; value < 256; value++) {
-            var crc = value << (width - 8);
-            for (var bit = 0; bit < 8; bit++) {
-                crc = (crc & topBit) != 0 ? (crc << 1) ^ polynomial : crc << 1;
-            }
-            table[value] = crc & mask;
-        }
-        return table;
     }
 }

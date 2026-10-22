@@ -32,9 +32,7 @@ public final class FlacParser implements Parser {
     @Override
     public RawMetadata parseMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
         final var flacMetadata = parseAllMetadata(inputStream);
-        final var streamInfo = flacMetadata
-                .streamInfo()
-                .orElseThrow(() -> new InvalidFormatException("FLAC file is missing its STREAMINFO block!"));
+        final var streamInfo = requireStreamInfo(flacMetadata);
         final var comments = flacMetadata.vorbisComments();
 
         final var rawMetadata = new RawMetadata(streamInfo.duration());
@@ -53,6 +51,19 @@ public final class FlacParser implements Parser {
         }
 
         return rawMetadata;
+    }
+
+    /**
+     * Reads the metadata blocks of a FLAC stream, leaving it at the first audio frame for the decoder to read from.
+     * The caller still owns the stream, and closes it once it's done iterating.
+     */
+    public FlacDecoder decodeAudio(final InputStream inputStream) throws IOException, InvalidFormatException {
+        return new FlacDecoder(requireStreamInfo(parseAllMetadata(inputStream)), inputStream);
+    }
+
+    private static StreamInfo requireStreamInfo(final FlacMetadata metadata) throws InvalidFormatException {
+        return metadata.streamInfo()
+                .orElseThrow(() -> new InvalidFormatException("FLAC file is missing its STREAMINFO block!"));
     }
 
     FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
