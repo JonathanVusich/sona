@@ -1,7 +1,10 @@
 package org.sona.fingerprint;
 
+import dev.javax.bitstream.BitOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.List;
 import org.sona.exception.InvalidFormatException;
@@ -63,24 +66,39 @@ public final class Fingerprint {
      * @return the fingerprint compressed and base64-encoded, as {@code fpcalc} prints it and AcoustID takes it
      */
     public String compressed() {
-        final var gaps = bitGaps();
-        final var packer = new BitPacker();
-        // The algorithm, then the number of sub-fingerprints in three bytes, most significant first.
-        packer.writeBits(ALGORITHM, Byte.SIZE);
-        packer.writeBits(subFingerprints.length >> 16, Byte.SIZE);
-        packer.writeBits(subFingerprints.length >> 8, Byte.SIZE);
-        packer.writeBits(subFingerprints.length, Byte.SIZE);
-        for (final var gap : gaps) {
-            packer.writeBits(Math.min(gap, MAX_NORMAL_GAP), NORMAL_BITS);
+        final var outputStream = new ByteArrayOutputStream();
+        // Chromaprint packs each value least significant bit first.
+        final var bitStream = BitOutputStream.wrap(outputStream, ByteOrder.LITTLE_ENDIAN);
+        try {
+            writeHeader(bitStream);
+            writeGaps(bitStream, bitGaps());
+        } catch (IOException e) {
+            throw new UncheckedIOException("A ByteArrayOutputStream can't fail to write", e);
         }
-        packer.alignToByte();
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(outputStream.toByteArray());
+    }
+
+    // The algorithm, then the number of sub-fingerprints in three bytes, most significant first.
+    private void writeHeader(final BitOutputStream bitStream) throws IOException {
+        bitStream.writeBits(ALGORITHM, Byte.SIZE);
+        for (var shift = 2 * Byte.SIZE; shift >= 0; shift -= Byte.SIZE) {
+            bitStream.writeBits((subFingerprints.length >> shift) & 0xFF, Byte.SIZE);
+        }
+    }
+
+    // Every gap in three bits, then, from the next byte on, the rest of each large one in five more.
+    private static void writeGaps(final BitOutputStream bitStream, final byte[] gaps) throws IOException {
+        for (final var gap : gaps) {
+            bitStream.writeBits(Math.min(gap, MAX_NORMAL_GAP), NORMAL_BITS);
+        }
+        // Flushing fills the rest of the current byte with zeros.
+        bitStream.flush();
         for (final var gap : gaps) {
             if (gap >= MAX_NORMAL_GAP) {
-                packer.writeBits(gap - MAX_NORMAL_GAP, EXCEPTION_BITS);
+                bitStream.writeBits(gap - MAX_NORMAL_GAP, EXCEPTION_BITS);
             }
         }
-        final var bytes = packer.toByteArray();
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        bitStream.flush();
     }
 
     private static int[] subFingerprints(final IntegralImage image) {
