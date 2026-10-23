@@ -16,17 +16,22 @@ import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.metadata.RawMetadata;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
+import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
@@ -57,6 +62,9 @@ class DefaultLibraryTest {
 
     @Autowired
     private IngestGroupDao ingestGroupDao;
+
+    @Autowired
+    private UserDao userDao;
 
     @Autowired
     private TrackToIngestDao trackToIngestDao;
@@ -117,7 +125,11 @@ class DefaultLibraryTest {
     }
 
     private IngestGroup storeGroup() {
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group =
+                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId());
         ingestGroupDao.insert(group);
         return group;
     }

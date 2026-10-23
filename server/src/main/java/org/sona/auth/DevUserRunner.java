@@ -14,6 +14,8 @@ import org.sona.model.tables.pojos.Users;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("dev")
+// Before DevLibraryRunner, which gives admin its uploads.
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class DevUserRunner implements ApplicationRunner {
 

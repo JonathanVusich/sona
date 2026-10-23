@@ -19,12 +19,16 @@ import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestGroupDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.IngestGroup;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -39,6 +43,9 @@ class IngestControllerTest {
     IngestGroupDao ingestGroupDao;
 
     @Autowired
+    UserDao userDao;
+
+    @Autowired
     TrackToIngestDao trackToIngestDao;
 
     @Autowired
@@ -51,12 +58,15 @@ class IngestControllerTest {
     int port;
 
     ApiClient api;
+    Users admin;
     String adminToken;
 
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        adminToken = new TestTokens(encoder).accessToken(uuidv7(), "alice", UserRole.ADMIN, SessionState.ACTIVE);
+        admin = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(admin);
+        adminToken = new TestTokens(encoder).accessToken(admin.userId(), "alice", UserRole.ADMIN, SessionState.ACTIVE);
     }
 
     @Test
@@ -72,7 +82,8 @@ class IngestControllerTest {
         assertThat(created.kind()).isEqualTo(IngestGroupKind.ALBUM);
         assertThat(created.name()).isEqualTo("Parachutes");
         assertThat(ingestGroupDao.loadById(created.groupIngestId()))
-                .contains(new IngestGroup(created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes"));
+                .contains(
+                        new IngestGroup(created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes", admin.userId()));
     }
 
     @Test
@@ -238,7 +249,8 @@ class IngestControllerTest {
     }
 
     private IngestGroup storeGroup() {
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
+        final var group =
+                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", admin.userId());
         ingestGroupDao.insert(group);
         return group;
     }

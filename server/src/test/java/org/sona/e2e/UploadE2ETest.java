@@ -22,6 +22,7 @@ import org.sona.db.UserDao;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.IngestGroup;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -47,9 +48,11 @@ class UploadE2ETest {
     @Autowired
     IngestGroupDao ingestGroupDao;
 
+    Users root;
+
     @BeforeEach
     void setUp() {
-        new TestUsers(userDao, passwordDao, encoder).createUser("root", UserRole.ADMIN);
+        root = new TestUsers(userDao, passwordDao, encoder).createUser("root", UserRole.ADMIN);
     }
 
     @Test
@@ -72,7 +75,8 @@ class UploadE2ETest {
 
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
         assertThat(uploadPage.status("01 Somewhere Only We Know.flac")).hasText("Uploaded");
-        assertThat(storedGroup()).isEqualTo(new IngestGroup(null, IngestGroupKind.ALBUM, "Hopes and Fears"));
+        assertThat(storedGroup())
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.ALBUM, "Hopes and Fears", root.userId()));
     }
 
     @Test
@@ -87,7 +91,8 @@ class UploadE2ETest {
         uploadPage.uploadButton().click();
 
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
-        assertThat(storedGroup()).isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files"));
+        assertThat(storedGroup())
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId()));
     }
 
     @Test
@@ -169,7 +174,8 @@ class UploadE2ETest {
         uploadPage.retryButton("Somewhere Only We Know.flac").click();
 
         assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Uploaded");
-        assertThat(storedGroup()).isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files"));
+        assertThat(storedGroup())
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId()));
     }
 
     private UploadPage logInAndOpen(final Page page) {
@@ -185,7 +191,7 @@ class UploadE2ETest {
     private IngestGroup storedGroup() {
         final var ingest = trackToIngestDao.loadOldestPending().orElseThrow();
         final var group = ingestGroupDao.loadById(ingest.groupIngestId()).orElseThrow();
-        return new IngestGroup(null, group.kind(), group.name());
+        return new IngestGroup(null, group.kind(), group.name(), group.userId());
     }
 
     private static FilePayload flac(final String name) {

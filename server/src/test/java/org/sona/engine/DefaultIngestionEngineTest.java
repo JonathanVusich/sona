@@ -32,15 +32,19 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
+import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
@@ -48,6 +52,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
@@ -64,6 +69,9 @@ class DefaultIngestionEngineTest {
 
     @Autowired
     private IngestGroupDao ingestGroupDao;
+
+    @Autowired
+    private UserDao userDao;
 
     @Autowired
     private TrackToIngestDao trackToIngestDao;
@@ -261,7 +269,10 @@ class DefaultIngestionEngineTest {
     @Test
     void rejectUnsupportedFormat() {
         // The library refuses to store such a file, so the ingest is inserted as it would be by an older upload.
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
         ingestGroupDao.insert(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.mp3", IngestState.PENDING);
         trackToIngestDao.insert(ingest);
@@ -287,7 +298,10 @@ class DefaultIngestionEngineTest {
 
     private TrackToIngest storeIngest(final byte[] flac, final String fileName)
             throws InvalidFormatException, IOException {
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads");
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
         ingestGroupDao.insert(group);
         return library.storeIngestTrack(group, fileName, new ByteArrayInputStream(flac));
     }

@@ -49,4 +49,28 @@ public final class ApiRoutes {
     public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
 
     public static final String JWKS = "/.well-known/jwks.json";
+
+    /**
+     * Where clients open a STOMP connection over WebSocket, for what Sona pushes to them. Browsers can't set headers on
+     * the handshake, so the access token goes in the CONNECT frame's {@code Authorization} header instead.
+     */
+    public static final String SOCKET = API + "/socket";
+    /**
+     * Destinations under here are the broker's. Each user has their own copy of one, which they subscribe to under
+     * {@link #SOCKET_USER}.
+     */
+    public static final String SOCKET_QUEUES = "/queue";
+    /**
+     * A client subscribes to its user's own copy of a queue under here, as {@code /user/queue/…}.
+     */
+    public static final String SOCKET_USER = "/user";
+
+    /**
+     * Where Sona sends an uploader each new state of their ingests.
+     */
+    public static final String INGEST_PROGRESS_QUEUE = SOCKET_QUEUES + "/ingests";
+    /**
+     * Where an uploader subscribes to {@link #INGEST_PROGRESS_QUEUE}, for the ingests of the groups they created.
+     */
+    public static final String INGEST_PROGRESS = SOCKET_USER + INGEST_PROGRESS_QUEUE;
 }

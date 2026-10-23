@@ -14,15 +14,20 @@ import org.sona.db.IngestGroupDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
+import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestState;
+import org.sona.model.enums.UserRole;
+import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -39,6 +44,9 @@ class DefaultIngestWorkerTest {
 
     @Autowired
     IngestGroupDao ingestGroupDao;
+
+    @Autowired
+    UserDao userDao;
 
     @Autowired
     TrackToIngestDao trackToIngestDao;
@@ -104,7 +112,11 @@ class DefaultIngestWorkerTest {
     }
 
     private TrackToIngest storeIngest(final byte[] file) throws InvalidFormatException, IOException {
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head");
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group =
+                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId());
         ingestGroupDao.insert(group);
         return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
     }

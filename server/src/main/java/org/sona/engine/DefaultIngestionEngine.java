@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
@@ -55,6 +54,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final Library library;
     private final MetadataResolver resolver;
     private final TrackToIngestDao trackToIngestDao;
+    private final IngestProgressPublisher progressPublisher;
     private final ArtistDao artistDao;
     private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseDao releaseDao;
@@ -86,14 +86,14 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             metadata = parseIngestTrack(trackToIngest, parser);
         } catch (InvalidFormatException e) {
             // Processing it again would fail the same way.
-            markState(trackToIngest.trackIngestId(), IngestState.FAILED);
+            markState(trackToIngest, IngestState.FAILED);
             throw e;
         }
         final var resolved = resolver.resolveTrack(trackToIngest, metadata).orElse(null);
 
         // No MusicBrainz track info present!
         if (resolved == null) {
-            markState(trackToIngest.trackIngestId(), IngestState.INPUT_REQUIRED);
+            markState(trackToIngest, IngestState.INPUT_REQUIRED);
 
             // TODO: Refactor to support multiple metadata providers using plugins
             // TODO: Implement metadata searching
@@ -143,14 +143,15 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         try {
             library.importTrack(trackToIngest, track.path());
         } catch (IOException e) {
-            markState(trackToIngest.trackIngestId(), IngestState.MOVE_FAILED);
+            markState(trackToIngest, IngestState.MOVE_FAILED);
             throw e;
         }
-        markState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
+        markState(trackToIngest, IngestState.COMPLETED);
     }
 
-    private void markState(final UUID trackIngestId, final IngestState state) {
-        trackToIngestDao.updateState(trackIngestId, state);
+    private void markState(final TrackToIngest trackToIngest, final IngestState state) {
+        trackToIngestDao.updateState(trackToIngest.trackIngestId(), state);
+        progressPublisher.publish(trackToIngest, state);
     }
 
     /**

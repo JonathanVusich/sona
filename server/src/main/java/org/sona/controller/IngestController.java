@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.sona.auth.UserAuthentication;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
@@ -48,12 +49,15 @@ public class IngestController {
     private final TrackIngestResponseMapper mapper;
 
     /**
-     * Creates a group under a new ID, which its files are then uploaded under.
+     * Creates a group under a new ID, which its files are then uploaded under. Only its uploader is told how they are
+     * ingested.
      */
     @PostMapping(ApiRoutes.INGEST_GROUPS)
     @ResponseStatus(HttpStatus.CREATED)
-    public IngestGroupResponse createIngestGroup(@RequestBody @Valid final IngestGroupRequest request) {
-        final var group = new IngestGroup(uuidv7(), request.kind(), request.name());
+    public IngestGroupResponse createIngestGroup(
+            final UserAuthentication authentication, @RequestBody @Valid final IngestGroupRequest request) {
+        final var group = new IngestGroup(
+                uuidv7(), request.kind(), request.name(), authentication.user().userId());
         ingestGroupDao.insert(group);
         return ingestGroupResponseMapper.toResponse(group);
     }
