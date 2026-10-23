@@ -2,7 +2,7 @@ import { Client, type IMessage } from "@stomp/stompjs";
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js";
 import { Permission, type IngestState, type TrackIngestResponse } from "./api/responses";
 import { ApiRoutes } from "./api/routes";
-import { currentAccessToken, currentUser, hasPermission } from "./auth";
+import { connectHeadersAsCurrentUser, currentUser, hasPermission } from "./auth";
 
 // Follows how far Sona has got ingesting the files this user uploaded, over a STOMP connection kept open while an
 // uploader is signed in. Sona sends each new state as it's given, with no catch-up, so a state sent while the
@@ -15,7 +15,7 @@ const socket = new Client({
   brokerURL: socketUrl(),
   // Each attempt sends the token the session holds then, which refreshes keep current.
   beforeConnect: (client) => {
-    client.connectHeaders = { Authorization: `Bearer ${currentAccessToken()}` };
+    client.connectHeaders = connectHeadersAsCurrentUser();
   },
   onConnect: () => {
     socket.subscribe(ApiRoutes.INGEST_PROGRESS, storeIngestState);

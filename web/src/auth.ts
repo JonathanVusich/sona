@@ -92,11 +92,15 @@ export async function changePassword(request: ChangePasswordRequest): Promise<Ap
 }
 
 /**
- * @returns the access token of the signed-in user, for connections that send it themselves, or null when nobody is
- * signed in
+ * @returns the headers of a STOMP CONNECT frame sent as the current user, which Sona authenticates the connection by;
+ * none when nobody is signed in, so Sona refuses it
  */
-export function currentAccessToken(): string | null {
-  return session()?.accessToken ?? null;
+export function connectHeadersAsCurrentUser(): Record<string, string> {
+  const current = session();
+  if (current === null) {
+    return {};
+  }
+  return { Authorization: `Bearer ${current.accessToken}` };
 }
 
 export function hasPermission(permission: Permission): boolean {
