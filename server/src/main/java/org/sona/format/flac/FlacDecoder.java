@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
+import org.sona.format.PcmAudio;
 import org.sona.format.PcmFrame;
 
 /**
@@ -19,7 +20,7 @@ import org.sona.format.PcmFrame;
  * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, with an {@link EOFException}
  * when it ends before a frame does, and {@link UncheckedInvalidFormatException} when a frame is corrupt.
  */
-public final class FlacDecoder implements Iterable<PcmFrame> {
+public final class FlacDecoder implements PcmAudio {
 
     private static final int SYNC_CODE = 0b11111111111110;
 
@@ -42,6 +43,16 @@ public final class FlacDecoder implements Iterable<PcmFrame> {
 
     public StreamInfo streamInfo() {
         return streamInfo;
+    }
+
+    @Override
+    public int sampleRate() {
+        return streamInfo.sampleRate();
+    }
+
+    @Override
+    public int bitsPerSample() {
+        return streamInfo.bitsPerSample();
     }
 
     /**
