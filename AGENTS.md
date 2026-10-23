@@ -305,6 +305,9 @@ testing*): run them rather than formatting by hand. The conventions below are co
 - No casts (`as T`) or non-null assertions (`!`); narrow instead.
 - async/await throughout, with no `.then` chains or `void` calls. Only the shared API client (`api/client.ts`) and
   storage helper (`storage.ts`) use `try`/`catch`; API calls return an `ApiResult` that callers branch on.
+- Every HTTP call goes through axios in `api/client.ts` (its `onUploadProgress` drives the upload bars), never `fetch`
+  or `XMLHttpRequest`. Socket updates come over STOMP with `@stomp/stompjs`: `ingestProgress.ts` keeps one
+  connection open while an uploader is signed in.
 
 **Dependencies and parsers**
 - **Ask before adding any new dependency.** Latest JDK and Spring release candidates are acceptable.

@@ -2,6 +2,7 @@ package org.sona.e2e;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.samples.FlacFiles.flacFile;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -10,27 +11,36 @@ import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.FilePayload;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
+import org.sona.controller.ApiRoutes;
 import org.sona.db.IngestGroupDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
+import org.sona.engine.IngestWorker;
+import org.sona.metadata.RawMetadata;
+import org.sona.metadata.Tag;
+import org.sona.metadata.TagValue;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @E2ETest
 class UploadE2ETest {
 
     // Sona checks only an upload's extension when it stores it; the ingest worker, which reads the file, is off in
-    // tests.
+    // tests, and only runs when a test runs a pass itself.
     private static final byte[] AUDIO = {1, 2, 3};
 
     @Autowired
@@ -47,6 +57,12 @@ class UploadE2ETest {
 
     @Autowired
     IngestGroupDao ingestGroupDao;
+
+    @Autowired
+    IngestWorker worker;
+
+    @Autowired
+    SimpUserRegistry userRegistry;
 
     Users root;
 
@@ -74,7 +90,7 @@ class UploadE2ETest {
         uploadPage.uploadButton().click();
 
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
-        assertThat(uploadPage.status("01 Somewhere Only We Know.flac")).hasText("Uploaded");
+        assertThat(uploadPage.status("01 Somewhere Only We Know.flac")).hasText("Waiting to be matched");
         assertThat(storedGroup())
                 .isEqualTo(new IngestGroup(null, IngestGroupKind.ALBUM, "Hopes and Fears", root.userId()));
     }
@@ -109,7 +125,7 @@ class UploadE2ETest {
 
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
         assertThat(uploadPage.groupFiles("Singles")).hasText(new String[] {"Everybody's Changing.flac"});
-        assertThat(uploadPage.status("Everybody's Changing.flac")).hasText("Uploaded");
+        assertThat(uploadPage.status("Everybody's Changing.flac")).hasText("Waiting to be matched");
     }
 
     @Test
@@ -173,9 +189,76 @@ class UploadE2ETest {
         page.unroute(trackUploads);
         uploadPage.retryButton("Somewhere Only We Know.flac").click();
 
-        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Uploaded");
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Waiting to be matched");
         assertThat(storedGroup())
                 .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId()));
+    }
+
+    @Test
+    void aFileShowsHowMuchOfItHasBeenSent(final Page page) {
+        final var uploadPage = logInAndOpen(page);
+        uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));
+        final var held = new ArrayList<Route>();
+        page.route(url -> url.contains("/tracks?"), held::add);
+
+        uploadPage.uploadButton().click();
+
+        assertThat(uploadPage.progressBar("Somewhere Only We Know.flac")).isVisible();
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText(Pattern.compile("^Uploading \\d+%$"));
+        held.getFirst().resume();
+
+        assertThat(uploadPage.progressBar("Somewhere Only We Know.flac")).hasCount(0);
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Waiting to be matched");
+    }
+
+    @Test
+    void anUploadedFileIsShownAddedToTheLibrary(final Page page) throws IOException, InterruptedException {
+        final var files = Jimfs.newFileSystem(Configuration.unix());
+        final var album = Files.createDirectories(files.getPath("/Coldplay/Parachutes"));
+        Files.write(album.resolve("09 A Whisper.flac"), whisper());
+        final var uploadPage = logInAndOpen(page);
+        uploadPage.chooseFolder(files.getPath("/Coldplay"));
+        awaitProgressSubscription();
+
+        uploadPage.uploadButton().click();
+        assertThat(uploadPage.status("09 A Whisper.flac")).hasText("Waiting to be matched");
+        worker.processPending();
+
+        assertThat(uploadPage.status("09 A Whisper.flac")).hasText("Added to the library");
+        assertThat(uploadPage.ingestSummary()).hasText("1 added to the library");
+    }
+
+    @Test
+    void aFileSonaCantReadIsShownNotAdded(final Page page) throws InterruptedException {
+        final var uploadPage = logInAndOpen(page);
+        uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));
+        awaitProgressSubscription();
+
+        uploadPage.uploadButton().click();
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Waiting to be matched");
+        worker.processPending();
+
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Couldn't be added");
+        assertThat(uploadPage.ingestSummary()).hasText("0 added to the library");
+    }
+
+    // Sona sends no state it gave an ingest before the page subscribed, so a pass run sooner would go unseen.
+    private void awaitProgressSubscription() throws InterruptedException {
+        final var deadline = Instant.now().plusSeconds(5);
+        while (!isSubscribed()) {
+            assertThat(Instant.now()).as("subscribed by now").isBefore(deadline);
+            Thread.sleep(10);
+        }
+    }
+
+    private boolean isSubscribed() {
+        final var socketUser = userRegistry.getUser(root.userId().toString());
+        if (socketUser == null) {
+            return false;
+        }
+        return socketUser.getSessions().stream()
+                .flatMap(session -> session.getSubscriptions().stream())
+                .anyMatch(subscription -> subscription.getDestination().equals(ApiRoutes.INGEST_PROGRESS));
     }
 
     private UploadPage logInAndOpen(final Page page) {
@@ -196,5 +279,14 @@ class UploadE2ETest {
 
     private static FilePayload flac(final String name) {
         return new FilePayload(name, "audio/flac", AUDIO);
+    }
+
+    // A track the recorded MusicBrainz responses match, uploaded from its album's folder.
+    private static byte[] whisper() {
+        final var metadata = new RawMetadata(Duration.ofSeconds(10));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        return flacFile(metadata);
     }
 }

@@ -66,6 +66,16 @@ public final class UploadPage {
         return page.locator(".upload-summary");
     }
 
+    public Locator ingestSummary() {
+        return page.locator(".ingest-summary");
+    }
+
+    public Locator progressBar(final String path) {
+        return page.getByRole(
+                AriaRole.PROGRESSBAR,
+                new Page.GetByRoleOptions().setName("Uploading " + path).setExact(true));
+    }
+
     public Locator retryButton(final String path) {
         return button("Retry " + path);
     }

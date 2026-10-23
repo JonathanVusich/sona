@@ -6,5 +6,5 @@ export default defineConfig({
   // Matches tsconfig.json; index.tsx awaits at the top level.
   build: { target: "es2022" },
   // Sona's API is proxied onto the same origin, which the SameSite refresh cookie needs.
-  server: { port: 5173, proxy: { "/api": "http://localhost:8080" } },
+  server: { port: 5173, proxy: { "/api": { target: "http://localhost:8080", ws: true } } },
 });

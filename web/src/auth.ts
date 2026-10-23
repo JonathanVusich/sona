@@ -91,6 +91,14 @@ export async function changePassword(request: ChangePasswordRequest): Promise<Ap
   return logIn({ username: current.user.username, password: request.newPassword });
 }
 
+/**
+ * @returns the access token of the signed-in user, for connections that send it themselves, or null when nobody is
+ * signed in
+ */
+export function currentAccessToken(): string | null {
+  return session()?.accessToken ?? null;
+}
+
 export function hasPermission(permission: Permission): boolean {
   return currentUser()?.permissions.includes(permission) ?? false;
 }

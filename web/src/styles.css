@@ -1031,6 +1031,35 @@ a.player-artist:hover {
   color: var(--danger);
 }
 
+.ingest-summary {
+  flex: 1;
+  margin-left: 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.upload-bar {
+  flex: 0 0 120px;
+  height: 6px;
+  appearance: none;
+  border: none;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.upload-bar::-webkit-progress-bar {
+  background: var(--border);
+}
+
+.upload-bar::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.upload-bar::-moz-progress-bar {
+  background: var(--accent);
+}
+
 .muted {
   color: var(--text-3);
 }
