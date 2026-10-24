@@ -1,8 +1,11 @@
 package org.sona.format.mp3;
 
+import dev.javax.bitstream.BitInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.experimental.UtilityClass;
+import org.sona.exception.InvalidFormatException;
 
 /**
  * Helpers for ID3v2 tags, which read the range of an array from {@code start} up to {@code end}.
@@ -11,21 +14,20 @@ import lombok.experimental.UtilityClass;
 final class Id3Utils {
 
     /**
-     * @return the value of a synchsafe integer, which keeps the top bit of each byte 0 so it can't be read as a frame
-     *     sync (ID3v2.4.0 structure section 6.2)
+     * Reads a synchsafe integer: four bytes whose top bits are 0, so it can't be read as a frame sync, and whose other
+     * seven bits each hold the value (ID3v2.4.0 structure section 6.2).
+     *
+     * @throws InvalidFormatException when a byte's top bit is set
      */
-    static int synchsafeInt(final int bits) {
-        return (bits & 0x7F) | ((bits >> 1) & 0x3F80) | ((bits >> 2) & 0x1FC000) | ((bits >> 3) & 0xFE00000);
-    }
-
-    /**
-     * @return the big-endian integer in the four bytes at the offset
-     */
-    static int bigEndianInt(final byte[] bytes, final int offset) {
-        return ((bytes[offset] & 0xFF) << 24)
-                | ((bytes[offset + 1] & 0xFF) << 16)
-                | ((bytes[offset + 2] & 0xFF) << 8)
-                | (bytes[offset + 3] & 0xFF);
+    static int readSynchsafeInt(final BitInputStream bits) throws IOException, InvalidFormatException {
+        var value = 0;
+        for (var i = 0; i < Integer.BYTES; i++) {
+            if (bits.readBits(1) != 0) {
+                throw new InvalidFormatException("ID3v2 synchsafe integer has a byte with its top bit set!");
+            }
+            value = (value << 7) | (int) bits.readBits(7);
+        }
+        return value;
     }
 
     /**

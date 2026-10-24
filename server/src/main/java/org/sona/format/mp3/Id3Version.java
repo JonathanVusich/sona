@@ -1,5 +1,9 @@
 package org.sona.format.mp3;
 
+import dev.javax.bitstream.BitInputStream;
+import java.io.IOException;
+import org.sona.exception.InvalidFormatException;
+
 /**
  * The ID3v2 versions Sona reads, which lay out frame headers alike but size and flag them differently.
  */
@@ -23,23 +27,27 @@ enum Id3Version {
     private static final int V2_4_DATA_LENGTH = 0x01;
 
     /**
-     * @return how many bytes the frame's data takes, from the size field of its header
+     * Reads a frame header's size field.
+     *
+     * @return how many bytes the frame's data takes
      */
-    int frameSize(final int sizeBits) {
+    long readFrameSize(final BitInputStream bits) throws IOException, InvalidFormatException {
         return switch (this) {
-            case V2_3 -> sizeBits;
-            case V2_4 -> Id3Utils.synchsafeInt(sizeBits);
+            case V2_3 -> bits.readBits(32);
+            case V2_4 -> Id3Utils.readSynchsafeInt(bits);
         };
     }
 
     /**
-     * @return how many bytes the extended header takes, from its size field
+     * Reads the extended header's size field.
+     *
+     * @return how many bytes of the extended header follow the field
      */
-    int extendedHeaderSize(final int sizeBits) {
+    long readExtendedHeaderSize(final BitInputStream bits) throws IOException, InvalidFormatException {
         return switch (this) {
-            // ID3v2.3's size leaves out the four bytes of the size itself.
-            case V2_3 -> sizeBits + Integer.BYTES;
-            case V2_4 -> Id3Utils.synchsafeInt(sizeBits);
+            // ID3v2.3's size leaves out the four bytes of the size itself, where ID3v2.4's counts them.
+            case V2_3 -> bits.readBits(32);
+            case V2_4 -> Id3Utils.readSynchsafeInt(bits) - Integer.BYTES;
         };
     }
 
