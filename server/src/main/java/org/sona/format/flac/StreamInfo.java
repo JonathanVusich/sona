@@ -1,6 +1,7 @@
 package org.sona.format.flac;
 
 import java.time.Duration;
+import org.sona.format.AudioUtils;
 import org.sona.format.MD5Checksum;
 
 public record StreamInfo(
@@ -21,7 +22,6 @@ public record StreamInfo(
      * @return how long the audio plays
      */
     public Duration duration() {
-        final var nanos = (interChannelSamples % sampleRate) * 1_000_000_000L / sampleRate;
-        return Duration.ofSeconds(interChannelSamples / sampleRate, nanos);
+        return AudioUtils.duration(interChannelSamples, sampleRate);
     }
 }
