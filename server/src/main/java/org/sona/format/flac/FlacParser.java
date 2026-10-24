@@ -14,7 +14,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.sona.exception.InvalidFormatException;
-import org.sona.format.FieldUtils;
 import org.sona.format.Format;
 import org.sona.format.MD5Checksum;
 import org.sona.format.Parser;
@@ -248,8 +247,12 @@ public final class FlacParser implements Parser {
 
     // Fixed-size ASCII fields are padded with NUL bytes, or are all NUL when empty.
     private String readAscii(final DataInputStream inputStream, final int size) throws IOException {
-        final var bits = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
-        return FieldUtils.readNulPaddedString(bits, size);
+        final var bytes = inputStream.readNBytes(size);
+        var length = 0;
+        while (length < size && bytes[length] != 0) {
+            length++;
+        }
+        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
     }
 
     private void validateFlacHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException {
