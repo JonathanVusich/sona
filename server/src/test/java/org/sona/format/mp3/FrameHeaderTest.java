@@ -53,6 +53,31 @@ class FrameHeaderTest {
         assertThat(bits.readBits(8)).isEqualTo(0x41);
     }
 
+    // A free-format frame's header gives no bitrate, so its stream gives the frame's length.
+    @Test
+    void readsFreeFormatFrameHeader() throws IOException, InvalidFormatException {
+        final var header = readHeader("FFFB0064");
+
+        assertThat(header.bitrate()).isEqualTo(FrameHeader.FREE_FORMAT_BITRATE);
+        assertThatThrownBy(header::frameLength).isInstanceOf(IllegalStateException.class);
+        assertThat(header.withFreeFormatLength(417).frameLength()).isEqualTo(417);
+    }
+
+    // Every length a free-format frame can have, at every sample rate, comes back from the bitrate it's given.
+    @Test
+    void freeFormatBitrateGivesBackItsLength() throws InvalidFormatException {
+        for (final var version : MpegVersion.values()) {
+            for (var sampleRateIndex = 0; sampleRateIndex < 3; sampleRateIndex++) {
+                final var sampleRate = version.sampleRate(sampleRateIndex);
+                final var header = new FrameHeader(version, 0, sampleRate, 0, ChannelMode.STEREO);
+                for (var length = FrameHeader.SIZE; length <= 5761; length++) {
+                    assertThat(header.withFreeFormatLength(length).frameLength())
+                            .isEqualTo(length);
+                }
+            }
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {
@@ -60,8 +85,6 @@ class FrameHeaderTest {
                 "49443304",
                 // Layer II.
                 "FFFD9064",
-                // Free format.
-                "FFFB0064",
                 // Bitrate index 15.
                 "FFFBF064",
                 // Reserved sample rate.

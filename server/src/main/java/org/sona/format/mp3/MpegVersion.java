@@ -22,7 +22,6 @@ public enum MpegVersion {
             576);
 
     private static final int RESERVED_SAMPLE_RATE = 3;
-    private static final int FREE_FORMAT = 0;
     private static final int INVALID_BITRATE = 15;
 
     private final int[] sampleRates;
@@ -61,13 +60,12 @@ public enum MpegVersion {
     }
 
     /**
-     * @param index a frame header's bitrate index, of which 0 is free format and 15 is invalid
-     * @return the bitrate in bits per second
+     * @param index a frame header's bitrate index, of which 15 is invalid
+     * @return the bitrate in bits per second, or {@link FrameHeader#FREE_FORMAT_BITRATE} for index 0, free format
      */
     public int bitrate(final int index) throws InvalidFormatException {
-        // TODO: Read free format streams, whose frames are as long as the encoder chose.
-        if (index == FREE_FORMAT || index == INVALID_BITRATE) {
-            throw new InvalidFormatException("MP3 frame's bitrate index %d isn't supported!".formatted(index));
+        if (index == INVALID_BITRATE) {
+            throw new InvalidFormatException("MP3 frame's bitrate index is invalid!");
         }
         return bitrates[index] * 1000;
     }

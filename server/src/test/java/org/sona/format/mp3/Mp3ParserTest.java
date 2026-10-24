@@ -91,6 +91,53 @@ class Mp3ParserTest {
         assertThat(metadata.findValues(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(7));
     }
 
+    // ID3v2.2's three-letter frames read as the ID3v2.3 frames that replaced them.
+    @Test
+    void readsId3v22Tag() throws IOException, InvalidFormatException {
+        final var metadata = parseMp3(Mp3Sample.ID3V22).metadata();
+
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Politik"));
+        assertThat(metadata.findValues(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Coldplay"));
+        assertThat(metadata.findValues(Tag.RELEASE_TITLE))
+                .containsExactly(new TagValue.Str("A Rush of Blood to the Head"));
+        assertThat(metadata.findValues(Tag.TRACK_NUMBER)).containsExactly(new TagValue.Int(1));
+        assertThat(metadata.findValues(Tag.RELEASE_YEAR)).containsExactly(new TagValue.Int(2002));
+        assertThat(unknownTag(metadata, "musicbrainz_albumid"))
+                .containsExactly(new TagValue.Str("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
+        assertThat(unknownTag(metadata, "musicbrainz_trackid"))
+                .containsExactly(new TagValue.Str("0c4a1b1a-0a6b-4c5b-9d2a-1d2e3f4a5b6c"));
+    }
+
+    @Test
+    void inflatesCompressedId3v23Frame() throws IOException, InvalidFormatException {
+        final var metadata = parseMp3(Mp3Sample.COMPRESSED_ID3V23).metadata();
+
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Compressed in ID3v2.3"));
+        assertThat(metadata.findValues(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Coldplay"));
+    }
+
+    // The artist is ÿàn: an 0xFF byte before one of 0xE0, which unsynchronisation separates with a zero.
+    @Test
+    void readsCompressedAndUnsynchronisedId3v24Frames() throws IOException, InvalidFormatException {
+        final var metadata = parseMp3(Mp3Sample.COMPRESSED_ID3V24).metadata();
+
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Compressed in ID3v2.4"));
+        assertThat(metadata.findValues(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("ÿàn"));
+    }
+
+    // An appended tag updates the one before the audio, and both take precedence over ID3v1.
+    @Test
+    void readsAppendedTagBeforeOthers() throws IOException, InvalidFormatException {
+        final var parsed = parseMp3(Mp3Sample.APPENDED_ID3V24);
+        final var metadata = parsed.metadata();
+
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Appended title"));
+        assertThat(metadata.findValues(Tag.TRACK_ARTIST)).containsExactly(new TagValue.Str("Prepended artist"));
+        assertThat(metadata.findValues(Tag.RELEASE_TITLE)).containsExactly(new TagValue.Str("v1 album"));
+        // Five frames sit between the tags.
+        assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(5);
+    }
+
     // Without a VBR header the frames are counted up to the ID3v1 tag.
     @Test
     void countsFramesUpToId3v1Tag() throws IOException, InvalidFormatException {
