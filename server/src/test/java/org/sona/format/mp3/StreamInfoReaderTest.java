@@ -54,6 +54,16 @@ class StreamInfoReaderTest {
         assertThat(streamInfo.duration()).isEqualTo(Duration.ofNanos(40 * 1152 * 1_000_000_000L / 44100));
     }
 
+    // Each free-format frame runs to the next one's sync: 417 bytes, and 418 when padded, as at 128 kbit/s.
+    @Test
+    void countsFreeFormatFrames() throws IOException, InvalidFormatException {
+        final var bytes = sampleBytes(Mp3Sample.FREE_FORMAT);
+        final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE);
+
+        assertThat(streamInfo.frameCount()).isEqualTo(40);
+        assertThat(streamInfo.duration()).isEqualTo(Duration.ofNanos(40 * 1152 * 1_000_000_000L / 44100));
+    }
+
     // The first frame takes 417 bytes, so the second starts there.
     @Test
     void rejectsDataBetweenFrames() throws IOException {
