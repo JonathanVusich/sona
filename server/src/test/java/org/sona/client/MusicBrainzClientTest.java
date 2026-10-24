@@ -79,6 +79,19 @@ class MusicBrainzClientTest {
     }
 
     @Test
+    void lookUpRecordingWithTheMediumItIsOnInEachRelease() {
+        final var recording = client.lookupRecording(UUID.fromString("cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"));
+
+        assertThat(recording.title()).isEqualTo("Lower Your Eyelids to Die With the Sun");
+        assertThat(recording.artistCredit().getFirst().artist().name()).isEqualTo("M83");
+        final var release = recording.releases().getFirst();
+        assertThat(release.id()).isEqualTo(UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"));
+        assertThat(release.media())
+                .extracting(Media::position, Media::trackOffset)
+                .containsExactly(tuple(1, 14));
+    }
+
+    @Test
     void lookUpArtist() {
         final var artist = client.lookupArtist(UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234"));
 

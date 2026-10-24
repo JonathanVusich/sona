@@ -1,0 +1,40 @@
+{
+  "ipis": [],
+  "sort-name": "M83",
+  "type": "Group",
+  "disambiguation": "French electronic/shoegaze group",
+  "gender": null,
+  "country": "FR",
+  "isnis": [
+    "0000000123318853"
+  ],
+  "end-area": null,
+  "id": "6d7b7cd4-254b-4c25-83f6-dd20f98ceacd",
+  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+  "gender-id": null,
+  "area": {
+    "id": "08310658-51eb-3801-80de-5a0739207115",
+    "type-id": null,
+    "iso-3166-1-codes": [
+      "FR"
+    ],
+    "name": "France",
+    "sort-name": "France",
+    "type": null,
+    "disambiguation": ""
+  },
+  "name": "M83",
+  "life-span": {
+    "begin": "2001",
+    "end": null,
+    "ended": false
+  },
+  "begin-area": {
+    "id": "d8c8f702-8e5f-4744-8b2c-c4e662ec4ec4",
+    "type-id": null,
+    "sort-name": "Antibes",
+    "type": null,
+    "disambiguation": "",
+    "name": "Antibes"
+  }
+}

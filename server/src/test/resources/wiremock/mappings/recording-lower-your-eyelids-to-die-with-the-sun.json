@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/recording/cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff",
+    "queryParameters": {
+      "inc": { "equalTo": "artist-credits releases media" },
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "recording/lower-your-eyelids-to-die-with-the-sun.json"
+  }
+}

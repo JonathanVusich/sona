@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
@@ -21,6 +22,7 @@ import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
+import org.sona.fingerprint.Fingerprint;
 import org.sona.format.Format;
 import org.sona.format.Parser;
 import org.sona.format.flac.FlacParser;
@@ -81,16 +83,17 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private void ingestTrack(final TrackToIngest trackToIngest)
             throws InvalidFormatException, IOException, InterruptedException {
         final Parser parser;
-        final RawMetadata metadata;
+        final ParsedTrack parsed;
         try {
             parser = parserFor(trackToIngest.originalFileName());
-            metadata = parseIngestTrack(trackToIngest, parser);
+            parsed = parseIngestTrack(trackToIngest, parser);
         } catch (InvalidFormatException e) {
             // Processing it again would fail the same way.
             markState(trackToIngest, IngestState.FAILED);
             throw e;
         }
-        final var resolved = resolver.resolveTrack(trackToIngest, metadata).orElse(null);
+        final var metadata = parsed.metadata();
+        final var resolved = resolveParsedTrack(trackToIngest, parsed).orElse(null);
 
         // No MusicBrainz track info present!
         if (resolved == null) {
@@ -117,12 +120,36 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
-    private RawMetadata parseIngestTrack(final TrackToIngest trackToIngest, final Parser parser)
+    // The audio is fingerprinted while the file is open, as it's decoded from the channel its metadata was read from.
+    private ParsedTrack parseIngestTrack(final TrackToIngest trackToIngest, final Parser parser)
             throws IOException, InvalidFormatException {
         try (final var channel = library.readIngestTrack(trackToIngest)) {
-            return parser.parse(channel).metadata();
+            final var parsed = parser.parse(channel);
+            return switch (parser.format()) {
+                case FLAC -> new FingerprintedTrack(parsed.metadata(), new Fingerprint(parsed.audio()));
+                // TODO: Fingerprint MP3s once Mp3Decoder decodes Layer III.
+                case MP3 -> new UndecodedTrack(parsed.metadata());
+            };
         }
     }
+
+    private Optional<ResolvedTrack> resolveParsedTrack(final TrackToIngest trackToIngest, final ParsedTrack parsed)
+            throws IOException, InterruptedException {
+        return switch (parsed) {
+            case FingerprintedTrack track ->
+                resolver.resolveTrack(trackToIngest, track.metadata(), track.fingerprint());
+            case UndecodedTrack track -> resolver.resolveTrackByTags(trackToIngest, track.metadata());
+        };
+    }
+
+    private sealed interface ParsedTrack {
+        RawMetadata metadata();
+    }
+
+    private record FingerprintedTrack(RawMetadata metadata, Fingerprint fingerprint) implements ParsedTrack {}
+
+    // A track whose audio Sona can't decode yet, so can't fingerprint.
+    private record UndecodedTrack(RawMetadata metadata) implements ParsedTrack {}
 
     private void importTrack(
             final TrackToIngest trackToIngest,

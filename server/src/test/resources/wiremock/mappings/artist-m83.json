@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/ws/2/artist/6d7b7cd4-254b-4c25-83f6-dd20f98ceacd",
+    "queryParameters": {
+      "fmt": { "equalTo": "json" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "artist/m83.json"
+  }
+}

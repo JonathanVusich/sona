@@ -1,6 +1,9 @@
 package org.sona.engine;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -16,6 +19,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
@@ -35,6 +39,7 @@ import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
+import org.sona.format.flac.FlacWriter;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
@@ -237,6 +242,50 @@ class DefaultIngestionEngineTest {
                 .where(RELEASE_LABEL.RELEASE_ID.eq(release.releaseId()))
                 .fetch(LABEL.NAME);
         assertThat(labelNames).containsExactly("Parlophone");
+    }
+
+    @Test
+    void importTheRecordingItsFingerprintMatchesClosely()
+            throws IOException, InvalidFormatException, InterruptedException {
+        // The tags say A Whisper, but AcoustID knows the audio as another recording, which wins.
+        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+        final var stubId = UUID.randomUUID();
+        // Above the stub in src/test/resources/wiremock/mappings that matches every fingerprint with nothing.
+        musicBrainz.stubFor(post(urlPathEqualTo("/v2/lookup"))
+                .withId(stubId)
+                .atPriority(1)
+                .willReturn(aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json")));
+        try {
+            engine.processTrack(ingest);
+        } finally {
+            // The stub server is shared with other tests.
+            musicBrainz.removeStubMapping(musicBrainz.getStubMapping(stubId).getItem());
+        }
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        final var track = loadTrack(ingest);
+        assertThat(track.name()).isEqualTo("Lower Your Eyelids to Die With the Sun");
+        assertThat(track.position()).isEqualTo(15);
+        final var release = releaseDao
+                .loadByMusicBrainzId(UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"))
+                .orElseThrow();
+        assertThat(release.name()).isEqualTo("Before the Dawn Heals Us");
+        assertThat(artistDao.loadByMusicBrainzId(UUID.fromString("6d7b7cd4-254b-4c25-83f6-dd20f98ceacd")))
+                .hasValueSatisfying(artist -> assertThat(track.artistId()).isEqualTo(artist.artistId()));
+    }
+
+    @Test
+    void rejectCorruptAudio() throws IOException, InvalidFormatException {
+        final var outputStream = new ByteArrayOutputStream();
+        new FlacWriter().writeMetadata(whisperMetadata(), outputStream);
+        // Bytes that aren't an audio frame where the first frame should start.
+        outputStream.write(new byte[256]);
+        final var ingest = storeIngest(outputStream.toByteArray(), "09 A Whisper.flac");
+
+        assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(InvalidFormatException.class);
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 
     @Test

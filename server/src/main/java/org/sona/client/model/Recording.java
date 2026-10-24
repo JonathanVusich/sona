@@ -10,4 +10,5 @@ public record Recording(
         @JsonProperty("artist-credit-id") UUID artistCreditId,
         @JsonProperty("artist-credit") List<ArtistCredit> artistCredit,
         List<Release> releases,
-        int score) {}
+        // Search results only: how well the recording matches the query, from 0 to 100.
+        Integer score) {}
