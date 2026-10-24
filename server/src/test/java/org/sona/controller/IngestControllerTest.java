@@ -156,7 +156,7 @@ class IngestControllerTest {
     void aFileInAFormatSonaCannotIngestIsRefused() {
         final var group = storeGroup();
 
-        api.uploadTrack(adminToken, group.ingestGroupId(), "song.mp3", new byte[] {1, 2, 3})
+        api.uploadTrack(adminToken, group.ingestGroupId(), "song.ogg", new byte[] {1, 2, 3})
                 .expectStatus()
                 .isEqualTo(415)
                 .expectBody()

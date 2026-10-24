@@ -54,6 +54,7 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
+import org.sona.samples.Mp3Sample;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
@@ -156,6 +157,27 @@ class DefaultIngestionEngineTest {
             assertThat(imported.readAllBytes()).isEqualTo(flac);
         }
         assertThatThrownBy(() -> library.readIngestTrack(ingest)).isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void importMatchedMp3() throws IOException, InvalidFormatException, InterruptedException {
+        final byte[] mp3;
+        try (final var inputStream = Mp3Sample.STEREO_CBR_ID3V24.inputStream()) {
+            mp3 = inputStream.readAllBytes();
+        }
+        final var ingest = storeIngest(mp3, "09 A Whisper.mp3");
+
+        engine.processTrack(ingest);
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        final var track = loadTrack(ingest);
+        assertThat(track.name()).isEqualTo("A Whisper");
+        assertThat(track.duration()).isEqualTo(1);
+        assertThat(track.format()).isEqualTo(AudioFormat.MP3);
+        assertThat(track.path()).endsWith(".mp3");
+        try (final var imported = library.readTrack(track)) {
+            assertThat(imported.readAllBytes()).isEqualTo(mp3);
+        }
     }
 
     @Test
@@ -275,12 +297,12 @@ class DefaultIngestionEngineTest {
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
         ingestGroupDao.insert(group);
-        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.mp3", IngestState.PENDING);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.ogg", IngestState.PENDING);
         trackToIngestDao.insert(ingest);
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
                 .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("Extension mp3 is not supported!");
+                .hasMessage("Extension ogg is not supported!");
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 

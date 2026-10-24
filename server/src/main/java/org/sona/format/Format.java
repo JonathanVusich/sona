@@ -7,7 +7,8 @@ import org.sona.model.enums.AudioFormat;
 
 @Getter
 public enum Format {
-    FLAC("flac");
+    FLAC("flac"),
+    MP3("mp3");
 
     private final List<String> extensions;
 
@@ -30,6 +31,7 @@ public enum Format {
     public AudioFormat toAudioFormat() {
         return switch (this) {
             case FLAC -> AudioFormat.FLAC;
+            case MP3 -> AudioFormat.MP3;
         };
     }
 }

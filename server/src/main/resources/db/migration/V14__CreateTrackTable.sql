@@ -1,5 +1,5 @@
 -- Values match org.sona.format.Format.
-create type audio_format as enum ('FLAC');
+create type audio_format as enum ('FLAC', 'MP3');
 
 create table if not exists track (
     track_id uuid primary key,

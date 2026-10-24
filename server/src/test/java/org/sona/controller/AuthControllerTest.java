@@ -87,7 +87,7 @@ class AuthControllerTest {
                         SessionState.ACTIVE,
                         List.of(Permission.LIBRARY_READ),
                         MAX_UPLOAD_SIZE,
-                        List.of("flac")));
+                        List.of("flac", "mp3")));
     }
 
     @Test
