@@ -1,7 +1,6 @@
 package org.sona.format.mp3;
 
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * The ID3v2 versions Sona reads, which lay out frame headers alike but size and flag them differently.
@@ -47,40 +46,52 @@ enum Id3Version {
     }
 
     /**
-     * @return the frame's content, without the fields its flags add, or empty when it's compressed or encrypted
+     * @return whether Sona can read the frame's content: it isn't compressed or encrypted, and isn't empty
      */
-    Optional<byte[]> frameContent(final int tagFlags, final int formatFlags, final byte[] data) {
+    boolean isReadable(final int formatFlags, final int dataLength) {
+        // TODO: Inflate compressed frames.
+        final var unreadableFlags = switch (this) {
+            case V2_3 -> V2_3_COMPRESSED | V2_3_ENCRYPTED;
+            case V2_4 -> V2_4_COMPRESSED | V2_4_ENCRYPTED;
+        };
+        return (formatFlags & unreadableFlags) == 0 && dataLength > fieldsSize(formatFlags);
+    }
+
+    /**
+     * @return the content of a frame Sona can read (see {@link #isReadable}), without the fields its flags add
+     */
+    byte[] frameContent(final int tagFlags, final int formatFlags, final byte[] data) {
+        final var content = Arrays.copyOfRange(data, fieldsSize(formatFlags), data.length);
         return switch (this) {
-            case V2_3 -> v23FrameContent(formatFlags, data);
-            case V2_4 -> v24FrameContent(tagFlags, formatFlags, data);
+            // ID3v2.3 unsynchronises the whole tag rather than each frame, so the tag reader undoes it.
+            case V2_3 -> content;
+            case V2_4 -> v24Resynchronised(tagFlags, formatFlags, content);
         };
     }
 
-    // ID3v2.3 unsynchronises the whole tag rather than each frame, so the tag reader undoes it.
-    private static Optional<byte[]> v23FrameContent(final int formatFlags, final byte[] data) {
-        // TODO: Inflate compressed frames.
-        if ((formatFlags & (V2_3_COMPRESSED | V2_3_ENCRYPTED)) != 0) {
-            return Optional.empty();
-        }
-        if ((formatFlags & V2_3_GROUPED) != 0 && data.length > 0) {
-            return Optional.of(Arrays.copyOfRange(data, 1, data.length));
-        }
-        return Optional.of(data);
-    }
-
-    private static Optional<byte[]> v24FrameContent(final int tagFlags, final int formatFlags, final byte[] data) {
-        final var fieldsSize = v24FieldsSize(formatFlags);
-        if ((formatFlags & (V2_4_COMPRESSED | V2_4_ENCRYPTED)) != 0 || data.length < fieldsSize) {
-            return Optional.empty();
-        }
-        final var content = Arrays.copyOfRange(data, fieldsSize, data.length);
+    private static byte[] v24Resynchronised(final int tagFlags, final int formatFlags, final byte[] content) {
         if ((formatFlags & V2_4_UNSYNCHRONISED) != 0 || (tagFlags & UNSYNCHRONISED_TAG) != 0) {
-            return Optional.of(Id3Utils.resynchronise(content));
+            return Id3Utils.resynchronise(content);
         }
-        return Optional.of(content);
+        return content;
     }
 
-    // The group ID and data length indicator come before the content when the flags say they're there.
+    // The fields that come before the content when the flags say they're there: the group ID, and in ID3v2.4 the data
+    // length indicator.
+    private int fieldsSize(final int formatFlags) {
+        return switch (this) {
+            case V2_3 -> v23FieldsSize(formatFlags);
+            case V2_4 -> v24FieldsSize(formatFlags);
+        };
+    }
+
+    private static int v23FieldsSize(final int formatFlags) {
+        if ((formatFlags & V2_3_GROUPED) != 0) {
+            return 1;
+        }
+        return 0;
+    }
+
     private static int v24FieldsSize(final int formatFlags) {
         var size = 0;
         if ((formatFlags & V2_4_GROUPED) != 0) {

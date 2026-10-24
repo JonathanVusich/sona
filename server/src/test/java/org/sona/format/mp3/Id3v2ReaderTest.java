@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.mp3.Id3Frame.TextFrame;
@@ -15,7 +14,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsId3v24Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(Mp3Sample.STEREO_CBR_ID3V24).orElseThrow();
+        final var tag = readTag(Mp3Sample.STEREO_CBR_ID3V24);
 
         // The tag's padding runs up to the first frame, at 291.
         assertThat(tag.size()).isEqualTo(291);
@@ -30,7 +29,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsId3v23Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(Mp3Sample.MONO_VBR_ID3V23).orElseThrow();
+        final var tag = readTag(Mp3Sample.MONO_VBR_ID3V23);
 
         assertThat(tag.size()).isEqualTo(133);
         assertThat(tag.frames())
@@ -42,11 +41,20 @@ class Id3v2ReaderTest {
     }
 
     @Test
-    void readsNoTagWhenFileStartsWithAudio() throws IOException, InvalidFormatException {
-        assertThat(readTag(Mp3Sample.NO_XING_ID3V1)).isEmpty();
+    void findsTagAtStart() throws IOException {
+        try (final var channel = Mp3Sample.STEREO_CBR_ID3V24.channel()) {
+            assertThat(new Id3v2Reader().hasTag(channel)).isTrue();
+        }
     }
 
-    private static Optional<Id3v2Tag> readTag(final Mp3Sample sample) throws IOException, InvalidFormatException {
+    @Test
+    void findsNoTagWhenFileStartsWithAudio() throws IOException {
+        try (final var channel = Mp3Sample.NO_XING_ID3V1.channel()) {
+            assertThat(new Id3v2Reader().hasTag(channel)).isFalse();
+        }
+    }
+
+    private static Id3v2Tag readTag(final Mp3Sample sample) throws IOException, InvalidFormatException {
         try (final var channel = sample.channel()) {
             return new Id3v2Reader().readTag(channel);
         }
