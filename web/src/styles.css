@@ -1038,26 +1038,26 @@ a.player-artist:hover {
   font-size: 13px;
 }
 
-.upload-bar {
-  flex: 0 0 120px;
-  height: 6px;
-  appearance: none;
-  border: none;
-  border-radius: 3px;
-  background: var(--border);
-  overflow: hidden;
+.upload-ring {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg);
 }
 
-.upload-bar::-webkit-progress-bar {
-  background: var(--border);
+.upload-ring circle {
+  fill: none;
+  stroke-width: 2.5;
 }
 
-.upload-bar::-webkit-progress-value {
-  background: var(--accent);
+.upload-ring-track {
+  stroke: var(--border);
 }
 
-.upload-bar::-moz-progress-bar {
-  background: var(--accent);
+.upload-ring-sent {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s linear;
 }
 
 .muted {

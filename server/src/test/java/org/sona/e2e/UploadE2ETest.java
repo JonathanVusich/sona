@@ -204,7 +204,8 @@ class UploadE2ETest {
         uploadPage.uploadButton().click();
 
         assertThat(uploadPage.progressBar("Somewhere Only We Know.flac")).isVisible();
-        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText(Pattern.compile("^Uploading \\d+%$"));
+        // The ring stands in for the status while the file is sent.
+        assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasCount(0);
         held.getFirst().resume();
 
         assertThat(uploadPage.progressBar("Somewhere Only We Know.flac")).hasCount(0);

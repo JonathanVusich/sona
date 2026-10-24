@@ -317,4 +317,5 @@ testing*): run them rather than formatting by hand. The conventions below are co
 **Git / PRs**
 - Agents may create branches, commit, push and open PRs for review.
 - Branch per feature, PR into `main` using `docs/pull_request_template.md` (Summary / Details / Reviewers).
+- A PR that changes the UI shows each change in screenshots in its description, taken from the running app.
 - Short imperative commit subjects.

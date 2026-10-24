@@ -46,23 +46,50 @@ function FileProgress(props: { upload: FileUpload }) {
   return (
     <li>
       <span class="pending-path">{props.upload.file.path}</span>
-      <Show when={props.upload.state === UploadState.UPLOADING}>
-        <progress
-          class="upload-bar"
-          aria-label={`Uploading ${props.upload.file.path}`}
-          value={props.upload.sent}
-          max={1}
-        />
+      <Show
+        when={props.upload.state === UploadState.UPLOADING}
+        fallback={
+          <span class="upload-status" classList={{ error: isFailed(props.upload) }}>
+            {uploadStatus(props.upload)}
+          </span>
+        }
+      >
+        <UploadRing upload={props.upload} />
       </Show>
-      <span class="upload-status" classList={{ error: isFailed(props.upload) }}>
-        {uploadStatus(props.upload)}
-      </span>
       <Show when={props.upload.state === UploadState.FAILED}>
         <button class="link" aria-label={`Retry ${props.upload.file.path}`} onClick={() => retryUpload(props.upload)}>
           Retry
         </button>
       </Show>
     </li>
+  );
+}
+
+const RING_RADIUS = 7;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+// How much of a file has been sent, as a ring that fills clockwise from the top.
+function UploadRing(props: { upload: FileUpload }) {
+  return (
+    <svg
+      class="upload-ring"
+      viewBox="0 0 18 18"
+      role="progressbar"
+      aria-label={`Uploading ${props.upload.file.path}`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(props.upload.sent * 100)}
+    >
+      <circle class="upload-ring-track" cx="9" cy="9" r={RING_RADIUS} />
+      <circle
+        class="upload-ring-sent"
+        cx="9"
+        cy="9"
+        r={RING_RADIUS}
+        stroke-dasharray={`${RING_CIRCUMFERENCE}`}
+        stroke-dashoffset={RING_CIRCUMFERENCE * (1 - props.upload.sent)}
+      />
+    </svg>
   );
 }
 
@@ -103,7 +130,7 @@ function uploadStatus(upload: FileUpload): string {
     case UploadState.WAITING:
       return "Waiting";
     case UploadState.UPLOADING:
-      return `Uploading ${percentSent(upload)}`;
+      return "Uploading";
     case UploadState.UPLOADED:
       return uploadedStatus(upload);
     case UploadState.REFUSED:
@@ -114,12 +141,6 @@ function uploadStatus(upload: FileUpload): string {
       return unhandled;
     }
   }
-}
-
-const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 0 });
-
-function percentSent(upload: FileUpload): string {
-  return percent.format(upload.sent);
 }
 
 function uploadedStatus(upload: FileUpload): string {
