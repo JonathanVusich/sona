@@ -1,8 +1,5 @@
 package org.sona.format.mp3;
 
-import java.nio.ByteBuffer;
-import org.sona.exception.InvalidFormatException;
-
 /**
  * The ID3v2 versions Sona reads, which lay out frame headers alike but size and flag them differently.
  */
@@ -59,33 +56,21 @@ enum Id3Version {
     }
 
     /**
-     * @return the content of a frame that isn't encoded (see {@link #isEncoded}), without the fields its flags add
-     * @throws InvalidFormatException when the frame has no content after those fields
+     * @return whether the frame's content must be resynchronised: ID3v2.3 unsynchronises the whole tag rather than
+     *     each frame, so the tag reader undoes it there
      */
-    ByteBuffer frameContent(final int tagFlags, final int formatFlags, final ByteBuffer data)
-            throws InvalidFormatException {
-        final var fieldsSize = fieldsSize(formatFlags);
-        if (data.limit() <= fieldsSize) {
-            throw new InvalidFormatException("ID3v2 frame has no content!");
-        }
-        final var content = data.slice(fieldsSize, data.limit() - fieldsSize);
+    boolean isUnsynchronisedFrame(final int tagFlags, final int formatFlags) {
         return switch (this) {
-            // ID3v2.3 unsynchronises the whole tag rather than each frame, so the tag reader undoes it.
-            case V2_3 -> content;
-            case V2_4 -> v24Resynchronised(tagFlags, formatFlags, content);
+            case V2_3 -> false;
+            case V2_4 -> (formatFlags & V2_4_UNSYNCHRONISED) != 0 || (tagFlags & UNSYNCHRONISED_TAG) != 0;
         };
     }
 
-    private static ByteBuffer v24Resynchronised(final int tagFlags, final int formatFlags, final ByteBuffer content) {
-        if ((formatFlags & V2_4_UNSYNCHRONISED) != 0 || (tagFlags & UNSYNCHRONISED_TAG) != 0) {
-            return Id3Utils.resynchronise(content);
-        }
-        return content;
-    }
-
-    // The fields that come before the content when the flags say they're there: the group ID, and in ID3v2.4 the data
-    // length indicator.
-    private int fieldsSize(final int formatFlags) {
+    /**
+     * @return how many bytes of fields come before a frame's content when its flags say they're there: the group ID,
+     *     and in ID3v2.4 the data length indicator
+     */
+    int fieldsSize(final int formatFlags) {
         return switch (this) {
             case V2_3 -> v23FieldsSize(formatFlags);
             case V2_4 -> v24FieldsSize(formatFlags);

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class Id3v2ReaderTest {
     @Test
     void rejectsFrameThatRunsPastTag() throws IOException {
         final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
-        ByteBuffer.wrap(bytes).putInt(14, 0x7F7F7F7F);
+        Arrays.fill(bytes, 14, 18, (byte) 0x7F);
 
         assertThatThrownBy(() -> readTag(bytes))
                 .isInstanceOf(InvalidFormatException.class)
@@ -74,8 +74,8 @@ class Id3v2ReaderTest {
         return new Id3v2Reader().readTag(new SeekableInMemoryByteChannel(bytes), header(bytes));
     }
 
-    private static ByteBuffer header(final byte[] bytes) {
-        return ByteBuffer.wrap(bytes, 0, Id3v2Reader.HEADER_SIZE).slice();
+    private static byte[] header(final byte[] bytes) {
+        return Arrays.copyOf(bytes, Id3v2Reader.HEADER_SIZE);
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {

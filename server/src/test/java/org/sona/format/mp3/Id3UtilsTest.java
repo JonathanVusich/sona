@@ -2,9 +2,8 @@ package org.sona.format.mp3;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.ByteBuffer;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class Id3UtilsTest {
@@ -18,12 +17,17 @@ class Id3UtilsTest {
     }
 
     @Test
+    void readsBigEndianInteger() {
+        final var bytes = new byte[] {9, 0x12, 0x34, 0x56, (byte) 0x78, 9};
+
+        assertThat(Id3Utils.bigEndianInt(bytes, 1)).isEqualTo(0x12345678);
+    }
+
+    @Test
     void resynchroniseDropsTheZeroAfterEach0xFF() {
-        final var unsynchronised = new byte[] {(byte) 0xFF, 0, (byte) 0xE0, 1, (byte) 0xFF, 0, 0, (byte) 0xFF};
+        final var unsynchronised = new byte[] {9, (byte) 0xFF, 0, (byte) 0xE0, 1, (byte) 0xFF, 0, 0, (byte) 0xFF, 9};
 
-        final var resynchronised = Id3Utils.resynchronise(ByteBuffer.wrap(unsynchronised));
-
-        assertThat(Arrays.copyOf(resynchronised.array(), resynchronised.limit()))
+        assertThat(Id3Utils.resynchronise(unsynchronised, 1, 9))
                 .containsExactly((byte) 0xFF, (byte) 0xE0, 1, (byte) 0xFF, 0, (byte) 0xFF);
     }
 
@@ -31,23 +35,21 @@ class Id3UtilsTest {
     void decodesNulSeparatedStrings() {
         final var bytes = "\u0003Coldplay\0Guy Berryman\0".getBytes(StandardCharsets.UTF_8);
 
-        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 1, TextEncoding.UTF_8))
+        assertThat(Id3Utils.decodeStrings(bytes, 1, bytes.length, TextEncoding.UTF_8))
                 .containsExactly("Coldplay", "Guy Berryman");
     }
 
     @Test
     void decodesUtf16StringsWithTheirOwnByteOrderMarks() {
-        final var little = "Ünïcode".getBytes(StandardCharsets.UTF_16LE);
-        final var big = "Second".getBytes(StandardCharsets.UTF_16BE);
-        final var bytes = ByteBuffer.allocate(2 + little.length + 2 + 2 + big.length)
-                .put(new byte[] {(byte) 0xFF, (byte) 0xFE})
-                .put(little)
-                // The terminator, then the second string's byte order mark.
-                .put(new byte[] {0, 0, (byte) 0xFE, (byte) 0xFF})
-                .put(big)
-                .array();
+        final var bytes = new ByteArrayOutputStream();
+        bytes.writeBytes(new byte[] {(byte) 0xFF, (byte) 0xFE});
+        bytes.writeBytes("Ünïcode".getBytes(StandardCharsets.UTF_16LE));
+        // The terminator, then the second string's byte order mark.
+        bytes.writeBytes(new byte[] {0, 0, (byte) 0xFE, (byte) 0xFF});
+        bytes.writeBytes("Second".getBytes(StandardCharsets.UTF_16BE));
+        final var array = bytes.toByteArray();
 
-        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 0, TextEncoding.UTF_16))
+        assertThat(Id3Utils.decodeStrings(array, 0, array.length, TextEncoding.UTF_16))
                 .containsExactly("Ünïcode", "Second");
     }
 
@@ -56,7 +58,14 @@ class Id3UtilsTest {
         // "Ā" is 0x0100 and "A" is 0x0041: the zero bytes between them don't end the string.
         final var bytes = "ĀA".getBytes(StandardCharsets.UTF_16BE);
 
-        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 0, TextEncoding.UTF_16BE))
+        assertThat(Id3Utils.decodeStrings(bytes, 0, bytes.length, TextEncoding.UTF_16BE))
                 .containsExactly("ĀA");
+    }
+
+    @Test
+    void decodesOnlyTheRange() {
+        final var bytes = "xxOnexx".getBytes(StandardCharsets.US_ASCII);
+
+        assertThat(Id3Utils.decodeStrings(bytes, 2, 5, TextEncoding.ISO_8859_1)).containsExactly("One");
     }
 }
