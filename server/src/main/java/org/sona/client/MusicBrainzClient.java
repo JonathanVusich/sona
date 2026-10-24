@@ -9,6 +9,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.Artist;
 import org.sona.client.model.EntityType;
+import org.sona.client.model.Recording;
 import org.sona.client.model.Release;
 import org.sona.client.model.query.RecordingQuery;
 import org.sona.client.model.response.TrackResponse;
@@ -22,14 +23,14 @@ public class MusicBrainzClient {
 
     private static final String USER_AGENT_VALUE = "Sona/0.1.0 ( jonathan@vusich.cloud )";
 
-    private final RestClient restClient;
+    private final RestClient musicBrainzRestClient;
 
     // MusicBrainz allows about one request a second per client; see resilience4j.ratelimiter.instances.musicbrainz.
     // It answers 503 when it's busy, or a client goes faster, and each retry waits its turn again.
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public TrackResponse searchRecordings(RecordingQuery query) {
-        return restClient
+        return musicBrainzRestClient
                 .get()
                 .uri(uriBuilder -> formatTrackQuery(uriBuilder, query))
                 .header(USER_AGENT, USER_AGENT_VALUE)
@@ -43,7 +44,7 @@ public class MusicBrainzClient {
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Release lookupRelease(final UUID releaseId) {
-        return restClient
+        return musicBrainzRestClient
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .path(EntityType.RELEASE.getPath() + "/{id}")
@@ -55,10 +56,28 @@ public class MusicBrainzClient {
                 .body(Release.class);
     }
 
+    /**
+     * @return the recording with its artists, and its releases, each with the one medium it's on
+     */
+    @Retry(name = "musicbrainz")
+    @RateLimiter(name = "musicbrainz")
+    public Recording lookupRecording(final UUID recordingId) {
+        return musicBrainzRestClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(EntityType.RECORDING.getPath() + "/{id}")
+                        .queryParam("inc", "{inc}")
+                        .queryParam("fmt", "json")
+                        .build(recordingId, "artist-credits releases media"))
+                .header(USER_AGENT, USER_AGENT_VALUE)
+                .retrieve()
+                .body(Recording.class);
+    }
+
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
     public Artist lookupArtist(final UUID artistId) {
-        return restClient
+        return musicBrainzRestClient
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .path(EntityType.ARTIST.getPath() + "/{id}")

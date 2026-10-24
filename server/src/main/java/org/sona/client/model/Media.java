@@ -11,5 +11,5 @@ public record Media(
         String format,
         List<Track> track,
         @JsonProperty("track-count") int trackCount,
-        // Search results only: how many of the medium's tracks come before those listed.
+        // Recording search results and lookups only: how many of the medium's tracks come before those listed.
         @JsonProperty("track-offset") Integer trackOffset) {}

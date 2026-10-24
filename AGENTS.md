@@ -49,8 +49,11 @@ IngestWorker (every second, oldest PENDING first) ◄─────────
    ▼
 IngestionEngine.processTrack
    1. pick a Parser by file extension (format/, case-insensitive)
-   2. Parser.parse(SeekableByteChannel) ──► RawMetadata = tags + duration (metadata/)
-   3. MetadataResolver.resolveTrack ──► MusicBrainz search (client/) ──► ResolvedTrack (MBIDs + titles)
+   2. Parser.parse(SeekableByteChannel) ──► RawMetadata = tags + duration (metadata/), and the audio's Fingerprint
+        (FLAC only: MP3s are matched by their tags alone until Mp3Decoder decodes their audio)
+   3. MetadataResolver.resolveTrack ──► AcoustID lookup of the fingerprint, then MusicBrainz (client/) ──► ResolvedTrack
+        ├─ close AcoustID match ──► its recording, whatever the tags say
+        └─ otherwise ──► MusicBrainz search by the tags, preferring a recording AcoustID matched loosely
         └─ no match ──► state = INPUT_REQUIRED, file stays in the ingest area
    4. store the rows the track references: each is loaded, or resolved from MusicBrainz and upserted if it
         isn't stored (release with its group, labels and media; the track's medium; the track's artist)
@@ -78,8 +81,8 @@ the library yet: the pages and lists leave them out.
 | `format.mp3` | Hand-written MP3 metadata reader. `Mp3Parser` reads the ID3v2 tag at the start itself (versions 2.2 to 2.4, with compressed and unsynchronised frames, through `Id3Region` and `TextEncoding`), an ID3v2.4 tag appended after the audio, which updates the first, and the ID3v1 tag that may end the file (`Id3v1Reader`, whose fields only fill in what ID3v2 lacks), and the first Layer III frame's header (`FrameHeader`). The duration comes from the frame's Xing/Info or VBRI header, less the encoder delay and padding in a LAME tag (`VbrHeaderReader`), or else from counting the frames (`StreamInfoReader`, which finds a free-format stream's frame length from its second frame). Parsing is strict: the audio must be nothing but frames of one stream between the tags, and a malformed tag or frame throws `InvalidFormatException` rather than being skipped. `Id3Tag` maps ID3 frames to `metadata.Tag`, and Picard's TXXX and UFID MusicBrainz IDs are kept under the names it gives them in Vorbis comments. `Mp3Decoder` doesn't decode Layer III yet. |
 | `fingerprint` | Hand-written Chromaprint, as AcoustID identifies recordings by. `Fingerprint` reads the first two minutes of a file's `PcmAudio` as a `Signal` (16-bit mono at 11025 Hz, through Sona's own windowed-sinc `Resampler`), turns it into a `ChromaImage` (an `Fft` per frame, energy per note, smoothed and normalised), and runs Chromaprint's 16 `Classifier`s over its `IntegralImage` to make a 32-bit sub-fingerprint per row. `compressed()` is the base64 form `fpcalc` prints and AcoustID takes; `FingerprintTest` checks it against `fpcalc`'s output for the same audio. |
 | `metadata` | Format-agnostic tag model: `Tag` (known tags), `TagValue` (sealed: `Str`, `Int`, `Binary`), `RawMetadata` (known + unknown tags, multi-valued). |
-| `metadata.resolver` | `MetadataResolver` / `MusicBrainzResolver`: turns `RawMetadata` into a `ResolvedTrack` via MusicBrainz search. `MusicBrainzTag` lists the Picard `musicbrainz_*` tag names. |
-| `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). |
+| `metadata.resolver` | `MetadataResolver` / `MusicBrainzResolver`: turns `RawMetadata` and a `Fingerprint` into a `ResolvedTrack`. A close AcoustID match (score 0.9 or more) settles the recording, looked up on MusicBrainz; otherwise MusicBrainz is searched by the tags, and a recording AcoustID matched loosely is preferred among those found. `MusicBrainzTag` lists the Picard `musicbrainz_*` tag names. |
+| `client` | `MusicBrainzClient`: thin wrapper over a Spring `RestClient` for the MusicBrainz WS/2 API. `MusicBrainzConfig` builds the `RestClient`. Requests are rate limited with Resilience4j's `@RateLimiter(name = "musicbrainz")` on the client, configured under `resilience4j.ratelimiter.instances.musicbrainz` in `application.properties` (about one request a second). `client.model` holds response records mirroring MB JSON (kebab-case via `@JsonProperty`). `AcoustIdClient` looks fingerprints up in the AcoustID v2 API (`acoustid.url` and `acoustid.apiKey` → `AcoustIdProperties`, its `RestClient` from `AcoustIdConfig`), rate limited to three requests a second (`resilience4j.ratelimiter.instances.acoustid`); its responses are in `client.model.acoustid`. |
 | `library` | `Library` / `DefaultLibrary`: owns the filesystem layout for the ingest staging area and the media library. Library paths are stored in the DB relative to the media folder, '/'-separated. `PathSegment` formats sanitised `uuid[name]` names. |
 | `auth` | Authentication and permissions. Every API request carries an access JWT that Sona issued, and `SonaJwtConverter` turns it into a `UserAuthentication` straight from its claims (username, role, session state), with no database lookup. `Permission` maps each role to its permissions (Spring authorities like `library:read`, checked with `@PreAuthorize`). A session whose password must be changed may only see that it must (`ActiveUserService`). `TokenIssuer` / `DefaultTokenIssuer` issue access JWTs and rotate refresh tokens, which travel in an HttpOnly cookie (`RefreshCookieService`); the database is checked again on each refresh. `PasswordChecker` checks local users' passwords at login and changes them. `InitialAdminRunner` (every profile except `dev`) and `DevUserRunner` (`dev`) create the default accounts. Each user is `LOCAL` or `OIDC` (`users.type`); `OidcDiscoveryClient` holds Sona's client registrations at the configured OIDC providers, discovered from each issuer on first use. OIDC users sign in with Spring's OAuth2 login (authorization code flow with PKCE) at `/api/auth/oidc/authorize/<id>`, and `SignInHandler` finishes the callback through `AccountRegistrar`: a known user gets a session, and a new one is sent to the frontend's `register` page with a `RegistrationTokenService` token to choose a username (`POST /api/auth/register`). With `?prompt=none` (`SilentSignInResolver`) the provider signs a user who still has a session there straight back in, or answers that they must sign in (code 108); the provider last used is remembered in a cookie the frontend reads. An OIDC user's Sona ID is a UUIDv5 of their issuer and subject, so it is known without a lookup. The provider's refresh token is kept per session (`oidc_session`), and `ProviderClient` checks it with the provider on every refresh, so a user the provider disables loses access then. STOMP connections send the access token in the CONNECT frame, where `SocketAuthenticationInterceptor` reads it, and Spring Security's messaging support (`SocketSecurityConfig`) checks each message: a subscription needs its destination's permission, and clients may send nothing. |
 | `db` | DAOs over jOOQ, one per table (`ArtistDao`, `ReleaseDao`, `MediumDao`, `TrackDao`, `UserDao`, …), plus one per composite read (`ReleaseDetailsDao`, `ReleaseGroupDetailsDao` and `ArtistDetailsDao` read the release, release group and artist pages, `ReleaseGroupSummaryDao` pages through the albums list; `ReleaseFields` reads a release's labels, and its media with their tracks, for the release and release group pages). Return lists, not open `fetchStream()` cursors. |
@@ -111,6 +114,7 @@ the library yet: the pages and lists leave them out.
 - `server/application.properties` imports `file:config.yaml` **relative to the working directory**, so run
   the server and tests from `server/` (Gradle does this for you).
 - `library.ingestFolder` / `library.mediaFolder` / `library.maxUploadSize` → `LibraryProperties`; `musicbrainz.url` → `MusicBrainzProperties`;
+  `acoustid.url` / `acoustid.apiKey` → `AcoustIdProperties`;
   `auth.*` (token lifetimes, `frontendUrl`, the `oidcProviders` users can sign in through) → `AuthProperties`.
 - `bootRun` activates the `dev` profile, which creates `admin`/`admin` and `user`/`user`, and stores a few releases
   (`DevLibraryRunner`, whose tracks have no audio files) and logs each one's page. Any other profile gets
@@ -157,14 +161,18 @@ Test notes:
 - HTTP tests call the real port through `ApiClient` (a Spring `RestTestClient`), so they pass through the security
   filters. `TestTokens` signs access tokens as Sona does, and `TestUsers` creates local users whose password is their
   username.
-- **MusicBrainz is never called live.** Tests stub it with [WireMock](https://wiremock.org). Mapping files in
-  `src/test/resources/wiremock/mappings` match exact queries and return responses recorded from the live API
-  into `src/test/resources/wiremock/__files`; unmatched requests get a 404. Unit tests register a
+- **MusicBrainz and AcoustID are never called live.** Tests stub them with [WireMock](https://wiremock.org). Mapping
+  files in `src/test/resources/wiremock/mappings` match exact queries and return responses recorded from the live API
+  into `src/test/resources/wiremock/__files`; unmatched requests get a 404, except AcoustID lookups, which a
+  low-priority mapping answers with no match. A test that needs a fingerprint match stubs one above it at priority 1
+  (`MusicBrainzResolverTest`). Unit tests register a
   `WireMockExtension` with `usingFilesUnderClasspath("wiremock")` (or stub in code, as `MusicBrainzClientTest`
   does). Record a response with
   `curl -G -A "Sona/0.1.0 ( jonathan@vusich.cloud )" https://musicbrainz.org/ws/2/recording --data-urlencode 'query=…' --data-urlencode fmt=json`.
 - **Audio fixtures:** prefer `FlacBuilder` (`flac().tag("TITLE", "…").build()`) to generate tiny synthetic FLACs
   in-test. `FlacSample` exposes real-world files trimmed to their metadata blocks, with the audio frames removed.
+  `FlacFiles.flacFile(metadata)` writes ten-second files whose audio is the silence of
+  `FlacAudioSample.SILENCE_10_SECONDS`, so they decode and can be fingerprinted as ingestion does.
 - Unit tests (parser, `PathSegment`, query building, client, resolver) don't need Docker.
 - **E2E tests** (`src/test/java/org/sona/e2e`, `@E2ETest`) drive the built frontend in a real browser with
   [Playwright for Java](https://playwright.dev/java/), as a user would: Firefox locally, and Chromium, Firefox and

@@ -1,20 +1,32 @@
 package org.sona.metadata.resolver;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.sona.client.AcoustIdClient;
 import org.sona.client.MusicBrainzClient;
+import org.sona.config.AcoustIdConfig;
 import org.sona.config.MusicBrainzConfig;
+import org.sona.config.properties.AcoustIdProperties;
 import org.sona.config.properties.MusicBrainzProperties;
+import org.sona.exception.InvalidFormatException;
+import org.sona.fingerprint.Fingerprint;
+import org.sona.format.flac.FlacParser;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
@@ -33,15 +45,19 @@ class MusicBrainzResolverTest {
             .build();
 
     private static final UUID COLDPLAY_ID = UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234");
+    private static final UUID M83_ID = UUID.fromString("6d7b7cd4-254b-4c25-83f6-dd20f98ceacd");
 
-    private final MusicBrainzResolver resolver = new MusicBrainzResolver(newClient(musicBrainz.baseUrl() + "/ws/2/"));
+    private final MusicBrainzResolver resolver = new MusicBrainzResolver(
+            newClient(musicBrainz.baseUrl() + "/ws/2/"), newAcoustIdClient(musicBrainz.baseUrl() + "/v2/"));
 
     @Test
-    void resolveTaggedTrack() throws IOException, InterruptedException {
+    void resolveTaggedTrack() throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = newMetadata("A Whisper", "Coldplay");
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata);
+        // AcoustID knows no recording with this fingerprint (the stub in src/test/resources/wiremock/mappings).
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
 
         assertThat(resolved)
                 .contains(new ResolvedTrack(
@@ -51,6 +67,66 @@ class MusicBrainzResolverTest {
                         UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"),
                         1,
                         9));
+    }
+
+    @Test
+    void resolveTheRecordingAFingerprintMatchesCloselyWhateverTheTagsSay()
+            throws IOException, InterruptedException, InvalidFormatException {
+        stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+
+        assertThat(resolved)
+                .contains(new ResolvedTrack(
+                        UUID.fromString("cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"),
+                        "Lower Your Eyelids to Die With the Sun",
+                        // Unlike a search, a lookup gives the artist's country.
+                        new ResolvedArtist(M83_ID, "M83", "FR"),
+                        UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"),
+                        1,
+                        15));
+    }
+
+    @Test
+    void preferTheTaggedRecordingALooseFingerprintMatchIsOf()
+            throws IOException, InterruptedException, InvalidFormatException {
+        // The instrumental A Whisper, the second recording the tags find, matches loosely.
+        stubFingerprintMatch(aResponse().withBody("""
+                {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
+                    "recordings": [{"id": "41498c37-0a69-47a8-98d7-bdfab161559e"}]}], "status": "ok"}
+                """));
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+
+        assertThat(resolved)
+                .map(track -> List.of(track.recordingId(), track.releaseId()))
+                .contains(List.of(
+                        UUID.fromString("41498c37-0a69-47a8-98d7-bdfab161559e"),
+                        UUID.fromString("a5ab3079-99e6-4a13-9caa-a90291e39d88")));
+    }
+
+    @Test
+    void resolveFromTheTagsWhenALooseFingerprintMatchIsOfNoTaggedRecording()
+            throws IOException, InterruptedException, InvalidFormatException {
+        stubFingerprintMatch(aResponse().withBody("""
+                {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
+                    "recordings": [{"id": "cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"}]}], "status": "ok"}
+                """));
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+
+        assertThat(resolved)
+                .map(ResolvedTrack::recordingId)
+                .contains(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
     }
 
     @Test
@@ -84,11 +160,24 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void returnEmptyWhenNothingMatches() throws IOException, InterruptedException {
+    void returnEmptyWhenNothingMatches() throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
-        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata))
+        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, fingerprint(metadata)))
                 .isEmpty();
+    }
+
+    // Above the stub in src/test/resources/wiremock/mappings that matches every fingerprint with nothing.
+    private static void stubFingerprintMatch(final ResponseDefinitionBuilder response) {
+        musicBrainz.stubFor(post(urlPathEqualTo("/v2/lookup"))
+                .atPriority(1)
+                .willReturn(response.withHeader("Content-Type", "application/json")));
+    }
+
+    // Of the silence every test FLAC file has as its audio.
+    private static Fingerprint fingerprint(final RawMetadata metadata) throws IOException, InvalidFormatException {
+        final var flac = new SeekableInMemoryByteChannel(flacFile(metadata));
+        return new Fingerprint(new FlacParser().parse(flac).audio());
     }
 
     private static RawMetadata newMetadata(final String title, final String artist) {
@@ -106,6 +195,14 @@ class MusicBrainzResolverTest {
         final var restClient =
                 config.musicBrainzRestClient(config.uriBuilderFactory(new MusicBrainzProperties(url)), mapper);
         return new MusicBrainzClient(restClient);
+    }
+
+    private static AcoustIdClient newAcoustIdClient(final String url) {
+        final var properties = new AcoustIdProperties(url, "test-key");
+        final var mapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
+        return new AcoustIdClient(new AcoustIdConfig().acoustIdRestClient(properties, mapper), properties);
     }
 
     private static TrackToIngest trackToIngest(final String fileName) {

@@ -1,0 +1,23 @@
+{
+  "results": [
+    {
+      "id": "9ff43b6a-4f16-427c-93c2-92307ca505e0",
+      "recordings": [
+        {
+          "id": "cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"
+        }
+      ],
+      "score": 1.0
+    },
+    {
+      "id": "be6fa248-97d1-4a18-845b-7c6a070b764c",
+      "recordings": [
+        {
+          "id": "cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"
+        }
+      ],
+      "score": 1.0
+    }
+  ],
+  "status": "ok"
+}

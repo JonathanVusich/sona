@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.sona.config.properties.AcoustIdProperties;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.config.properties.MusicBrainzProperties;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -13,7 +14,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.util.unit.DataSize;
 
 /**
- * Points the library at an in-memory filesystem and MusicBrainz at a WireMock server that serves the stubs in
+ * Points the library at an in-memory filesystem, and MusicBrainz and AcoustID at a WireMock server that serves the stubs in
  * src/test/resources/wiremock.
  */
 @TestConfiguration(proxyBeanMethods = false)
@@ -38,5 +39,12 @@ public class TestLibraryConfig {
     @Primary
     MusicBrainzProperties musicBrainzStubs(final WireMockServer musicBrainzServer) {
         return new MusicBrainzProperties(musicBrainzServer.baseUrl() + "/ws/2/");
+    }
+
+    // The same server stubs AcoustID, under its own path.
+    @Bean
+    @Primary
+    AcoustIdProperties acoustIdStubs(final WireMockServer musicBrainzServer) {
+        return new AcoustIdProperties(musicBrainzServer.baseUrl() + "/v2/", "test-key");
     }
 }

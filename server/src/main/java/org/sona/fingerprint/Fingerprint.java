@@ -63,6 +63,13 @@ public final class Fingerprint {
     }
 
     /**
+     * @return whether the audio was too short to fingerprint, which AcoustID can't look up
+     */
+    public boolean isEmpty() {
+        return subFingerprints.length == 0;
+    }
+
+    /**
      * @return the fingerprint compressed and base64-encoded, as {@code fpcalc} prints it and AcoustID takes it
      */
     public String compressed() {
