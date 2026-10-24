@@ -82,7 +82,7 @@ public final class Fingerprint {
     private void writeHeader(final BitOutputStream bitStream) throws IOException {
         bitStream.writeBits(ALGORITHM, Byte.SIZE);
         for (var shift = 2 * Byte.SIZE; shift >= 0; shift -= Byte.SIZE) {
-            bitStream.writeBits((subFingerprints.length >> shift) & 0xFF, Byte.SIZE);
+            bitStream.writeBits(subFingerprints.length >> shift, Byte.SIZE);
         }
     }
 

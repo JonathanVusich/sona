@@ -50,10 +50,9 @@ final class FrameReader {
      * @return the number of 0 bits before the next 1 bit, which is read too
      */
     int readUnary() throws IOException {
-        var zeros = 0;
-        while (bits.readBits(1) == 0) {
-            zeros++;
-        }
+        final var zeros = bits.countZeros();
+        // The count stops at the end of the input too, where reading the 1 bit throws.
+        bits.readBits(1);
         return zeros;
     }
 
