@@ -12,7 +12,7 @@ enum Id3Version {
     V2_4;
 
     // The tag header's unsynchronisation flag. In ID3v2.4, every frame carries the flag as well.
-    static final int UNSYNCHRONISED_TAG = 0x80;
+    private static final int UNSYNCHRONISED_TAG = 0x80;
 
     // Format flags, the second byte of a frame's flags, in ID3v2.3.0 section 3.3.1.
     private static final int V2_3_COMPRESSED = 0x80;
@@ -25,6 +25,15 @@ enum Id3Version {
     private static final int V2_4_ENCRYPTED = 0x04;
     private static final int V2_4_UNSYNCHRONISED = 0x02;
     private static final int V2_4_DATA_LENGTH = 0x01;
+
+    static Id3Version fromMajorVersion(final int majorVersion) throws InvalidFormatException {
+        return switch (majorVersion) {
+            case 3 -> V2_3;
+            case 4 -> V2_4;
+            // TODO: Read ID3v2.2 tags, whose frame IDs have three letters.
+            default -> throw new InvalidFormatException("ID3v2.%d tags aren't supported!".formatted(majorVersion));
+        };
+    }
 
     /**
      * Reads a frame header's size field.
@@ -64,14 +73,30 @@ enum Id3Version {
     }
 
     /**
-     * @return whether the frame's content must be resynchronised: ID3v2.3 unsynchronises the whole tag rather than
-     *     each frame, so the tag reader undoes it there
+     * @return whether the tag's body is unsynchronised as a whole, frame headers included, as only ID3v2.3 does it
      */
-    boolean isUnsynchronisedFrame(final int tagFlags, final int formatFlags) {
+    Synchronisation bodySynchronisation(final int tagFlags) {
         return switch (this) {
-            case V2_3 -> false;
-            case V2_4 -> (formatFlags & V2_4_UNSYNCHRONISED) != 0 || (tagFlags & UNSYNCHRONISED_TAG) != 0;
+            case V2_3 -> synchronisation(tagFlags & UNSYNCHRONISED_TAG);
+            case V2_4 -> Synchronisation.SYNCHRONISED;
         };
+    }
+
+    /**
+     * @return whether a frame's data is unsynchronised, which ID3v2.4 says per frame, or for every frame of the tag
+     */
+    Synchronisation frameSynchronisation(final int tagFlags, final int formatFlags) {
+        return switch (this) {
+            case V2_3 -> Synchronisation.SYNCHRONISED;
+            case V2_4 -> synchronisation((formatFlags & V2_4_UNSYNCHRONISED) | (tagFlags & UNSYNCHRONISED_TAG));
+        };
+    }
+
+    private static Synchronisation synchronisation(final int unsynchronisedFlags) {
+        if (unsynchronisedFlags != 0) {
+            return Synchronisation.UNSYNCHRONISED;
+        }
+        return Synchronisation.SYNCHRONISED;
     }
 
     /**

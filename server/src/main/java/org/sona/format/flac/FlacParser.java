@@ -248,8 +248,8 @@ public final class FlacParser implements Parser {
 
     // Fixed-size ASCII fields are padded with NUL bytes, or are all NUL when empty.
     private String readAscii(final DataInputStream inputStream, final int size) throws IOException {
-        final var bytes = inputStream.readNBytes(size);
-        return FieldUtils.nulPaddedString(bytes, 0, bytes.length, StandardCharsets.US_ASCII);
+        final var bits = BitInputStream.wrap(inputStream, ByteOrder.BIG_ENDIAN);
+        return FieldUtils.readNulPaddedString(bits, size);
     }
 
     private void validateFlacHeader(final DataInputStream inputStream) throws IOException, InvalidFormatException {

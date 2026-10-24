@@ -1,11 +1,11 @@
 package org.sona.format.mp3;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
+import dev.javax.bitstream.BitInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteOrder;
 import java.util.List;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import java.util.stream.Stream;
 import org.sona.format.FieldUtils;
 import org.sona.format.mp3.Id3Frame.TextFrame;
 
@@ -16,52 +16,45 @@ import org.sona.format.mp3.Id3Frame.TextFrame;
 final class Id3v1Reader {
 
     static final int TAG_SIZE = 128;
-    private static final byte[] IDENTIFIER = "TAG".getBytes(StandardCharsets.US_ASCII);
+    // "TAG"
+    private static final long IDENTIFIER = 0x54_41_47;
     private static final int FIELD_SIZE = 30;
+    private static final int YEAR_SIZE = 4;
     // ID3v1.1 ends the comment early with a NUL, and puts the track number in its last byte.
-    private static final int COMMENT_END = 125;
-    private static final int TRACK = 126;
+    private static final int COMMENT_SIZE = 28;
 
     /**
-     * @param tail the last {@link #TAG_SIZE} bytes of the file
-     * @return whether they're an ID3v1 tag
+     * @param input the file's stream, at its last {@link #TAG_SIZE} bytes
+     * @return the tag's fields that have a value, which are none when the file doesn't end with a tag
      */
-    boolean isTag(final byte[] tail) {
-        return Arrays.equals(tail, 0, IDENTIFIER.length, IDENTIFIER, 0, IDENTIFIER.length);
-    }
-
-    /**
-     * @param tag the tag (see {@link #isTag})
-     * @return its fields that have a value
-     */
-    List<TextFrame> readTag(final byte[] tag) {
-        final var frames = new ArrayList<TextFrame>();
-        for (final var field : TextField.values()) {
-            final var value = readTextField(tag, field.getOffset());
-            if (!value.isEmpty()) {
-                frames.add(new TextFrame(field.getFrameId(), List.of(value)));
-            }
+    List<TextFrame> readTag(final InputStream input) throws IOException {
+        final var bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
+        if (bits.readBits(24) != IDENTIFIER) {
+            return List.of();
         }
-        if (tag[COMMENT_END] == 0 && tag[TRACK] != 0) {
-            frames.add(new TextFrame("TRCK", List.of(Integer.toString(tag[TRACK] & 0xFF))));
-        }
-        return List.copyOf(frames);
+        final var title = new TextFrame("TIT2", List.of(readField(bits)));
+        final var artist = new TextFrame("TPE1", List.of(readField(bits)));
+        final var album = new TextFrame("TALB", List.of(readField(bits)));
+        // The bit stream holds no bits between fields, so the stream skips the year and comment.
+        input.skipNBytes(YEAR_SIZE + COMMENT_SIZE);
+        final var track = new TextFrame("TRCK", List.of(readTrack(bits)));
+        return Stream.of(title, artist, album, track)
+                .filter(frame -> !frame.values().getFirst().isEmpty())
+                .toList();
     }
 
     // Fields are padded with NULs or, by some taggers, spaces.
-    private static String readTextField(final byte[] tag, final int offset) {
-        return FieldUtils.nulPaddedString(tag, offset, FIELD_SIZE, StandardCharsets.ISO_8859_1)
-                .strip();
+    private static String readField(final BitInputStream bits) throws IOException {
+        return FieldUtils.readNulPaddedString(bits, FIELD_SIZE).strip();
     }
 
-    @Getter
-    @RequiredArgsConstructor
-    private enum TextField {
-        TITLE("TIT2", 3),
-        ARTIST("TPE1", 33),
-        ALBUM("TALB", 63);
-
-        private final String frameId;
-        private final int offset;
+    // The track number follows the NUL that ends an ID3v1.1 comment, and is empty in an ID3v1.0 tag.
+    private static String readTrack(final BitInputStream bits) throws IOException {
+        final var commentEnd = bits.readBits(8);
+        final var track = bits.readBits(8);
+        if (commentEnd != 0 || track == 0) {
+            return "";
+        }
+        return Long.toString(track);
     }
 }

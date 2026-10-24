@@ -1,20 +1,27 @@
 package org.sona.format;
 
-import java.nio.charset.Charset;
+import dev.javax.bitstream.BitInputStream;
+import java.io.IOException;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public final class FieldUtils {
 
     /**
-     * @param size the field's size, which the text fills or ends early with a NUL, followed by padding
-     * @return the text of a fixed-size field, up to its first NUL
+     * Reads a fixed-size field of single-byte text (ASCII or ISO-8859-1), which fills the field or ends early with a
+     * NUL, followed by padding.
+     *
+     * @return the field's text, up to its first NUL
      */
-    public static String nulPaddedString(final byte[] bytes, final int offset, final int size, final Charset charset) {
-        var length = 0;
-        while (length < size && bytes[offset + length] != 0) {
-            length++;
+    public static String readNulPaddedString(final BitInputStream bits, final int size) throws IOException {
+        final var field = new StringBuilder(size);
+        for (var i = 0; i < size; i++) {
+            field.append((char) bits.readBits(8));
         }
-        return new String(bytes, offset, length, charset);
+        final var nul = field.indexOf("\0");
+        if (nul >= 0) {
+            field.setLength(nul);
+        }
+        return field.toString();
     }
 }

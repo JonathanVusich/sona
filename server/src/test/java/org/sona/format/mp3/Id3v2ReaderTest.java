@@ -3,10 +3,10 @@ package org.sona.format.mp3;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.mp3.Id3Frame.TextFrame;
@@ -17,7 +17,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsId3v24Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(Mp3Sample.STEREO_CBR_ID3V24);
+        final var tag = readTag(sampleBytes(Mp3Sample.STEREO_CBR_ID3V24));
 
         // The tag's padding runs up to the first frame, at 291.
         assertThat(tag.size()).isEqualTo(291);
@@ -32,7 +32,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsId3v23Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(Mp3Sample.MONO_VBR_ID3V23);
+        final var tag = readTag(sampleBytes(Mp3Sample.MONO_VBR_ID3V23));
 
         assertThat(tag.size()).isEqualTo(133);
         assertThat(tag.frames())
@@ -44,15 +44,11 @@ class Id3v2ReaderTest {
     }
 
     @Test
-    void findsTagAtStart() throws IOException {
-        assertThat(new Id3v2Reader().isTagHeader(header(sampleBytes(Mp3Sample.STEREO_CBR_ID3V24))))
-                .isTrue();
-    }
+    void readsEmptyTagWhenFileStartsWithAudio() throws IOException, InvalidFormatException {
+        final var tag = readTag(sampleBytes(Mp3Sample.NO_XING_ID3V1));
 
-    @Test
-    void findsNoTagWhenFileStartsWithAudio() throws IOException {
-        assertThat(new Id3v2Reader().isTagHeader(header(sampleBytes(Mp3Sample.NO_XING_ID3V1))))
-                .isFalse();
+        assertThat(tag.size()).isZero();
+        assertThat(tag.frames()).isEmpty();
     }
 
     // The tag's first frame, TIT2, starts after the 10-byte tag header, and its size follows its ID.
@@ -63,19 +59,22 @@ class Id3v2ReaderTest {
 
         assertThatThrownBy(() -> readTag(bytes))
                 .isInstanceOf(InvalidFormatException.class)
-                .hasMessageContaining("TIT2");
+                .hasMessage("ID3v2 tag is cut short!");
     }
 
-    private static Id3v2Tag readTag(final Mp3Sample sample) throws IOException, InvalidFormatException {
-        return readTag(sampleBytes(sample));
+    // The padding starts after the last frame, so a byte at the end of the tag is in it.
+    @Test
+    void rejectsPaddingThatIsNotAllNuls() throws IOException {
+        final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
+        bytes[290] = 1;
+
+        assertThatThrownBy(() -> readTag(bytes))
+                .isInstanceOf(InvalidFormatException.class)
+                .hasMessage("ID3v2 tag's padding isn't all NULs!");
     }
 
     private static Id3v2Tag readTag(final byte[] bytes) throws IOException, InvalidFormatException {
-        return new Id3v2Reader().readTag(new SeekableInMemoryByteChannel(bytes), header(bytes));
-    }
-
-    private static byte[] header(final byte[] bytes) {
-        return Arrays.copyOf(bytes, Id3v2Reader.HEADER_SIZE);
+        return new Id3v2Reader().readTag(new ByteArrayInputStream(bytes));
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {

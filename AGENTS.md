@@ -314,10 +314,11 @@ testing*): run them rather than formatting by hand. The conventions below are co
 - **Ask before adding any new dependency.** Latest JDK and Spring release candidates are acceptable.
 - Audio parsers and writers are **hand-written on purpose**. Don't swap in jaudiotagger or similar.
   Tag rewrites must leave audio data byte-for-byte identical.
-- Parsers for every format read numbers and bit fields with `dev.javax:bitstream` (`BitInputStream.readBits`), as
-  FLAC's frame reader and the ID3 readers do: no `ByteBuffer`, and no shifting and masking bytes by hand. Read bytes
-  into `byte[]` arrays (commons-io's `IOUtils.readFully` reads an exact count from a channel's stream), and decode
-  text from the array at its offsets rather than copying it out.
+- Parsers for every format read their data with `dev.javax:bitstream` (`BitInputStream.readBits`), straight from the
+  file's stream, as FLAC's frame reader and the ID3 readers do: no `ByteBuffer`, and no reading bytes into arrays to
+  parse them afterwards. Read a field whole and mask out what it packs (`Id3Utils.readSynchsafeInt` reads 32 bits),
+  decode text a character at a time as it's read (`TextEncoding`), and bound a region of the file with a stream that
+  ends where it does (`Id3Region`) rather than counting offsets.
 
 **Git / PRs**
 - Agents may create branches, commit, push and open PRs for review.
