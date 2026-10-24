@@ -1031,6 +1031,35 @@ a.player-artist:hover {
   color: var(--danger);
 }
 
+.ingest-summary {
+  flex: 1;
+  margin-left: 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.upload-ring {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg);
+}
+
+.upload-ring circle {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.upload-ring-track {
+  stroke: var(--border);
+}
+
+.upload-ring-sent {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s linear;
+}
+
 .muted {
   color: var(--text-3);
 }

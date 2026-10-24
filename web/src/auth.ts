@@ -91,6 +91,18 @@ export async function changePassword(request: ChangePasswordRequest): Promise<Ap
   return logIn({ username: current.user.username, password: request.newPassword });
 }
 
+/**
+ * @returns the headers of a STOMP CONNECT frame sent as the current user, which Sona authenticates the connection by;
+ * none when nobody is signed in, so Sona refuses it
+ */
+export function connectHeadersAsCurrentUser(): Record<string, string> {
+  const current = session();
+  if (current === null) {
+    return {};
+  }
+  return { Authorization: `Bearer ${current.accessToken}` };
+}
+
 export function hasPermission(permission: Permission): boolean {
   return currentUser()?.permissions.includes(permission) ?? false;
 }

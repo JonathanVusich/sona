@@ -1,9 +1,10 @@
 import { createSignal } from "solid-js";
 import * as api from "./api/client";
 import { ResultKind, type ApiResult } from "./api/client";
-import type { IngestGroupResponse } from "./api/responses";
+import type { IngestGroupResponse, TrackIngestResponse } from "./api/responses";
 import type { PickedFile } from "./audioFiles";
 import { sendAsCurrentUser } from "./auth";
+import { forgetIngestStates } from "./ingestProgress";
 import type { UploadGroup } from "./uploadGroups";
 
 // Uploads groups of files to Sona: each group is created, then its files are sent one request each, a few at a time.
@@ -27,8 +28,12 @@ export interface FileUpload {
   file: PickedFile;
   group: UploadGroup;
   state: UploadState;
+  // How much of the file has been sent, from 0 to 1.
+  sent: number;
   // Why the file was refused or failed, or null while it hasn't.
   reason: string | null;
+  // The ingest Sona stored the file as, or null until it's uploaded.
+  ingest: TrackIngestResponse | null;
 }
 
 // Browsers open about six connections to one host, so this leaves room for the rest of the app's requests.
@@ -57,7 +62,9 @@ export async function startUploads(groups: readonly UploadGroup[]): Promise<void
       file,
       group,
       state: UploadState.WAITING,
+      sent: 0,
       reason: null,
+      ingest: null,
     })),
   );
   setUploads((current) => [...current, ...added]);
@@ -68,7 +75,7 @@ export async function startUploads(groups: readonly UploadGroup[]): Promise<void
  * Sends a file whose upload failed again.
  */
 export async function retryUpload(upload: FileUpload): Promise<void> {
-  updateUpload(upload, UploadState.WAITING, null);
+  replaceUpload(upload, (current) => ({ ...current, state: UploadState.WAITING, sent: 0, reason: null }));
   await startUploaders();
 }
 
@@ -78,6 +85,7 @@ export async function retryUpload(upload: FileUpload): Promise<void> {
 export function clearUploads() {
   setUploads([]);
   groupCreations.clear();
+  forgetIngestStates();
 }
 
 async function startUploaders(): Promise<void> {
@@ -103,13 +111,16 @@ async function uploadWaitingFiles(): Promise<void> {
   await uploadWaitingFiles();
 }
 
-async function sendUpload(upload: FileUpload): Promise<ApiResult<unknown>> {
+async function sendUpload(upload: FileUpload): Promise<ApiResult<TrackIngestResponse>> {
   const created = await createGroup(upload.group);
   if (created.kind !== ResultKind.OK) {
     return created;
   }
   const groupIngestId = created.body.groupIngestId;
-  return sendAsCurrentUser((accessToken) => api.uploadTrack(accessToken, groupIngestId, upload.file.file));
+  const file = upload.file.file;
+  return sendAsCurrentUser((accessToken) =>
+    api.uploadTrack(accessToken, groupIngestId, file, (sent) => updateSent(upload, sent)),
+  );
 }
 
 // A group whose creation failed is sent again by its next file. If Sona stored it before the connection broke, that
@@ -129,10 +140,15 @@ async function sendGroup(group: UploadGroup): Promise<ApiResult<IngestGroupRespo
   return sendAsCurrentUser((accessToken) => api.createIngestGroup(accessToken, request));
 }
 
-function updateUploadResult(upload: FileUpload, result: ApiResult<unknown>) {
+function updateUploadResult(upload: FileUpload, result: ApiResult<TrackIngestResponse>) {
   switch (result.kind) {
     case ResultKind.OK:
-      return updateUpload(upload, UploadState.UPLOADED, null);
+      return replaceUpload(upload, (current) => ({
+        ...current,
+        state: UploadState.UPLOADED,
+        reason: null,
+        ingest: result.body,
+      }));
     case ResultKind.REFUSED:
       return updateUpload(upload, UploadState.REFUSED, result.reason);
     case ResultKind.FAILED:
@@ -145,12 +161,20 @@ function updateUploadResult(upload: FileUpload, result: ApiResult<unknown>) {
 }
 
 function updateUpload(upload: FileUpload, state: UploadState, reason: string | null) {
-  setUploads((current) => current.map((other) => updated(other, upload, state, reason)));
+  replaceUpload(upload, (current) => ({ ...current, state, reason }));
 }
 
-function updated(other: FileUpload, upload: FileUpload, state: UploadState, reason: string | null): FileUpload {
-  if (other.id !== upload.id) {
-    return other;
-  }
-  return { ...other, state, reason };
+function updateSent(upload: FileUpload, sent: number) {
+  replaceUpload(upload, (current) => ({ ...current, sent }));
+}
+
+function replaceUpload(upload: FileUpload, change: (current: FileUpload) => FileUpload) {
+  setUploads((uploads) =>
+    uploads.map((other) => {
+      if (other.id !== upload.id) {
+        return other;
+      }
+      return change(other);
+    }),
+  );
 }

@@ -1,3 +1,4 @@
+import axios, { type AxiosProgressEvent, type AxiosRequestConfig, type AxiosResponse } from "axios";
 import {
   PagePosition,
   type ChangePasswordRequest,
@@ -60,6 +61,9 @@ const UNREACHABLE: ApiResult<never> = {
 };
 const SERVER_ERROR: ApiResult<never> = { kind: ResultKind.FAILED, reason: "Something went wrong. Try again." };
 
+// Answers every status rather than rejecting on errors, so only a request that never got an answer rejects.
+const http = axios.create({ validateStatus: () => true });
+
 export async function login(request: LoginRequest): Promise<ApiResult<TokenResponse>> {
   return sendForJson(ApiRoutes.AUTH_TOKEN, postJson(request));
 }
@@ -121,15 +125,18 @@ export async function createIngestGroup(
 
 /**
  * Uploads one file into an ingest group, under the ID Sona gave the group.
+ *
+ * @param onProgress called as the file is sent, with how much of it has been, from 0 to 1
  */
 export async function uploadTrack(
   accessToken: string,
   groupIngestId: string,
   file: File,
+  onProgress: (sent: number) => void,
 ): Promise<ApiResult<TrackIngestResponse>> {
   const query = new URLSearchParams({ filename: file.name });
   const path = `${ApiRoutes.INGEST_GROUPS}/${encodeURIComponent(groupIngestId)}/tracks?${query}`;
-  return sendForJson(path, postFileAsUser(accessToken, file));
+  return sendForJson(path, postFileAsUser(accessToken, file, onProgress));
 }
 
 function pageQuery(page: PageRequest): string {
@@ -144,43 +151,52 @@ function pageQuery(page: PageRequest): string {
 // One function per kind of request. The auth calls send no access token: the refresh cookie authenticates them if
 // anything.
 
-function post(): RequestInit {
+function post(): AxiosRequestConfig {
   return { method: HttpMethod.POST };
 }
 
-function postJson(body: RequestBody): RequestInit {
-  return { method: HttpMethod.POST, headers: JSON_CONTENT, body: JSON.stringify(body) };
+function postJson(body: RequestBody): AxiosRequestConfig {
+  return { method: HttpMethod.POST, headers: JSON_CONTENT, data: body };
 }
 
-function getAsUser(accessToken: string): RequestInit {
+function getAsUser(accessToken: string): AxiosRequestConfig {
   return { method: HttpMethod.GET, headers: authorizationHeader(accessToken) };
 }
 
-function postJsonAsUser(accessToken: string, body: RequestBody): RequestInit {
+function postJsonAsUser(accessToken: string, body: RequestBody): AxiosRequestConfig {
+  return { method: HttpMethod.POST, headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT }, data: body };
+}
+
+function postFileAsUser(accessToken: string, file: File, onProgress: (sent: number) => void): AxiosRequestConfig {
   return {
     method: HttpMethod.POST,
-    headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT },
-    body: JSON.stringify(body),
+    headers: { ...authorizationHeader(accessToken), ...FILE_CONTENT },
+    data: file,
+    onUploadProgress: (event) => onProgress(sentFraction(file, event)),
   };
 }
 
-function postFileAsUser(accessToken: string, file: File): RequestInit {
-  return { method: HttpMethod.POST, headers: { ...authorizationHeader(accessToken), ...FILE_CONTENT }, body: file };
+// The event's own total is missing when the browser can't tell it, but the file's size is always known.
+function sentFraction(file: File, event: AxiosProgressEvent): number {
+  if (file.size === 0) {
+    return 1;
+  }
+  return Math.min(event.loaded / file.size, 1);
 }
 
 function authorizationHeader(accessToken: string): Record<string, string> {
   return { Authorization: `Bearer ${accessToken}` };
 }
 
-async function sendForJson<T>(path: string, request: RequestInit): Promise<ApiResult<T>> {
+async function sendForJson<T>(path: string, request: AxiosRequestConfig): Promise<ApiResult<T>> {
   const result = await sendRequest(path, request);
   if (result.kind !== ResultKind.OK) {
     return result;
   }
-  return { kind: ResultKind.OK, body: await result.body.json() };
+  return { kind: ResultKind.OK, body: result.body.data };
 }
 
-async function sendForNothing(path: string, request: RequestInit): Promise<ApiResult<void>> {
+async function sendForNothing(path: string, request: AxiosRequestConfig): Promise<ApiResult<void>> {
   const result = await sendRequest(path, request);
   if (result.kind !== ResultKind.OK) {
     return result;
@@ -188,20 +204,21 @@ async function sendForNothing(path: string, request: RequestInit): Promise<ApiRe
   return { kind: ResultKind.OK, body: undefined };
 }
 
-async function sendRequest(path: string, request: RequestInit): Promise<ApiResult<Response>> {
-  let response: Response;
-  // The one place the frontend catches: fetch rejects when Sona can't be reached at all.
+async function sendRequest(path: string, request: AxiosRequestConfig): Promise<ApiResult<AxiosResponse>> {
+  let response: AxiosResponse;
+  // The one place the frontend catches: axios rejects when Sona can't be reached at all, as every status is answered
+  // below.
   try {
-    response = await fetch(path, request);
+    response = await http.request({ ...request, url: path });
   } catch {
     return UNREACHABLE;
   }
-  if (response.ok) {
+  if (response.status < 300) {
     return { kind: ResultKind.OK, body: response };
   }
   if (response.status < 500) {
     // Every client error Sona sends has an ErrorResponse body.
-    const error: ErrorResponse = await response.json();
+    const error: ErrorResponse = response.data;
     return { kind: ResultKind.REFUSED, code: error.code, reason: error.reason };
   }
   return SERVER_ERROR;
