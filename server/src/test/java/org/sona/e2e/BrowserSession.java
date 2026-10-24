@@ -10,7 +10,7 @@ import org.testcontainers.Testcontainers;
 import org.testcontainers.containers.GenericContainer;
 
 /**
- * One test's browser context, a fresh profile pointed at the running server, traced while the test runs. JUnit closes
+ * One test's browser context, a fresh profile pointed at the running server, traced while the test runs. Its extension closes
  * it when the test ends, and a failing test's trace is saved to build/e2e-traces.
  */
 public final class BrowserSession implements AutoCloseable {
