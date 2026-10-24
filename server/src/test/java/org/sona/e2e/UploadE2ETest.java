@@ -32,6 +32,7 @@ import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Users;
+import org.sona.samples.Mp3Sample;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -169,9 +170,9 @@ class UploadE2ETest {
         final var uploadPage = logInAndOpen(page);
 
         uploadPage.chooseFiles(
-                new FilePayload("Somewhere Only We Know.mp3", "audio/mpeg", AUDIO), flac("Everybody's Changing.flac"));
+                new FilePayload("Somewhere Only We Know.ogg", "audio/ogg", AUDIO), flac("Everybody's Changing.flac"));
 
-        assertThat(uploadPage.error()).hasText("Left out 1 file Sona can't ingest yet: Somewhere Only We Know.mp3");
+        assertThat(uploadPage.error()).hasText("Left out 1 file Sona can't ingest yet: Somewhere Only We Know.ogg");
         assertThat(uploadPage.groupFiles("Loose files")).hasText(new String[] {"Everybody's Changing.flac"});
     }
 
@@ -228,6 +229,24 @@ class UploadE2ETest {
         worker.processPending();
 
         assertThat(uploadPage.status("09 A Whisper.flac")).hasText("Added to the library");
+        assertThat(uploadPage.ingestSummary()).hasText("1 added to the library");
+    }
+
+    @Test
+    void anUploadedMp3IsShownAddedToTheLibrary(final Page page) throws IOException, InterruptedException {
+        final byte[] mp3;
+        try (final var inputStream = Mp3Sample.STEREO_CBR_ID3V24.inputStream()) {
+            mp3 = inputStream.readAllBytes();
+        }
+        final var uploadPage = logInAndOpen(page);
+        uploadPage.chooseFiles(new FilePayload("09 A Whisper.mp3", "audio/mpeg", mp3));
+        awaitProgressSubscription();
+
+        uploadPage.uploadButton().click();
+        assertThat(uploadPage.status("09 A Whisper.mp3")).hasText("Waiting to be matched");
+        worker.processPending();
+
+        assertThat(uploadPage.status("09 A Whisper.mp3")).hasText("Added to the library");
         assertThat(uploadPage.ingestSummary()).hasText("1 added to the library");
     }
 

@@ -94,9 +94,9 @@ class DefaultLibraryTest {
         final var group = storeGroup();
         final var file = new ByteArrayInputStream(new byte[] {1, 2, 3});
 
-        assertThatThrownBy(() -> library.storeIngestTrack(group, "track.mp3", file))
+        assertThatThrownBy(() -> library.storeIngestTrack(group, "track.ogg", file))
                 .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("Extension mp3 is not supported!");
+                .hasMessage("Extension ogg is not supported!");
         assertThat(Files.exists(libraryProperties
                         .ingestFolder()
                         .resolve(group.ingestGroupId().toString())))

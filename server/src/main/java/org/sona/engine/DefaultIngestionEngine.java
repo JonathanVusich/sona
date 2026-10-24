@@ -24,6 +24,7 @@ import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.format.Parser;
 import org.sona.format.flac.FlacParser;
+import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.resolver.MetadataResolver;
@@ -47,7 +48,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public final class DefaultIngestionEngine implements IngestionEngine {
 
-    private static final Map<String, Parser> PARSERS = Stream.of(new FlacParser())
+    private static final Map<String, Parser> PARSERS = Stream.of(new FlacParser(), new Mp3Parser())
             .flatMap(p -> p.format().getExtensions().stream().map(ext -> entry(ext, p)))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
 
