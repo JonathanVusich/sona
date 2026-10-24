@@ -14,11 +14,11 @@ import org.sona.format.mp3.Id3Frame.UniqueFileId;
 import org.sona.format.mp3.Id3Frame.UserTextFrame;
 
 /**
- * Reads the ID3v2 tag at the start of an MP3, in version 2.3 or 2.4 (id3.org's ID3v2.3.0 and ID3v2.4.0 structure
- * documents), straight from the file's stream through a bit stream. Every field is whole bytes, so the bit stream holds
- * no bits between fields, and the tag's regions skip what Sona doesn't read.
+ * Reads an MP3 straight from the file's stream through a bit stream: so far, the ID3v2 tag at its start, in version 2.3
+ * or 2.4 (id3.org's ID3v2.3.0 and ID3v2.4.0 structure documents). Every field is whole bytes, so the bit stream holds no
+ * bits between fields, and the tag's regions skip what Sona doesn't read.
  */
-final class Id3v2Reader {
+public final class Mp3Parser {
 
     // "ID3"
     private static final long IDENTIFIER = 0x49_44_33;
@@ -35,7 +35,7 @@ final class Id3v2Reader {
      * @param input the file's stream, at its start
      * @return the tag the file starts with, which is empty, with a size of 0, when it starts with none
      */
-    Id3v2Tag readTag(final InputStream input) throws IOException, InvalidFormatException {
+    Id3v2Tag readId3v2Tag(final InputStream input) throws IOException, InvalidFormatException {
         final var bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
         if (bits.peekBits(24) != IDENTIFIER) {
             return new Id3v2Tag(0, List.of());

@@ -13,11 +13,11 @@ import org.sona.format.mp3.Id3Frame.TextFrame;
 import org.sona.format.mp3.Id3Frame.UserTextFrame;
 import org.sona.samples.Mp3Sample;
 
-class Id3v2ReaderTest {
+class Mp3ParserTest {
 
     @Test
     void readsId3v24Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(sampleBytes(Mp3Sample.STEREO_CBR_ID3V24));
+        final var tag = readId3v2Tag(sampleBytes(Mp3Sample.STEREO_CBR_ID3V24));
 
         // The tag's padding runs up to the first frame, at 291.
         assertThat(tag.size()).isEqualTo(291);
@@ -32,7 +32,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsId3v23Tag() throws IOException, InvalidFormatException {
-        final var tag = readTag(sampleBytes(Mp3Sample.MONO_VBR_ID3V23));
+        final var tag = readId3v2Tag(sampleBytes(Mp3Sample.MONO_VBR_ID3V23));
 
         assertThat(tag.size()).isEqualTo(133);
         assertThat(tag.frames())
@@ -45,7 +45,7 @@ class Id3v2ReaderTest {
 
     @Test
     void readsEmptyTagWhenFileStartsWithAudio() throws IOException, InvalidFormatException {
-        final var tag = readTag(sampleBytes(Mp3Sample.NO_XING_ID3V1));
+        final var tag = readId3v2Tag(sampleBytes(Mp3Sample.NO_XING_ID3V1));
 
         assertThat(tag.size()).isZero();
         assertThat(tag.frames()).isEmpty();
@@ -57,7 +57,7 @@ class Id3v2ReaderTest {
         final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
         Arrays.fill(bytes, 14, 18, (byte) 0x7F);
 
-        assertThatThrownBy(() -> readTag(bytes))
+        assertThatThrownBy(() -> readId3v2Tag(bytes))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("ID3v2 tag is cut short!");
     }
@@ -68,13 +68,13 @@ class Id3v2ReaderTest {
         final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
         bytes[290] = 1;
 
-        assertThatThrownBy(() -> readTag(bytes))
+        assertThatThrownBy(() -> readId3v2Tag(bytes))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("ID3v2 tag's padding isn't all NULs!");
     }
 
-    private static Id3v2Tag readTag(final byte[] bytes) throws IOException, InvalidFormatException {
-        return new Id3v2Reader().readTag(new ByteArrayInputStream(bytes));
+    private static Id3v2Tag readId3v2Tag(final byte[] bytes) throws IOException, InvalidFormatException {
+        return new Mp3Parser().readId3v2Tag(new ByteArrayInputStream(bytes));
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {
