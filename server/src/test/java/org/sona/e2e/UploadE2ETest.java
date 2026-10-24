@@ -202,6 +202,8 @@ class UploadE2ETest {
         page.route(url -> url.contains("/tracks?"), held::add);
 
         uploadPage.uploadButton().click();
+        // WebKit sends the request a while after the ring appears.
+        page.waitForCondition(() -> !held.isEmpty());
 
         assertThat(uploadPage.progressBar("Somewhere Only We Know.flac")).isVisible();
         // The ring stands in for the status while the file is sent.
