@@ -1,6 +1,7 @@
 package org.sona.format.mp3;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -8,8 +9,9 @@ import java.util.Arrays;
 import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.io.IOUtils;
+import org.sona.format.FieldUtils;
 import org.sona.format.mp3.Id3Frame.TextFrame;
-import org.sona.utils.ChannelUtils;
 
 /**
  * Reads the ID3v1 tag that may end an MP3: 128 bytes of fixed-size fields, which older taggers write. Its fields are
@@ -32,17 +34,18 @@ final class Id3v1Reader {
         if (size < TAG_SIZE) {
             return false;
         }
-        final var identifier = ChannelUtils.readBytes(channel, size - TAG_SIZE, IDENTIFIER.length)
-                .array();
-        return Arrays.equals(identifier, IDENTIFIER);
+        final var identifier = ByteBuffer.allocate(IDENTIFIER.length);
+        IOUtils.readFully(channel.position(size - TAG_SIZE), identifier);
+        return Arrays.equals(identifier.array(), IDENTIFIER);
     }
 
     /**
      * @return the fields that have a value, of the tag at the end of a channel that has one (see {@link #hasTag})
      */
     List<TextFrame> readTag(final SeekableByteChannel channel) throws IOException {
-        final var tag = ChannelUtils.readBytes(channel, channel.size() - TAG_SIZE, TAG_SIZE)
-                .array();
+        final var buffer = ByteBuffer.allocate(TAG_SIZE);
+        IOUtils.readFully(channel.position(channel.size() - TAG_SIZE), buffer);
+        final var tag = buffer.array();
         final var frames = new ArrayList<TextFrame>();
         for (final var field : TextField.values()) {
             final var value = readTextField(tag, field.getOffset());
@@ -58,11 +61,8 @@ final class Id3v1Reader {
 
     // Fields are padded with NULs or, by some taggers, spaces.
     private static String readTextField(final byte[] tag, final int offset) {
-        var length = 0;
-        while (length < FIELD_SIZE && tag[offset + length] != 0) {
-            length++;
-        }
-        return new String(tag, offset, length, StandardCharsets.ISO_8859_1).strip();
+        return FieldUtils.nulPaddedString(tag, offset, FIELD_SIZE, StandardCharsets.ISO_8859_1)
+                .strip();
     }
 
     @Getter

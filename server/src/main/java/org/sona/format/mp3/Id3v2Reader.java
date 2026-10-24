@@ -8,11 +8,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import org.apache.commons.io.IOUtils;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.mp3.Id3Frame.TextFrame;
 import org.sona.format.mp3.Id3Frame.UniqueFileId;
 import org.sona.format.mp3.Id3Frame.UserTextFrame;
-import org.sona.utils.ChannelUtils;
 
 /**
  * Reads the ID3v2 tag at the start of an MP3, in version 2.3 or 2.4 (id3.org's ID3v2.3.0 and ID3v2.4.0 structure
@@ -38,21 +38,24 @@ final class Id3v2Reader {
         if (channel.size() < HEADER_SIZE) {
             return false;
         }
-        final var identifier =
-                ChannelUtils.readBytes(channel, 0, IDENTIFIER.length).array();
-        return Arrays.equals(identifier, IDENTIFIER);
+        final var identifier = ByteBuffer.allocate(IDENTIFIER.length);
+        IOUtils.readFully(channel.position(0), identifier);
+        return Arrays.equals(identifier.array(), IDENTIFIER);
     }
 
     /**
      * @return the tag at the start of a channel that has one (see {@link #hasTag})
      */
     Id3v2Tag readTag(final SeekableByteChannel channel) throws IOException, InvalidFormatException {
-        final var header = ChannelUtils.readBytes(channel, 0, HEADER_SIZE);
+        final var header = ByteBuffer.allocate(HEADER_SIZE);
+        IOUtils.readFully(channel.position(0), header);
         final var majorVersion = header.get(3);
         final var flags = header.get(5) & 0xFF;
         final var bodySize = Id3Utils.synchsafeInt(header.getInt(6));
-        final var body = ChannelUtils.readBytes(channel, HEADER_SIZE, bodySize).array();
-        return new Id3v2Tag(tagSize(flags, bodySize), readFrames(majorVersion, flags, body));
+        // The body follows the header, where reading it left the channel.
+        final var body = ByteBuffer.allocate(bodySize);
+        IOUtils.readFully(channel, body);
+        return new Id3v2Tag(tagSize(flags, bodySize), readFrames(majorVersion, flags, body.array()));
     }
 
     private static long tagSize(final int flags, final int bodySize) {
