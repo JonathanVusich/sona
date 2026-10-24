@@ -1,15 +1,11 @@
 package org.sona.format.mp3;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.io.IOUtils;
 import org.sona.format.FieldUtils;
 import org.sona.format.mp3.Id3Frame.TextFrame;
 
@@ -27,25 +23,18 @@ final class Id3v1Reader {
     private static final int TRACK = 126;
 
     /**
-     * @return whether the channel ends with an ID3v1 tag
+     * @param tail the last {@link #TAG_SIZE} bytes of the file
+     * @return whether they're an ID3v1 tag
      */
-    boolean hasTag(final SeekableByteChannel channel) throws IOException {
-        final var size = channel.size();
-        if (size < TAG_SIZE) {
-            return false;
-        }
-        final var identifier = ByteBuffer.allocate(IDENTIFIER.length);
-        IOUtils.readFully(channel.position(size - TAG_SIZE), identifier);
-        return Arrays.equals(identifier.array(), IDENTIFIER);
+    boolean isTag(final byte[] tail) {
+        return Arrays.equals(tail, 0, IDENTIFIER.length, IDENTIFIER, 0, IDENTIFIER.length);
     }
 
     /**
-     * @return the fields that have a value, of the tag at the end of a channel that has one (see {@link #hasTag})
+     * @param tag the tag (see {@link #isTag})
+     * @return its fields that have a value
      */
-    List<TextFrame> readTag(final SeekableByteChannel channel) throws IOException {
-        final var buffer = ByteBuffer.allocate(TAG_SIZE);
-        IOUtils.readFully(channel.position(channel.size() - TAG_SIZE), buffer);
-        final var tag = buffer.array();
+    List<TextFrame> readTag(final byte[] tag) {
         final var frames = new ArrayList<TextFrame>();
         for (final var field : TextField.values()) {
             final var value = readTextField(tag, field.getOffset());

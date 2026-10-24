@@ -45,35 +45,42 @@ class Id3v2ReaderTest {
 
     @Test
     void findsTagAtStart() throws IOException {
-        try (final var channel = Mp3Sample.STEREO_CBR_ID3V24.channel()) {
-            assertThat(new Id3v2Reader().hasTag(channel)).isTrue();
-        }
+        assertThat(new Id3v2Reader().isTagHeader(header(sampleBytes(Mp3Sample.STEREO_CBR_ID3V24))))
+                .isTrue();
     }
 
     @Test
     void findsNoTagWhenFileStartsWithAudio() throws IOException {
-        try (final var channel = Mp3Sample.NO_XING_ID3V1.channel()) {
-            assertThat(new Id3v2Reader().hasTag(channel)).isFalse();
-        }
+        assertThat(new Id3v2Reader().isTagHeader(header(sampleBytes(Mp3Sample.NO_XING_ID3V1))))
+                .isFalse();
     }
 
     // The tag's first frame, TIT2, starts after the 10-byte tag header, and its size follows its ID.
     @Test
     void rejectsFrameThatRunsPastTag() throws IOException {
-        final byte[] bytes;
-        try (final var inputStream = Mp3Sample.STEREO_CBR_ID3V24.inputStream()) {
-            bytes = inputStream.readAllBytes();
-        }
+        final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
         ByteBuffer.wrap(bytes).putInt(14, 0x7F7F7F7F);
 
-        assertThatThrownBy(() -> new Id3v2Reader().readTag(new SeekableInMemoryByteChannel(bytes)))
+        assertThatThrownBy(() -> readTag(bytes))
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessageContaining("TIT2");
     }
 
     private static Id3v2Tag readTag(final Mp3Sample sample) throws IOException, InvalidFormatException {
-        try (final var channel = sample.channel()) {
-            return new Id3v2Reader().readTag(channel);
+        return readTag(sampleBytes(sample));
+    }
+
+    private static Id3v2Tag readTag(final byte[] bytes) throws IOException, InvalidFormatException {
+        return new Id3v2Reader().readTag(new SeekableInMemoryByteChannel(bytes), header(bytes));
+    }
+
+    private static ByteBuffer header(final byte[] bytes) {
+        return ByteBuffer.wrap(bytes, 0, Id3v2Reader.HEADER_SIZE).slice();
+    }
+
+    private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {
+        try (final var inputStream = sample.inputStream()) {
+            return inputStream.readAllBytes();
         }
     }
 }

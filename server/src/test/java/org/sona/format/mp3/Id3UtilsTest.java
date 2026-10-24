@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class Id3UtilsTest {
@@ -20,7 +21,9 @@ class Id3UtilsTest {
     void resynchroniseDropsTheZeroAfterEach0xFF() {
         final var unsynchronised = new byte[] {(byte) 0xFF, 0, (byte) 0xE0, 1, (byte) 0xFF, 0, 0, (byte) 0xFF};
 
-        assertThat(Id3Utils.resynchronise(unsynchronised))
+        final var resynchronised = Id3Utils.resynchronise(ByteBuffer.wrap(unsynchronised));
+
+        assertThat(Arrays.copyOf(resynchronised.array(), resynchronised.limit()))
                 .containsExactly((byte) 0xFF, (byte) 0xE0, 1, (byte) 0xFF, 0, (byte) 0xFF);
     }
 
@@ -28,7 +31,8 @@ class Id3UtilsTest {
     void decodesNulSeparatedStrings() {
         final var bytes = "\u0003Coldplay\0Guy Berryman\0".getBytes(StandardCharsets.UTF_8);
 
-        assertThat(Id3Utils.decodeStrings(bytes, 1, TextEncoding.UTF_8)).containsExactly("Coldplay", "Guy Berryman");
+        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 1, TextEncoding.UTF_8))
+                .containsExactly("Coldplay", "Guy Berryman");
     }
 
     @Test
@@ -43,7 +47,8 @@ class Id3UtilsTest {
                 .put(big)
                 .array();
 
-        assertThat(Id3Utils.decodeStrings(bytes, 0, TextEncoding.UTF_16)).containsExactly("Ünïcode", "Second");
+        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 0, TextEncoding.UTF_16))
+                .containsExactly("Ünïcode", "Second");
     }
 
     @Test
@@ -51,6 +56,7 @@ class Id3UtilsTest {
         // "Ā" is 0x0100 and "A" is 0x0041: the zero bytes between them don't end the string.
         final var bytes = "ĀA".getBytes(StandardCharsets.UTF_16BE);
 
-        assertThat(Id3Utils.decodeStrings(bytes, 0, TextEncoding.UTF_16BE)).containsExactly("ĀA");
+        assertThat(Id3Utils.decodeStrings(ByteBuffer.wrap(bytes), 0, TextEncoding.UTF_16BE))
+                .containsExactly("ĀA");
     }
 }

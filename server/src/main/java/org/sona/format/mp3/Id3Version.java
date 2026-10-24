@@ -1,6 +1,6 @@
 package org.sona.format.mp3;
 
-import java.util.Arrays;
+import java.nio.ByteBuffer;
 import org.sona.exception.InvalidFormatException;
 
 /**
@@ -62,12 +62,13 @@ enum Id3Version {
      * @return the content of a frame that isn't encoded (see {@link #isEncoded}), without the fields its flags add
      * @throws InvalidFormatException when the frame has no content after those fields
      */
-    byte[] frameContent(final int tagFlags, final int formatFlags, final byte[] data) throws InvalidFormatException {
+    ByteBuffer frameContent(final int tagFlags, final int formatFlags, final ByteBuffer data)
+            throws InvalidFormatException {
         final var fieldsSize = fieldsSize(formatFlags);
-        if (data.length <= fieldsSize) {
+        if (data.limit() <= fieldsSize) {
             throw new InvalidFormatException("ID3v2 frame has no content!");
         }
-        final var content = Arrays.copyOfRange(data, fieldsSize, data.length);
+        final var content = data.slice(fieldsSize, data.limit() - fieldsSize);
         return switch (this) {
             // ID3v2.3 unsynchronises the whole tag rather than each frame, so the tag reader undoes it.
             case V2_3 -> content;
@@ -75,7 +76,7 @@ enum Id3Version {
         };
     }
 
-    private static byte[] v24Resynchronised(final int tagFlags, final int formatFlags, final byte[] content) {
+    private static ByteBuffer v24Resynchronised(final int tagFlags, final int formatFlags, final ByteBuffer content) {
         if ((formatFlags & V2_4_UNSYNCHRONISED) != 0 || (tagFlags & UNSYNCHRONISED_TAG) != 0) {
             return Id3Utils.resynchronise(content);
         }

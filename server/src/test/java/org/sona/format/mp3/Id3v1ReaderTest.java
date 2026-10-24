@@ -3,6 +3,7 @@ package org.sona.format.mp3;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sona.format.mp3.Id3Frame.TextFrame;
@@ -23,21 +24,22 @@ class Id3v1ReaderTest {
 
     @Test
     void findsTagAtEnd() throws IOException {
-        try (final var channel = Mp3Sample.NO_XING_ID3V1.channel()) {
-            assertThat(new Id3v1Reader().hasTag(channel)).isTrue();
-        }
+        assertThat(new Id3v1Reader().isTag(tail(Mp3Sample.NO_XING_ID3V1))).isTrue();
     }
 
     @Test
     void findsNoTagWhenFileEndsWithAudio() throws IOException {
-        try (final var channel = Mp3Sample.STEREO_CBR_ID3V24.channel()) {
-            assertThat(new Id3v1Reader().hasTag(channel)).isFalse();
-        }
+        assertThat(new Id3v1Reader().isTag(tail(Mp3Sample.STEREO_CBR_ID3V24))).isFalse();
     }
 
     private static List<TextFrame> readTag(final Mp3Sample sample) throws IOException {
-        try (final var channel = sample.channel()) {
-            return new Id3v1Reader().readTag(channel);
+        return new Id3v1Reader().readTag(tail(sample));
+    }
+
+    private static byte[] tail(final Mp3Sample sample) throws IOException {
+        try (final var inputStream = sample.inputStream()) {
+            final var bytes = inputStream.readAllBytes();
+            return Arrays.copyOfRange(bytes, bytes.length - Id3v1Reader.TAG_SIZE, bytes.length);
         }
     }
 }

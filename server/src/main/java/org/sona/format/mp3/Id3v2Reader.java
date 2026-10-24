@@ -5,7 +5,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import org.apache.commons.io.IOUtils;
@@ -16,12 +15,13 @@ import org.sona.format.mp3.Id3Frame.UserTextFrame;
 
 /**
  * Reads the ID3v2 tag at the start of an MP3, in version 2.3 or 2.4 (id3.org's ID3v2.3.0 and ID3v2.4.0 structure
- * documents).
+ * documents). The tag's body is read once, and its frames are read from slices of it.
  */
 final class Id3v2Reader {
 
-    private static final byte[] IDENTIFIER = "ID3".getBytes(StandardCharsets.US_ASCII);
-    private static final int HEADER_SIZE = 10;
+    static final int HEADER_SIZE = 10;
+
+    private static final String IDENTIFIER = "ID3";
     private static final int FOOTER_SIZE = 10;
     private static final int FRAME_HEADER_SIZE = 10;
     private static final int FRAME_ID_SIZE = 4;
@@ -32,30 +32,31 @@ final class Id3v2Reader {
     private static final int FOOTER = 0x10;
 
     /**
-     * @return whether the channel starts with an ID3v2 tag
+     * @param header the first {@link #HEADER_SIZE} bytes of the file
+     * @return whether they're the header of an ID3v2 tag
      */
-    boolean hasTag(final SeekableByteChannel channel) throws IOException {
-        if (channel.size() < HEADER_SIZE) {
-            return false;
+    boolean isTagHeader(final ByteBuffer header) {
+        for (var i = 0; i < IDENTIFIER.length(); i++) {
+            if (header.get(i) != IDENTIFIER.charAt(i)) {
+                return false;
+            }
         }
-        final var identifier = ByteBuffer.allocate(IDENTIFIER.length);
-        IOUtils.readFully(channel.position(0), identifier);
-        return Arrays.equals(identifier.array(), IDENTIFIER);
+        return true;
     }
 
     /**
-     * @return the tag at the start of a channel that has one (see {@link #hasTag})
+     * Reads the tag's body, which follows its header.
+     *
+     * @param header the tag's header (see {@link #isTagHeader})
      */
-    Id3v2Tag readTag(final SeekableByteChannel channel) throws IOException, InvalidFormatException {
-        final var header = ByteBuffer.allocate(HEADER_SIZE);
-        IOUtils.readFully(channel.position(0), header);
+    Id3v2Tag readTag(final SeekableByteChannel channel, final ByteBuffer header)
+            throws IOException, InvalidFormatException {
         final var majorVersion = header.get(3);
         final var flags = header.get(5) & 0xFF;
         final var bodySize = Id3Utils.synchsafeInt(header.getInt(6));
-        // The body follows the header, where reading it left the channel.
         final var body = ByteBuffer.allocate(bodySize);
-        IOUtils.readFully(channel, body);
-        return new Id3v2Tag(tagSize(flags, bodySize), readFrames(majorVersion, flags, body.array()));
+        IOUtils.readFully(channel.position(HEADER_SIZE), body);
+        return new Id3v2Tag(tagSize(flags, bodySize), readFrames(majorVersion, flags, body.flip()));
     }
 
     private static long tagSize(final int flags, final int bodySize) {
@@ -65,22 +66,22 @@ final class Id3v2Reader {
         return HEADER_SIZE + bodySize;
     }
 
-    private static List<Id3Frame> readFrames(final int majorVersion, final int flags, final byte[] body)
+    private static List<Id3Frame> readFrames(final int majorVersion, final int flags, final ByteBuffer body)
             throws InvalidFormatException {
         return switch (majorVersion) {
             case 3 -> readFrames(Id3Version.V2_3, flags, v23Body(flags, body));
-            case 4 -> readFrames(Id3Version.V2_4, flags, ByteBuffer.wrap(body));
+            case 4 -> readFrames(Id3Version.V2_4, flags, body);
             // TODO: Read ID3v2.2 tags, whose frame IDs have three letters.
             default -> throw new InvalidFormatException("ID3v2.%d tags aren't supported!".formatted(majorVersion));
         };
     }
 
     // ID3v2.3 unsynchronises the whole tag after its header, frame headers included.
-    private static ByteBuffer v23Body(final int flags, final byte[] body) {
+    private static ByteBuffer v23Body(final int flags, final ByteBuffer body) {
         if ((flags & Id3Version.UNSYNCHRONISED_TAG) != 0) {
-            return ByteBuffer.wrap(Id3Utils.resynchronise(body));
+            return Id3Utils.resynchronise(body);
         }
-        return ByteBuffer.wrap(body);
+        return body;
     }
 
     // Keeps the frames Sona reads, and skips the rest, as the spec lets a reader skip frames it doesn't know.
@@ -90,7 +91,8 @@ final class Id3v2Reader {
         final var frames = new ArrayList<Id3Frame>();
         while (hasNextFrame(body)) {
             final var header = readFrameHeader(version, body);
-            final var data = readBytes(body, header.size());
+            final var data = body.slice(body.position(), header.size());
+            body.position(body.position() + header.size());
             if (isReadFrameId(header.frameId()) && !version.isEncoded(header.formatFlags())) {
                 frames.add(readFrame(header.frameId(), version.frameContent(tagFlags, header.formatFlags(), data)));
             }
@@ -134,10 +136,12 @@ final class Id3v2Reader {
         if (body.remaining() < FRAME_HEADER_SIZE) {
             throw new InvalidFormatException("ID3v2 tag ends in a frame header!");
         }
-        final var frameId = new String(readBytes(body, FRAME_ID_SIZE), StandardCharsets.ISO_8859_1);
+        final var frameId = new String(
+                body.array(), body.arrayOffset() + body.position(), FRAME_ID_SIZE, StandardCharsets.ISO_8859_1);
         if (!FRAME_ID.matcher(frameId).matches()) {
             throw new InvalidFormatException("ID3v2 frame ID '%s' isn't valid!".formatted(frameId));
         }
+        body.position(body.position() + FRAME_ID_SIZE);
         final var size = version.frameSize(body.getInt());
         // The status flags come first, then the format flags.
         final var formatFlags = body.get(body.position() + 1) & 0xFF;
@@ -153,18 +157,17 @@ final class Id3v2Reader {
         return frameId.equals("UFID") || frameId.startsWith("T");
     }
 
-    private static Id3Frame readFrame(final String frameId, final byte[] content) throws InvalidFormatException {
+    private static Id3Frame readFrame(final String frameId, final ByteBuffer content) throws InvalidFormatException {
         return switch (frameId) {
             case "TXXX" -> readUserText(content);
             case "UFID" -> readUniqueFileId(content);
-            default ->
-                new TextFrame(frameId, Id3Utils.decodeStrings(content, 1, TextEncoding.fromByte(content[0] & 0xFF)));
+            default -> new TextFrame(frameId, Id3Utils.decodeStrings(content, 1, readEncoding(content)));
         };
     }
 
     // The first string names the text, and the rest are its values.
-    private static UserTextFrame readUserText(final byte[] content) throws InvalidFormatException {
-        final var strings = Id3Utils.decodeStrings(content, 1, TextEncoding.fromByte(content[0] & 0xFF));
+    private static UserTextFrame readUserText(final ByteBuffer content) throws InvalidFormatException {
+        final var strings = Id3Utils.decodeStrings(content, 1, readEncoding(content));
         if (strings.isEmpty()) {
             throw new InvalidFormatException("ID3v2 TXXX frame has no description!");
         }
@@ -172,7 +175,7 @@ final class Id3v2Reader {
     }
 
     // The owner is NUL-terminated ISO-8859-1. The identifier is binary, but MusicBrainz writes ASCII.
-    private static UniqueFileId readUniqueFileId(final byte[] content) throws InvalidFormatException {
+    private static UniqueFileId readUniqueFileId(final ByteBuffer content) throws InvalidFormatException {
         final var strings = Id3Utils.decodeStrings(content, 0, TextEncoding.ISO_8859_1);
         if (strings.size() != 2) {
             throw new InvalidFormatException("ID3v2 UFID frame isn't an owner followed by an identifier!");
@@ -180,10 +183,9 @@ final class Id3v2Reader {
         return new UniqueFileId(strings.getFirst(), strings.get(1));
     }
 
-    private static byte[] readBytes(final ByteBuffer buffer, final int length) {
-        final var bytes = new byte[length];
-        buffer.get(bytes);
-        return bytes;
+    // A text frame's first byte says how it encodes its text.
+    private static TextEncoding readEncoding(final ByteBuffer content) throws InvalidFormatException {
+        return TextEncoding.fromByte(content.get(0) & 0xFF);
     }
 
     private record Id3FrameHeader(String frameId, int size, int formatFlags) {}
