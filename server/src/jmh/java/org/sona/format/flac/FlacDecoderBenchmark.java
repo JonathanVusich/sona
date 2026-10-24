@@ -1,10 +1,10 @@
 package org.sona.format.flac;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -49,7 +49,7 @@ public class FlacDecoderBenchmark {
     @Benchmark
     public void decodeTwoMinutes(final Blackhole blackhole) throws IOException, InvalidFormatException {
         final var decoder =
-                new FlacParser().parse(new ByteArrayInputStream(bytes)).audio();
+                new FlacParser().parse(new SeekableInMemoryByteChannel(bytes)).audio();
         final var samples = (long) decoder.streamInfo().sampleRate() * SECONDS;
         var decoded = 0L;
         for (final var frame : decoder) {

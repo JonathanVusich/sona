@@ -7,6 +7,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
@@ -84,7 +85,7 @@ class DefaultLibraryTest {
                         ingestTrack.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.PENDING));
 
         try (final var stored = library.readIngestTrack(ingestTrack)) {
-            assertThat(stored.readAllBytes()).isEqualTo(bytes);
+            assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(bytes);
         }
     }
 

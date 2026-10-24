@@ -1,6 +1,9 @@
 package org.sona.samples;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.SeekableByteChannel;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 /**
  * Short synthetic FLAC files with their audio: a chord, silence and noise, encoded with settings that between them use
@@ -26,5 +29,14 @@ public enum FlacAudioSample {
 
     public InputStream inputStream() {
         return FlacAudioSample.class.getResourceAsStream("audio/" + fileName);
+    }
+
+    /**
+     * @return the file in memory, as parsers read it
+     */
+    public SeekableByteChannel channel() throws IOException {
+        try (final var inputStream = inputStream()) {
+            return new SeekableInMemoryByteChannel(inputStream.readAllBytes());
+        }
     }
 }

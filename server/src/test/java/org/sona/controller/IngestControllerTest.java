@@ -6,6 +6,7 @@ import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.time.Duration;
 import java.util.Map;
 import org.jooq.DSLContext;
@@ -134,7 +135,7 @@ class IngestControllerTest {
         final var ingest = trackToIngestDao.loadById(response.trackIngestId());
         assertThat(ingest.state()).isEqualTo(IngestState.PENDING);
         try (final var stored = library.readIngestTrack(ingest)) {
-            assertThat(stored.readAllBytes()).isEqualTo(flac);
+            assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(flac);
         }
     }
 

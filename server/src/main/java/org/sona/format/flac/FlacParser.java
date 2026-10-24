@@ -5,6 +5,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +32,9 @@ public final class FlacParser implements Parser {
     }
 
     @Override
-    public ParsedFlac parse(final InputStream inputStream) throws IOException, InvalidFormatException {
+    public ParsedFlac parse(final SeekableByteChannel channel) throws IOException, InvalidFormatException {
+        // FLAC keeps all its metadata before its audio, so it reads straight through.
+        final var inputStream = Channels.newInputStream(channel);
         final var flacMetadata = parseAllMetadata(inputStream);
         final var streamInfo = flacMetadata
                 .streamInfo()
