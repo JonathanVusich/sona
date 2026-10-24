@@ -1,6 +1,7 @@
 package org.sona.format.mp3;
 
 import java.util.Arrays;
+import org.sona.exception.InvalidFormatException;
 
 /**
  * The ID3v2 versions Sona reads, which lay out frame headers alike but size and flag them differently.
@@ -46,22 +47,27 @@ enum Id3Version {
     }
 
     /**
-     * @return whether Sona can read the frame's content: it isn't compressed or encrypted, and isn't empty
+     * @return whether the frame is compressed or encrypted, which Sona can't read, so skips
      */
-    boolean isReadable(final int formatFlags, final int dataLength) {
+    boolean isEncoded(final int formatFlags) {
         // TODO: Inflate compressed frames.
-        final var unreadableFlags = switch (this) {
+        final var encodedFlags = switch (this) {
             case V2_3 -> V2_3_COMPRESSED | V2_3_ENCRYPTED;
             case V2_4 -> V2_4_COMPRESSED | V2_4_ENCRYPTED;
         };
-        return (formatFlags & unreadableFlags) == 0 && dataLength > fieldsSize(formatFlags);
+        return (formatFlags & encodedFlags) != 0;
     }
 
     /**
-     * @return the content of a frame Sona can read (see {@link #isReadable}), without the fields its flags add
+     * @return the content of a frame that isn't encoded (see {@link #isEncoded}), without the fields its flags add
+     * @throws InvalidFormatException when the frame has no content after those fields
      */
-    byte[] frameContent(final int tagFlags, final int formatFlags, final byte[] data) {
-        final var content = Arrays.copyOfRange(data, fieldsSize(formatFlags), data.length);
+    byte[] frameContent(final int tagFlags, final int formatFlags, final byte[] data) throws InvalidFormatException {
+        final var fieldsSize = fieldsSize(formatFlags);
+        if (data.length <= fieldsSize) {
+            throw new InvalidFormatException("ID3v2 frame has no content!");
+        }
+        final var content = Arrays.copyOfRange(data, fieldsSize, data.length);
         return switch (this) {
             // ID3v2.3 unsynchronises the whole tag rather than each frame, so the tag reader undoes it.
             case V2_3 -> content;

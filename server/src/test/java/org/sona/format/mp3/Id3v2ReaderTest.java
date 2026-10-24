@@ -1,9 +1,12 @@
 package org.sona.format.mp3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.mp3.Id3Frame.TextFrame;
@@ -52,6 +55,20 @@ class Id3v2ReaderTest {
         try (final var channel = Mp3Sample.NO_XING_ID3V1.channel()) {
             assertThat(new Id3v2Reader().hasTag(channel)).isFalse();
         }
+    }
+
+    // The tag's first frame, TIT2, starts after the 10-byte tag header, and its size follows its ID.
+    @Test
+    void rejectsFrameThatRunsPastTag() throws IOException {
+        final byte[] bytes;
+        try (final var inputStream = Mp3Sample.STEREO_CBR_ID3V24.inputStream()) {
+            bytes = inputStream.readAllBytes();
+        }
+        ByteBuffer.wrap(bytes).putInt(14, 0x7F7F7F7F);
+
+        assertThatThrownBy(() -> new Id3v2Reader().readTag(new SeekableInMemoryByteChannel(bytes)))
+                .isInstanceOf(InvalidFormatException.class)
+                .hasMessageContaining("TIT2");
     }
 
     private static Id3v2Tag readTag(final Mp3Sample sample) throws IOException, InvalidFormatException {

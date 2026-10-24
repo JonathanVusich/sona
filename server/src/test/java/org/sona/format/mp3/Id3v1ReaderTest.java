@@ -22,8 +22,17 @@ class Id3v1ReaderTest {
     }
 
     @Test
-    void readsNothingWhenFileDoesNotEndWithTag() throws IOException {
-        assertThat(readTag(Mp3Sample.STEREO_CBR_ID3V24)).isEmpty();
+    void findsTagAtEnd() throws IOException {
+        try (final var channel = Mp3Sample.NO_XING_ID3V1.channel()) {
+            assertThat(new Id3v1Reader().hasTag(channel)).isTrue();
+        }
+    }
+
+    @Test
+    void findsNoTagWhenFileEndsWithAudio() throws IOException {
+        try (final var channel = Mp3Sample.STEREO_CBR_ID3V24.channel()) {
+            assertThat(new Id3v1Reader().hasTag(channel)).isFalse();
+        }
     }
 
     private static List<TextFrame> readTag(final Mp3Sample sample) throws IOException {

@@ -17,7 +17,7 @@ import org.sona.utils.ChannelUtils;
  */
 final class Id3v1Reader {
 
-    private static final int TAG_SIZE = 128;
+    static final int TAG_SIZE = 128;
     private static final byte[] IDENTIFIER = "TAG".getBytes(StandardCharsets.US_ASCII);
     private static final int FIELD_SIZE = 30;
     // ID3v1.1 ends the comment early with a NUL, and puts the track number in its last byte.
@@ -25,18 +25,24 @@ final class Id3v1Reader {
     private static final int TRACK = 126;
 
     /**
-     * @return the tag's fields that have a value, or none when the channel doesn't end with a tag
+     * @return whether the channel ends with an ID3v1 tag
      */
-    List<TextFrame> readTag(final SeekableByteChannel channel) throws IOException {
+    boolean hasTag(final SeekableByteChannel channel) throws IOException {
         final var size = channel.size();
         if (size < TAG_SIZE) {
-            return List.of();
+            return false;
         }
-        final var tag =
-                ChannelUtils.readBytes(channel, size - TAG_SIZE, TAG_SIZE).array();
-        if (!Arrays.equals(tag, 0, IDENTIFIER.length, IDENTIFIER, 0, IDENTIFIER.length)) {
-            return List.of();
-        }
+        final var identifier = ChannelUtils.readBytes(channel, size - TAG_SIZE, IDENTIFIER.length)
+                .array();
+        return Arrays.equals(identifier, IDENTIFIER);
+    }
+
+    /**
+     * @return the fields that have a value, of the tag at the end of a channel that has one (see {@link #hasTag})
+     */
+    List<TextFrame> readTag(final SeekableByteChannel channel) throws IOException {
+        final var tag = ChannelUtils.readBytes(channel, channel.size() - TAG_SIZE, TAG_SIZE)
+                .array();
         final var frames = new ArrayList<TextFrame>();
         for (final var field : TextField.values()) {
             final var value = readTextField(tag, field.getOffset());

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.mp3.Id3Frame.TextFrame;
 import org.sona.format.mp3.Id3Frame.UniqueFileId;
@@ -24,6 +25,8 @@ final class Id3v2Reader {
     private static final int FOOTER_SIZE = 10;
     private static final int FRAME_HEADER_SIZE = 10;
     private static final int FRAME_ID_SIZE = 4;
+    // Frame IDs are capital letters and digits (ID3v2.4.0 structure section 4).
+    private static final Pattern FRAME_ID = Pattern.compile("[A-Z0-9]{4}");
 
     private static final int EXTENDED_HEADER = 0x40;
     private static final int FOOTER = 0x10;
@@ -65,8 +68,7 @@ final class Id3v2Reader {
             case 3 -> readFrames(Id3Version.V2_3, flags, v23Body(flags, body));
             case 4 -> readFrames(Id3Version.V2_4, flags, ByteBuffer.wrap(body));
             // TODO: Read ID3v2.2 tags, whose frame IDs have three letters.
-            // Another version may be laid out differently, so the spec says to skip its tag.
-            default -> List.of();
+            default -> throw new InvalidFormatException("ID3v2.%d tags aren't supported!".formatted(majorVersion));
         };
     }
 
@@ -78,44 +80,69 @@ final class Id3v2Reader {
         return ByteBuffer.wrap(body);
     }
 
-    // Keeps the frames Sona reads, and skips the rest.
+    // Keeps the frames Sona reads, and skips the rest, as the spec lets a reader skip frames it doesn't know.
     private static List<Id3Frame> readFrames(final Id3Version version, final int tagFlags, final ByteBuffer body)
             throws InvalidFormatException {
         skipExtendedHeader(version, tagFlags, body);
         final var frames = new ArrayList<Id3Frame>();
         while (hasNextFrame(body)) {
             final var header = readFrameHeader(version, body);
-            if (header.size() < 0 || header.size() > body.remaining()) {
-                // A frame can't run past the tag, so the rest can't be read either.
-                break;
-            }
             final var data = readBytes(body, header.size());
-            if (isReadFrameId(header.frameId()) && version.isReadable(header.formatFlags(), data.length)) {
+            if (isReadFrameId(header.frameId()) && !version.isEncoded(header.formatFlags())) {
                 frames.add(readFrame(header.frameId(), version.frameContent(tagFlags, header.formatFlags(), data)));
             }
         }
         return frames;
     }
 
-    private static void skipExtendedHeader(final Id3Version version, final int tagFlags, final ByteBuffer body) {
-        if ((tagFlags & EXTENDED_HEADER) == 0 || body.remaining() < Integer.BYTES) {
+    private static void skipExtendedHeader(final Id3Version version, final int tagFlags, final ByteBuffer body)
+            throws InvalidFormatException {
+        if ((tagFlags & EXTENDED_HEADER) == 0) {
             return;
         }
+        if (body.remaining() < Integer.BYTES) {
+            throw new InvalidFormatException("ID3v2 tag ends in its extended header!");
+        }
         final var size = version.extendedHeaderSize(body.getInt(body.position()));
-        body.position(Math.min(body.position() + size, body.limit()));
+        if (size < 0 || size > body.remaining()) {
+            throw new InvalidFormatException("ID3v2 extended header runs past the end of its tag!");
+        }
+        body.position(body.position() + size);
     }
 
-    // Padding, all NULs, may follow the last frame.
-    private static boolean hasNextFrame(final ByteBuffer body) {
-        return body.remaining() >= FRAME_HEADER_SIZE && body.get(body.position()) != 0;
+    // Padding, which must be all NULs, may follow the last frame.
+    private static boolean hasNextFrame(final ByteBuffer body) throws InvalidFormatException {
+        if (!body.hasRemaining()) {
+            return false;
+        }
+        if (body.get(body.position()) != 0) {
+            return true;
+        }
+        while (body.hasRemaining()) {
+            if (body.get() != 0) {
+                throw new InvalidFormatException("ID3v2 tag's padding isn't all NULs!");
+            }
+        }
+        return false;
     }
 
-    private static Id3FrameHeader readFrameHeader(final Id3Version version, final ByteBuffer body) {
+    private static Id3FrameHeader readFrameHeader(final Id3Version version, final ByteBuffer body)
+            throws InvalidFormatException {
+        if (body.remaining() < FRAME_HEADER_SIZE) {
+            throw new InvalidFormatException("ID3v2 tag ends in a frame header!");
+        }
         final var frameId = new String(readBytes(body, FRAME_ID_SIZE), StandardCharsets.ISO_8859_1);
+        if (!FRAME_ID.matcher(frameId).matches()) {
+            throw new InvalidFormatException("ID3v2 frame ID '%s' isn't valid!".formatted(frameId));
+        }
         final var size = version.frameSize(body.getInt());
         // The status flags come first, then the format flags.
         final var formatFlags = body.get(body.position() + 1) & 0xFF;
         body.position(body.position() + 2);
+        if (size <= 0 || size > body.remaining()) {
+            throw new InvalidFormatException(
+                    "ID3v2 frame %s has a size of %d, which doesn't fit its tag!".formatted(frameId, size));
+        }
         return new Id3FrameHeader(frameId, size, formatFlags);
     }
 
@@ -136,16 +163,18 @@ final class Id3v2Reader {
     private static UserTextFrame readUserText(final byte[] content) throws InvalidFormatException {
         final var strings = Id3Utils.decodeStrings(content, 1, TextEncoding.fromByte(content[0] & 0xFF));
         if (strings.isEmpty()) {
-            return new UserTextFrame("", List.of());
+            throw new InvalidFormatException("ID3v2 TXXX frame has no description!");
         }
         return new UserTextFrame(strings.getFirst(), List.copyOf(strings.subList(1, strings.size())));
     }
 
-    // The owner is NUL-terminated ISO-8859-1. The identifier is binary, but MusicBrainz writes ASCII. A frame cut off
-    // after its owner has an empty identifier.
-    private static UniqueFileId readUniqueFileId(final byte[] content) {
+    // The owner is NUL-terminated ISO-8859-1. The identifier is binary, but MusicBrainz writes ASCII.
+    private static UniqueFileId readUniqueFileId(final byte[] content) throws InvalidFormatException {
         final var strings = Id3Utils.decodeStrings(content, 0, TextEncoding.ISO_8859_1);
-        return new UniqueFileId(strings.getFirst(), String.join("", strings.subList(1, strings.size())));
+        if (strings.size() != 2) {
+            throw new InvalidFormatException("ID3v2 UFID frame isn't an owner followed by an identifier!");
+        }
+        return new UniqueFileId(strings.getFirst(), strings.get(1));
     }
 
     private static byte[] readBytes(final ByteBuffer buffer, final int length) {
