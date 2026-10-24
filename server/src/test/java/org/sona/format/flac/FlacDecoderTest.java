@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.javax.bitstream.BitOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -16,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.stream.IntStream;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -31,8 +31,8 @@ class FlacDecoderTest {
     @EnumSource(FlacAudioSample.class)
     void decodesAudioMatchingItsMd5(FlacAudioSample sample)
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
-        try (final var inputStream = sample.inputStream()) {
-            final var decoder = new FlacParser().parse(inputStream).audio();
+        try (final var channel = sample.channel()) {
+            final var decoder = new FlacParser().parse(channel).audio();
             final var streamInfo = decoder.streamInfo();
 
             final var decoded = decodeAll(decoder);
@@ -49,7 +49,7 @@ class FlacDecoderTest {
             throws IOException, InvalidFormatException, NoSuchAlgorithmException {
         final var original = withUnknownLength(sample);
         final var decoder = new FlacParser()
-                .parse(new ByteArrayInputStream(original.bytes()))
+                .parse(new SeekableInMemoryByteChannel(original.bytes()))
                 .audio();
 
         final var decoded = decodeAll(decoder);
@@ -62,7 +62,7 @@ class FlacDecoderTest {
     void refusesStreamOfUnknownLengthCutShortInAFrame() throws IOException, InvalidFormatException {
         final var bytes = withUnknownLength(FlacAudioSample.STEREO_16_BIT_LPC).bytes();
         final var decoder = new FlacParser()
-                .parse(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length - 10)))
+                .parse(new SeekableInMemoryByteChannel(Arrays.copyOf(bytes, bytes.length - 10)))
                 .audio();
 
         assertThatThrownBy(() -> decodeAll(decoder))
@@ -77,7 +77,7 @@ class FlacDecoderTest {
             bytes = inputStream.readAllBytes();
         }
         final var decoder = new FlacParser()
-                .parse(new ByteArrayInputStream(Arrays.copyOf(bytes, bytes.length / 2)))
+                .parse(new SeekableInMemoryByteChannel(Arrays.copyOf(bytes, bytes.length / 2)))
                 .audio();
 
         assertThatThrownBy(() -> decodeAll(decoder))
@@ -135,7 +135,7 @@ class FlacDecoderTest {
         file.write(frame.toByteArray());
 
         final var decoder = new FlacParser()
-                .parse(new ByteArrayInputStream(file.toByteArray()))
+                .parse(new SeekableInMemoryByteChannel(file.toByteArray()))
                 .audio();
 
         final var frames = decoder.iterator();
@@ -158,7 +158,7 @@ class FlacDecoderTest {
         bytes[bytes.length / 2] ^= 0x10;
 
         final var decoder =
-                new FlacParser().parse(new ByteArrayInputStream(bytes)).audio();
+                new FlacParser().parse(new SeekableInMemoryByteChannel(bytes)).audio();
 
         assertThatThrownBy(() -> decodeAll(decoder)).isInstanceOf(UncheckedInvalidFormatException.class);
     }
@@ -166,8 +166,8 @@ class FlacDecoderTest {
     // The decoder reads its stream as it goes, so a second pass would start where the first left off.
     @Test
     void refusesSecondIteration() throws IOException, InvalidFormatException {
-        try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
-            final var decoder = new FlacParser().parse(inputStream).audio();
+        try (final var channel = FlacAudioSample.STEREO_16_BIT_LPC.channel()) {
+            final var decoder = new FlacParser().parse(channel).audio();
             decoder.iterator();
 
             assertThatThrownBy(decoder::iterator).isInstanceOf(IllegalStateException.class);

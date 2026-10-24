@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -226,6 +227,8 @@ class FlacParserTest {
     }
 
     private static RawMetadata parseFlac(final InputStream inputStream) throws IOException, InvalidFormatException {
-        return new FlacParser().parse(inputStream).metadata();
+        return new FlacParser()
+                .parse(new SeekableInMemoryByteChannel(inputStream.readAllBytes()))
+                .metadata();
     }
 }

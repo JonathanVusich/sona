@@ -17,6 +17,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
@@ -226,7 +227,7 @@ class DefaultIngestionEngineTest {
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         // The file stays in the ingest area until the user supplies metadata.
         try (final var stillThere = library.readIngestTrack(ingest)) {
-            assertThat(stillThere.readAllBytes()).isNotEmpty();
+            assertThat(Channels.newInputStream(stillThere).readAllBytes()).isNotEmpty();
         }
     }
 

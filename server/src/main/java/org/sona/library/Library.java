@@ -2,6 +2,7 @@ package org.sona.library;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.SeekableByteChannel;
 import java.util.UUID;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
@@ -24,7 +25,7 @@ public interface Library {
     TrackToIngest storeIngestTrack(IngestGroup ingestGroup, String filename, InputStream inputStream)
             throws InvalidFormatException, IOException;
 
-    InputStream readIngestTrack(TrackToIngest trackIngest) throws IOException;
+    SeekableByteChannel readIngestTrack(TrackToIngest trackIngest) throws IOException;
 
     /**
      * @return where a track lives in the library, relative to the media folder and '/'-separated

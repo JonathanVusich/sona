@@ -3,10 +3,10 @@ package org.sona.format.flac;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.Blob;
@@ -27,7 +27,7 @@ class FlacWriterTest {
         metadata.addUnknownTag("musicbrainz_trackid", "1b3c1a6e-5d2b-4d0e-9a52-6ad0a6a0e1f2");
 
         final var parsed = new FlacParser()
-                .parse(new ByteArrayInputStream(writeFlac(metadata)))
+                .parse(new SeekableInMemoryByteChannel(writeFlac(metadata)))
                 .metadata();
 
         assertThat(parsed.duration()).isEqualTo(metadata.duration());

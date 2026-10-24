@@ -4,6 +4,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -72,9 +73,9 @@ public final class DefaultLibrary implements Library {
     }
 
     @Override
-    public InputStream readIngestTrack(final TrackToIngest trackIngest) throws IOException {
+    public SeekableByteChannel readIngestTrack(final TrackToIngest trackIngest) throws IOException {
         final var trackPath = resolveIngestTrack(trackIngest);
-        return Files.newInputStream(trackPath, StandardOpenOption.READ);
+        return Files.newByteChannel(trackPath, StandardOpenOption.READ);
     }
 
     @Override
