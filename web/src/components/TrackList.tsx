@@ -10,27 +10,43 @@ import Menu, { MenuKind } from "./Menu";
 import { AddToPlaylistItems } from "./PlaylistDialog";
 import Section from "./Section";
 
-// A release's tracks, disc by disc, each disc under its own heading when there is more than one. Nothing plays until
-// Sona streams (docs/GAPS.md).
-export function MediaTrackList(props: { media: MediumResponse[]; artistId: string }) {
+// A release's tracks, disc by disc, each disc under its own heading when there is more than one. onPlay gets the
+// track's index among all the release's tracks, in disc order.
+export function MediaTrackList(props: { media: MediumResponse[]; artistId: string; onPlay: (index: number) => void }) {
+  const playOnMedium = (mediumIndex: number, index: number) =>
+    props.onPlay(tracksBefore(props.media, mediumIndex) + index);
   return (
     <Show
       when={props.media.length > 1}
       fallback={
         <For each={props.media}>
-          {(medium) => <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />}
+          {(medium, mediumIndex) => (
+            <ReleaseTrackList
+              tracks={medium.tracks}
+              artistId={props.artistId}
+              onPlay={(index) => playOnMedium(mediumIndex(), index)}
+            />
+          )}
         </For>
       }
     >
       <For each={props.media}>
-        {(medium) => (
+        {(medium, mediumIndex) => (
           <Section title={joinDetails([`Disc ${medium.position}`, medium.format])}>
-            <ReleaseTrackList tracks={medium.tracks} artistId={props.artistId} onPlay={() => {}} />
+            <ReleaseTrackList
+              tracks={medium.tracks}
+              artistId={props.artistId}
+              onPlay={(index) => playOnMedium(mediumIndex(), index)}
+            />
           </Section>
         )}
       </For>
     </Show>
   );
+}
+
+function tracksBefore(media: MediumResponse[], mediumIndex: number): number {
+  return media.slice(0, mediumIndex).reduce((count, medium) => count + medium.tracks.length, 0);
 }
 
 // One release's tracks, numbered by their position on their medium. A row names its artist only when it isn't the
@@ -134,7 +150,7 @@ function TrackRow(props: { track: TrackResponse; onPlay: () => void; children: J
     }
   };
   return (
-    <li class="track-row" classList={{ current: current()?.id === props.track.trackId }} onClick={onRowClick}>
+    <li class="track-row" classList={{ current: current()?.trackId === props.track.trackId }} onClick={onRowClick}>
       {props.children}
     </li>
   );
@@ -142,7 +158,7 @@ function TrackRow(props: { track: TrackResponse; onPlay: () => void; children: J
 
 // The track's number, or bars while it plays, which turns into a play button on hover.
 function TrackPlayButton(props: { track: TrackResponse; number: number; onPlay: () => void }) {
-  const playing = () => current()?.id === props.track.trackId && playback() === Playback.PLAYING;
+  const playing = () => current()?.trackId === props.track.trackId && playback() === Playback.PLAYING;
   return (
     <button class="track-play" aria-label={`Play ${props.track.name}`} onClick={() => props.onPlay()}>
       <Show when={playing()} fallback={<span class="track-number">{props.number}</span>}>

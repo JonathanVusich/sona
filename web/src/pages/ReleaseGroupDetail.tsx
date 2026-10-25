@@ -12,6 +12,7 @@ import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import { MediaTrackList } from "../components/TrackList";
 import { formatYear, joinDetails, plural, releaseGroupTypeLabel } from "../format";
+import { defaultReleaseTracks, playListedTrack, playTracks, shufflePlay } from "../player";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release group isn't in the library.";
@@ -49,6 +50,7 @@ function loadedPage(result: ApiResult<ReleaseGroupResponse>): JSX.Element {
 
 function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
   const editions = () => props.releaseGroup.editions;
+  const tracks = () => defaultReleaseTracks(props.releaseGroup);
   const details = () =>
     joinDetails([formatYear(props.releaseGroup.firstReleaseDate), plural(editions().length, "edition")]);
 
@@ -64,12 +66,11 @@ function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
               {props.releaseGroup.artist.name}
             </A>
             <p class="detail-meta">{details()}</p>
-            {/* Nothing plays until Sona streams (docs/GAPS.md). */}
             <div class="detail-actions">
-              <button class="primary">
+              <button class="primary" onClick={() => playTracks(tracks())}>
                 <PlayIcon size={16} /> Play
               </button>
-              <button>
+              <button onClick={() => shufflePlay(tracks())}>
                 <ShuffleIcon size={16} /> Shuffle
               </button>
               <button class="icon-button" aria-label="More">
@@ -80,7 +81,11 @@ function ReleaseGroupView(props: { releaseGroup: ReleaseGroupResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <MediaTrackList media={props.releaseGroup.defaultRelease.media} artistId={props.releaseGroup.artist.artistId} />
+        <MediaTrackList
+          media={props.releaseGroup.defaultRelease.media}
+          artistId={props.releaseGroup.artist.artistId}
+          onPlay={(index) => playListedTrack(tracks(), index)}
+        />
         <Section title={editionsTitle(editions().length)}>
           <EditionList editions={editions()} />
         </Section>
