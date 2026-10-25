@@ -14,11 +14,10 @@ import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.ArtistDao;
-import org.sona.db.IngestGroupDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
@@ -162,8 +161,7 @@ public class DevLibraryRunner implements ApplicationRunner {
     private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseDao releaseDao;
     private final TrackDao trackDao;
-    private final IngestGroupDao ingestGroupDao;
-    private final TrackToIngestDao trackToIngestDao;
+    private final IngestDao ingestDao;
     private final UserDao userDao;
 
     @Override
@@ -266,9 +264,9 @@ public class DevLibraryRunner implements ApplicationRunner {
         final var trackId = uuidv7();
         final var fileName = trackId + ".flac";
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), fileName, IngestState.COMPLETED);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         trackDao.insert(new Track(
                 trackId,
                 devTrack.name(),

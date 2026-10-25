@@ -10,12 +10,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
-import org.sona.db.IngestGroupDao;
-import org.sona.db.PasswordDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
@@ -42,9 +40,6 @@ class AlbumsE2ETest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     @Autowired
@@ -60,14 +55,11 @@ class AlbumsE2ETest {
     TrackDao trackDao;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
+    IngestDao ingestDao;
 
     @BeforeEach
     void setUp() {
-        new TestUsers(userDao, passwordDao, encoder).createUser("alice", UserRole.USER);
+        new TestUsers(userDao, encoder).createUser("alice", UserRole.USER);
     }
 
     @Test
@@ -181,9 +173,9 @@ class AlbumsE2ETest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         trackDao.insert(new Track(
                 uuidv7(),
                 release.name(),

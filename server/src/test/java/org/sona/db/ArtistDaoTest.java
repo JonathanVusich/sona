@@ -42,13 +42,10 @@ class ArtistDaoTest {
     TrackDao trackDao;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
+    IngestDao ingestDao;
 
     @Autowired
     UserDao userDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
 
     @Test
     void upsertInsertsNewArtist() {
@@ -129,9 +126,9 @@ class ArtistDaoTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", IngestState.COMPLETED);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         trackDao.insert(new Track(
                 uuidv7(),
                 release.name(),

@@ -12,7 +12,7 @@ import org.sona.auth.UserAuthentication;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
-import org.sona.db.IngestGroupDao;
+import org.sona.db.IngestDao;
 import org.sona.exception.IngestGroupNotFoundException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
@@ -44,7 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IngestController {
 
     private final Library library;
-    private final IngestGroupDao ingestGroupDao;
+    private final IngestDao ingestDao;
     private final IngestGroupResponseMapper ingestGroupResponseMapper;
     private final TrackIngestResponseMapper mapper;
 
@@ -58,7 +58,7 @@ public class IngestController {
             final UserAuthentication authentication, @RequestBody @Valid final IngestGroupRequest request) {
         final var group = new IngestGroup(
                 uuidv7(), request.kind(), request.name(), authentication.user().userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         return ingestGroupResponseMapper.toResponse(group);
     }
 
@@ -76,8 +76,8 @@ public class IngestController {
             @RequestParam @NotBlank final String filename,
             final InputStream body)
             throws InvalidFormatException, IOException {
-        final var group = ingestGroupDao
-                .loadById(groupIngestId)
+        final var group = ingestDao
+                .loadGroupById(groupIngestId)
                 .orElseThrow(() -> new IngestGroupNotFoundException(groupIngestId));
         final var ingest = library.storeIngestTrack(group, filename, body);
         return mapper.toResponse(ingest);

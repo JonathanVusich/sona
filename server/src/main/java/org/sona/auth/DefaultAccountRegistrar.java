@@ -1,7 +1,6 @@
 package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.OidcIdentityDao;
 import org.sona.db.UserDao;
 import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.InvalidRegistrationTokenException;
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Service;
 public class DefaultAccountRegistrar implements AccountRegistrar {
 
     private final UserDao userDao;
-    private final OidcIdentityDao oidcIdentityDao;
     private final TokenIssuer tokenIssuer;
     private final RegistrationTokenService registrationTokens;
 
@@ -52,7 +50,7 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
             // Usernames are unique, so the database settles two users choosing the same one at once.
             throw new UsernameTakenException(username);
         }
-        oidcIdentityDao.insert(new OidcIdentity(user.userId(), user.issuer(), user.subject()));
+        userDao.insertOidcIdentity(new OidcIdentity(user.userId(), user.issuer(), user.subject()));
         return user;
     }
 

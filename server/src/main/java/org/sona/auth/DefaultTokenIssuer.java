@@ -16,9 +16,7 @@ import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
-import org.sona.db.OidcSessionDao;
-import org.sona.db.PasswordDao;
-import org.sona.db.RefreshTokenDao;
+import org.sona.db.SessionDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.model.enums.AccountState;
@@ -47,10 +45,8 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private static final Duration LOST_REFRESH_WINDOW = Duration.ofSeconds(30);
 
     private final JwtEncoder encoder;
-    private final RefreshTokenDao refreshTokenDao;
+    private final SessionDao sessionDao;
     private final UserDao userDao;
-    private final PasswordDao passwordDao;
-    private final OidcSessionDao oidcSessionDao;
     private final ProviderClient providerClient;
     private final AuthProperties properties;
 
@@ -62,7 +58,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     @Override
     public Tokens startSession(final Users user, final String providerRefreshToken) {
         final var familyId = uuidv7();
-        oidcSessionDao.upsert(new OidcSession(familyId, user.userId(), providerRefreshToken));
+        sessionDao.upsertOidcSession(new OidcSession(familyId, user.userId(), providerRefreshToken));
         return issueTokens(user, familyId);
     }
 
@@ -71,9 +67,9 @@ public class DefaultTokenIssuer implements TokenIssuer {
         final var tokenHash = sha256Hex(refreshToken);
         final var replacedAfter = OffsetDateTime.now().minus(LOST_REFRESH_WINDOW);
         // A token whose replacement was lost refreshes the session in place of the token that replaced it.
-        final var used = refreshTokenDao
+        final var used = sessionDao
                 .revokeIfValid(tokenHash)
-                .or(() -> refreshTokenDao.revokeFamilyTokenIfRecentlyReplaced(tokenHash, replacedAfter))
+                .or(() -> sessionDao.revokeFamilyTokenIfRecentlyReplaced(tokenHash, replacedAfter))
                 .orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
@@ -93,7 +89,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     @Override
     public void endSession(final String refreshToken) {
         final var tokenHash = sha256Hex(refreshToken);
-        final var used = refreshTokenDao.revokeIfValid(tokenHash).orElse(null);
+        final var used = sessionDao.revokeIfValid(tokenHash).orElse(null);
         if (used == null) {
             revokeFamilyIfReused(tokenHash);
             throw new InvalidRefreshTokenException();
@@ -103,14 +99,14 @@ public class DefaultTokenIssuer implements TokenIssuer {
 
     @Override
     public void endAllSessions(final Users user) {
-        refreshTokenDao.revokeAll(user.userId());
+        sessionDao.revokeAll(user.userId());
     }
 
     private Tokens issueTokens(final Users user, final UUID familyId) {
         final var refreshToken = randomToken();
         final var expiresAt =
                 Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
-        refreshTokenDao.insert(
+        sessionDao.insertRefreshToken(
                 new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
         return new Tokens(accessToken(user), refreshToken);
     }
@@ -123,16 +119,16 @@ public class DefaultTokenIssuer implements TokenIssuer {
         return switch (user.type()) {
             case LOCAL -> true;
             case OIDC ->
-                oidcSessionDao
-                        .loadByFamilyId(familyId)
+                sessionDao
+                        .loadOidcSession(familyId)
                         .map(providerClient::refreshSession)
                         .orElse(false);
         };
     }
 
     private void endFamily(final UUID familyId) {
-        refreshTokenDao.revokeFamily(familyId);
-        oidcSessionDao.delete(familyId);
+        sessionDao.revokeFamily(familyId);
+        sessionDao.deleteOidcSession(familyId);
     }
 
     private String accessToken(final Users user) {
@@ -152,7 +148,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
 
     private SessionState sessionState(final Users user) {
         return switch (user.type()) {
-            case LOCAL -> sessionState(passwordDao.loadByUserId(user.userId()).orElseThrow());
+            case LOCAL -> sessionState(userDao.loadPassword(user.userId()).orElseThrow());
             // The provider manages the password.
             case OIDC -> SessionState.ACTIVE;
         };
@@ -166,8 +162,8 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        refreshTokenDao
-                .loadByHash(tokenHash)
+        sessionDao
+                .loadRefreshTokenByHash(tokenHash)
                 .filter(token -> token.revokedAt() != null)
                 .ifPresent(token -> endFamily(token.familyId()));
     }

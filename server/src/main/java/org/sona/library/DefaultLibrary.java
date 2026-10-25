@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.config.properties.LibraryProperties;
-import org.sona.db.TrackToIngestDao;
+import org.sona.db.IngestDao;
 import org.sona.exception.FileTooLargeException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
@@ -42,7 +42,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public final class DefaultLibrary implements Library {
 
-    private final TrackToIngestDao trackToIngestDao;
+    private final IngestDao ingestDao;
     private final LibraryProperties config;
 
     @Override
@@ -70,7 +70,7 @@ public final class DefaultLibrary implements Library {
         final var trackIngest =
                 new TrackToIngest(ingestTrackId, ingestGroup.ingestGroupId(), filename, IngestState.PENDING);
 
-        trackToIngestDao.insert(trackIngest);
+        ingestDao.insertTrackIngest(trackIngest);
         return trackIngest;
     }
 

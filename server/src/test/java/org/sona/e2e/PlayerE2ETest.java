@@ -15,12 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.ArtistDao;
-import org.sona.db.IngestGroupDao;
-import org.sona.db.PasswordDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
@@ -51,9 +49,6 @@ class PlayerE2ETest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     @Autowired
@@ -72,10 +67,7 @@ class PlayerE2ETest {
     TrackDao trackDao;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
+    IngestDao ingestDao;
 
     Artist coldplay;
     Release parachutes;
@@ -83,7 +75,7 @@ class PlayerE2ETest {
 
     @BeforeEach
     void setUp() {
-        new TestUsers(userDao, passwordDao, encoder).createUser("alice", UserRole.USER);
+        new TestUsers(userDao, encoder).createUser("alice", UserRole.USER);
         coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), "Parachutes", null, null, coldplay.artistId(), 0, uuidv7()));
@@ -210,9 +202,9 @@ class PlayerE2ETest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", IngestState.COMPLETED);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         final var trackId = uuidv7();
         final var track = new Track(
                 trackId,
