@@ -16,7 +16,6 @@ import org.sona.auth.TestUsers;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
@@ -70,9 +69,6 @@ class PlayerE2ETest {
     ReleaseDao releaseDao;
 
     @Autowired
-    MediumDao mediumDao;
-
-    @Autowired
     TrackDao trackDao;
 
     @Autowired
@@ -101,8 +97,8 @@ class PlayerE2ETest {
                 releaseGroup.releaseGroupId(),
                 coldplay.artistId(),
                 uuidv7()));
-        disc = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), parachutes.releaseId(), 1, "CD")))
+        disc = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), parachutes.releaseId(), 1, "CD")))
                 .getFirst();
     }
 

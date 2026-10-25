@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ArtistDetailsResponse;
 import org.sona.controller.response.ArtistPageResponse;
 import org.sona.db.ArtistDao;
-import org.sona.db.ArtistDetailsDao;
 import org.sona.exception.ArtistNotFoundException;
 import org.sona.mappers.ArtistResponseMapper;
 import org.sona.model.tables.pojos.Artist;
@@ -26,7 +25,6 @@ public class ArtistController {
     private static final int MAX_LIMIT = 100;
 
     private final ArtistDao artistDao;
-    private final ArtistDetailsDao detailsDao;
     private final ArtistResponseMapper mapper;
 
     /**
@@ -46,8 +44,8 @@ public class ArtistController {
 
     @GetMapping(ApiRoutes.ARTIST)
     public ArtistDetailsResponse artist(@PathVariable final UUID artistId) {
-        return detailsDao
-                .loadById(artistId)
+        return artistDao
+                .loadDetails(artistId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ArtistNotFoundException(artistId));
     }

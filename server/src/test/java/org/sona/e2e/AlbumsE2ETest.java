@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
@@ -56,9 +55,6 @@ class AlbumsE2ETest {
 
     @Autowired
     ReleaseDao releaseDao;
-
-    @Autowired
-    MediumDao mediumDao;
 
     @Autowired
     TrackDao trackDao;
@@ -178,8 +174,8 @@ class AlbumsE2ETest {
     }
 
     private void insertTrackInState(final Release release, final IngestState state) {
-        final var medium = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        final var medium = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);

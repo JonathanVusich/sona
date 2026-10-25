@@ -18,7 +18,6 @@ import org.sona.config.properties.LibraryProperties;
 import org.sona.controller.response.StreamTokenResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
@@ -63,9 +62,6 @@ class TrackControllerTest {
 
     @Autowired
     ReleaseDao releaseDao;
-
-    @Autowired
-    MediumDao mediumDao;
 
     @Autowired
     TrackDao trackDao;
@@ -228,8 +224,8 @@ class TrackControllerTest {
                 releaseGroup.releaseGroupId(),
                 artist.artistId(),
                 uuidv7()));
-        final var medium = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        final var medium = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);

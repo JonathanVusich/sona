@@ -25,11 +25,8 @@ import org.sona.controller.response.ReleaseGroupSummaryResponse;
 import org.sona.controller.response.TrackResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.LabelDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
@@ -68,15 +65,6 @@ class ReleaseGroupControllerTest {
 
     @Autowired
     ReleaseDao releaseDao;
-
-    @Autowired
-    LabelDao labelDao;
-
-    @Autowired
-    ReleaseLabelDao releaseLabelDao;
-
-    @Autowired
-    MediumDao mediumDao;
 
     @Autowired
     TrackDao trackDao;
@@ -300,11 +288,13 @@ class ReleaseGroupControllerTest {
     }
 
     private Label insertLabel(final String name) {
-        return labelDao.upsertAll(List.of(new Label(uuidv7(), name, uuidv7()))).getFirst();
+        return releaseDao
+                .upsertLabels(List.of(new Label(uuidv7(), name, uuidv7())))
+                .getFirst();
     }
 
     private void linkLabels(final Release release, final Label... labels) {
-        releaseLabelDao.upsertAll(Arrays.stream(labels)
+        releaseDao.upsertReleaseLabels(Arrays.stream(labels)
                 .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
                 .toList());
     }
@@ -313,7 +303,7 @@ class ReleaseGroupControllerTest {
         final var media = IntStream.range(0, formats.length)
                 .mapToObj(index -> new Medium(uuidv7(), release.releaseId(), index + 1, formats[index]))
                 .toList();
-        return mediumDao.upsertAll(media);
+        return releaseDao.upsertMedia(media);
     }
 
     private Track insertTrack(final Medium medium, final Artist artist, final String name) {

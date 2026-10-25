@@ -12,12 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.LabelDao;
-import org.sona.db.MediumDao;
 import org.sona.db.PasswordDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
@@ -62,15 +59,6 @@ class ReleaseE2ETest {
     ReleaseDao releaseDao;
 
     @Autowired
-    LabelDao labelDao;
-
-    @Autowired
-    ReleaseLabelDao releaseLabelDao;
-
-    @Autowired
-    MediumDao mediumDao;
-
-    @Autowired
     TrackDao trackDao;
 
     @Autowired
@@ -90,11 +78,11 @@ class ReleaseE2ETest {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var release = insertRelease(various, "Britpop", "Parlophone");
-        final var disc1 = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        final var disc1 = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
-        final var disc2 = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
+        final var disc2 = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
                 .getFirst();
         insertTrack(disc1, coldplay, "Yellow");
         insertTrack(disc2, keane, "Somewhere Only We Know");
@@ -115,8 +103,8 @@ class ReleaseE2ETest {
     void aSingleDiscReleaseNamesNeitherTheDiscNorTheReleasesOwnArtistOnEachTrack(final Page page) {
         final var coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var release = insertRelease(coldplay, "Parachutes", "Parlophone");
-        final var disc = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        final var disc = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
         insertTrack(disc, coldplay, "Yellow");
         final var releasePage = logInAndOpen(page, release);
@@ -232,15 +220,16 @@ class ReleaseE2ETest {
                 releaseGroup.releaseGroupId(),
                 artist.artistId(),
                 uuidv7()));
-        final var label = labelDao.upsertAll(List.of(new Label(uuidv7(), labelName, uuidv7())))
+        final var label = releaseDao
+                .upsertLabels(List.of(new Label(uuidv7(), labelName, uuidv7())))
                 .getFirst();
-        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
+        releaseDao.upsertReleaseLabels(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
         return release;
     }
 
     private Medium insertMedium(final Release release, final int position, final String format) {
-        return mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), position, format)))
+        return releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), position, format)))
                 .getFirst();
     }
 

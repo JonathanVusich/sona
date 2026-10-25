@@ -17,11 +17,8 @@ import org.sona.controller.response.ReleaseResponse;
 import org.sona.controller.response.TrackResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.LabelDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
@@ -59,15 +56,6 @@ class ReleaseControllerTest {
 
     @Autowired
     ReleaseDao releaseDao;
-
-    @Autowired
-    LabelDao labelDao;
-
-    @Autowired
-    ReleaseLabelDao releaseLabelDao;
-
-    @Autowired
-    MediumDao mediumDao;
 
     @Autowired
     TrackDao trackDao;
@@ -110,19 +98,20 @@ class ReleaseControllerTest {
                 releaseGroup.releaseGroupId(),
                 various.artistId(),
                 uuidv7()));
-        final var parlophone = labelDao.upsertAll(List.of(new Label(uuidv7(), "Parlophone", uuidv7())))
+        final var parlophone = releaseDao
+                .upsertLabels(List.of(new Label(uuidv7(), "Parlophone", uuidv7())))
                 .getFirst();
-        releaseLabelDao.upsertAll(List.of(new ReleaseLabel(release.releaseId(), parlophone.labelId())));
-        final var disc1 = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        releaseDao.upsertReleaseLabels(List.of(new ReleaseLabel(release.releaseId(), parlophone.labelId())));
+        final var disc1 = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
-        final var disc2 = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
+        final var disc2 = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
                 .getFirst();
         final var yellow = insertTrack(disc1, coldplay, "Yellow");
         final var somewhereOnlyWeKnow = insertTrack(disc2, keane, "Somewhere Only We Know");
         // None of its tracks is in the library.
-        mediumDao.upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 3, "DVD")));
+        releaseDao.upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 3, "DVD")));
 
         final var response = api.getWithToken(ApiRoutes.RELEASES + "/" + release.releaseId(), token)
                 .expectStatus()

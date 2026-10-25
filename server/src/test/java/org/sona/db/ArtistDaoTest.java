@@ -39,9 +39,6 @@ class ArtistDaoTest {
     ReleaseDao releaseDao;
 
     @Autowired
-    MediumDao mediumDao;
-
-    @Autowired
     TrackDao trackDao;
 
     @Autowired
@@ -125,8 +122,8 @@ class ArtistDaoTest {
      * Gives the release a track, so it's in the library.
      */
     private void insertTrack(final Release release) {
-        final var medium = mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        final var medium = releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
