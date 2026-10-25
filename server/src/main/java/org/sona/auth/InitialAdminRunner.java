@@ -3,7 +3,6 @@ package org.sona.auth;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -27,7 +26,6 @@ import org.springframework.stereotype.Component;
 public class InitialAdminRunner implements ApplicationRunner {
 
     private final UserDao userDao;
-    private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
 
     @Override
@@ -35,7 +33,8 @@ public class InitialAdminRunner implements ApplicationRunner {
         if (userDao.hasNoUsers()) {
             final var admin = new Users(uuidv7(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE);
             userDao.insert(admin);
-            passwordDao.upsert(new Password(admin.userId(), encoder.encode("admin"), PasswordState.CHANGE_REQUIRED));
+            userDao.upsertPassword(
+                    new Password(admin.userId(), encoder.encode("admin"), PasswordState.CHANGE_REQUIRED));
         }
     }
 }

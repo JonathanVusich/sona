@@ -16,16 +16,13 @@ import org.sona.model.tables.pojos.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
-class TrackToIngestDaoTest {
-
-    @Autowired
-    IngestGroupDao ingestGroupDao;
+class IngestDaoTest {
 
     @Autowired
     UserDao userDao;
 
     @Autowired
-    TrackToIngestDao dao;
+    IngestDao dao;
 
     @Test
     void insertAndLoad() {
@@ -33,12 +30,12 @@ class TrackToIngestDaoTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        dao.insertGroup(group);
         final var trackToIngest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "filename", IngestState.PENDING);
 
-        dao.insert(trackToIngest);
+        dao.insertTrackIngest(trackToIngest);
 
-        assertThat(dao.loadById(trackToIngest.trackIngestId())).isEqualTo(trackToIngest);
+        assertThat(dao.loadTrackIngestById(trackToIngest.trackIngestId())).isEqualTo(trackToIngest);
     }
 
     @Test
@@ -47,12 +44,13 @@ class TrackToIngestDaoTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        dao.insertGroup(group);
         final var trackToIngest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "filename", IngestState.PENDING);
-        dao.insert(trackToIngest);
+        dao.insertTrackIngest(trackToIngest);
 
         dao.updateState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
 
-        assertThat(dao.loadById(trackToIngest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(dao.loadTrackIngestById(trackToIngest.trackIngestId()).state())
+                .isEqualTo(IngestState.COMPLETED);
     }
 }

@@ -1,6 +1,5 @@
 package org.sona.auth;
 
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.exception.IncorrectPasswordException;
 import org.sona.exception.InvalidCredentialsException;
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Service;
 public class DefaultPasswordChecker implements PasswordChecker {
 
     private final UserDao userDao;
-    private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
     private final TokenIssuer tokenIssuer;
     /**
@@ -24,13 +22,8 @@ public class DefaultPasswordChecker implements PasswordChecker {
      */
     private final String unknownUserHash;
 
-    public DefaultPasswordChecker(
-            final UserDao userDao,
-            final PasswordDao passwordDao,
-            final PasswordEncoder encoder,
-            final TokenIssuer tokenIssuer) {
+    public DefaultPasswordChecker(final UserDao userDao, final PasswordEncoder encoder, final TokenIssuer tokenIssuer) {
         this.userDao = userDao;
-        this.passwordDao = passwordDao;
         this.encoder = encoder;
         this.tokenIssuer = tokenIssuer;
         this.unknownUserHash = encoder.encode("unknown user");
@@ -44,7 +37,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
             throw new InvalidCredentialsException();
         }
         // Users who sign in through an OIDC provider have no password, so they can't log in here.
-        final var stored = passwordDao.loadByUserId(user.userId()).orElse(null);
+        final var stored = userDao.loadPassword(user.userId()).orElse(null);
         if (stored == null) {
             encoder.matches(password, unknownUserHash);
             throw new InvalidCredentialsException();
@@ -66,14 +59,14 @@ public class DefaultPasswordChecker implements PasswordChecker {
     }
 
     private void changeLocalPassword(final Users user, final String currentPassword, final String newPassword) {
-        final var password = passwordDao.loadByUserId(user.userId()).orElseThrow();
+        final var password = userDao.loadPassword(user.userId()).orElseThrow();
         if (!encoder.matches(currentPassword, password.passwordHash())) {
             throw new IncorrectPasswordException();
         }
         if (newPassword.equals(currentPassword)) {
             throw new UnchangedPasswordException();
         }
-        passwordDao.updateHash(user.userId(), encoder.encode(newPassword));
+        userDao.updatePasswordHash(user.userId(), encoder.encode(newPassword));
         tokenIssuer.endAllSessions(user);
     }
 }

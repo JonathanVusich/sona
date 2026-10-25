@@ -7,7 +7,6 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,16 +19,13 @@ class LoginE2ETest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     TestUsers users;
 
     @BeforeEach
     void setUp() {
-        users = new TestUsers(userDao, passwordDao, encoder);
+        users = new TestUsers(userDao, encoder);
     }
 
     @Test

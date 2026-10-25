@@ -10,7 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.controller.ApiRoutes;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,14 +22,11 @@ class SessionE2ETest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     @BeforeEach
     void setUp() {
-        new TestUsers(userDao, passwordDao, encoder).createUser("alice", UserRole.USER);
+        new TestUsers(userDao, encoder).createUser("alice", UserRole.USER);
     }
 
     @Test

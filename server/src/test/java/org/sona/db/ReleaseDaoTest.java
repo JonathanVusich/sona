@@ -42,13 +42,10 @@ class ReleaseDaoTest {
     TrackDao trackDao;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
+    IngestDao ingestDao;
 
     @Autowired
     UserDao userDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
 
     @Test
     void upsertInsertsNewRelease() {
@@ -201,9 +198,9 @@ class ReleaseDaoTest {
         final var release = storeRelease(artist);
         final var track = storeTrackInState(storeMedium(release, 1), artist.artistId(), 1, IngestState.PENDING);
 
-        trackToIngestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
+        ingestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
         final var failed = trackCount(release);
-        trackToIngestDao.updateState(track.trackIngestId(), IngestState.COMPLETED);
+        ingestDao.updateState(track.trackIngestId(), IngestState.COMPLETED);
         final var completed = trackCount(release);
 
         assertThat(failed).isZero();
@@ -387,9 +384,9 @@ class ReleaseDaoTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         final var track = new Track(
                 uuidv7(),
                 "Track",

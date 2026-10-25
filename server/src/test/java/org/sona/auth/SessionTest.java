@@ -15,7 +15,6 @@ import org.sona.controller.ApiClient;
 import org.sona.controller.ApiRoutes;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -41,9 +40,6 @@ class SessionTest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     DSLContext dsl;
 
     @Value("${local.server.port}")
@@ -57,7 +53,7 @@ class SessionTest {
         api = new ApiClient(port);
         alice = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.USER, AccountState.ACTIVE);
         userDao.insert(alice);
-        passwordDao.upsert(new Password(alice.userId(), "{noop}alice", PasswordState.VALID));
+        userDao.upsertPassword(new Password(alice.userId(), "{noop}alice", PasswordState.VALID));
     }
 
     @Test

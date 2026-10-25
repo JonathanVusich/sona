@@ -25,11 +25,10 @@ import org.sona.controller.response.PlaylistTrackResponse;
 import org.sona.controller.response.PlaylistsResponse;
 import org.sona.controller.response.TrackReleaseResponse;
 import org.sona.db.ArtistDao;
-import org.sona.db.IngestGroupDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
@@ -72,10 +71,7 @@ class PlaylistControllerTest {
     TrackDao trackDao;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
+    IngestDao ingestDao;
 
     @Value("${local.server.port}")
     int port;
@@ -367,9 +363,9 @@ class PlaylistControllerTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", state);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
         final var track = new Track(
                 uuidv7(),
                 name,

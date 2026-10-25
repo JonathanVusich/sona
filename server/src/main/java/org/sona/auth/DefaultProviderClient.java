@@ -4,8 +4,8 @@ import static org.sona.auth.OidcUtils.refreshGrantRequest;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.sona.db.OidcIdentityDao;
-import org.sona.db.OidcSessionDao;
+import org.sona.db.SessionDao;
+import org.sona.db.UserDao;
 import org.sona.model.tables.pojos.OidcSession;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
@@ -18,15 +18,15 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class DefaultProviderClient implements ProviderClient {
 
-    private final OidcIdentityDao oidcIdentityDao;
-    private final OidcSessionDao oidcSessionDao;
+    private final UserDao userDao;
+    private final SessionDao sessionDao;
     private final OidcDiscoveryClient discoveryClient;
     private final OAuth2AccessTokenResponseClient<OAuth2RefreshTokenGrantRequest> tokenClient =
             new RestClientRefreshTokenTokenResponseClient();
 
     @Override
     public boolean refreshSession(final OidcSession session) {
-        final var identity = oidcIdentityDao.loadByUserId(session.userId()).orElseThrow();
+        final var identity = userDao.loadOidcIdentity(session.userId()).orElseThrow();
         // A provider that has been removed from the configuration no longer vouches for anyone.
         final var registration = discoveryClient.findByIssuer(identity.issuer()).orElse(null);
         if (registration == null) {
@@ -36,7 +36,8 @@ public class DefaultProviderClient implements ProviderClient {
             final var response = tokenClient.getTokenResponse(refreshGrantRequest(registration, session));
             final var rotated = response.getRefreshToken();
             if (rotated != null) {
-                oidcSessionDao.upsert(new OidcSession(session.familyId(), session.userId(), rotated.getTokenValue()));
+                sessionDao.upsertOidcSession(
+                        new OidcSession(session.familyId(), session.userId(), rotated.getTokenValue()));
             }
             return true;
         } catch (final OAuth2AuthorizationException exception) {
