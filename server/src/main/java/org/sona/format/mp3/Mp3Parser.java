@@ -87,9 +87,9 @@ public final class Mp3Parser implements Parser {
             final var audioStart = id3v2Tag.size();
             final var audioEnd = channel.size() - id3v1Tag.size() - appendedTag.size();
             final var streamInfo = readStreamInfo(streamAt(channel, audioStart), audioStart, audioEnd);
-            channel.position(streamInfo.audioStart());
+            final var audio = new Mp3Decoder(this, streamInfo, streamAt(channel, streamInfo.audioStart()));
             final var frames = mergeFrames(List.of(appendedTag.frames(), id3v2Tag.frames(), id3v1Tag.frames()));
-            return new ParsedMp3(rawMetadata(streamInfo.duration(), frames), new Mp3Decoder(streamInfo));
+            return new ParsedMp3(rawMetadata(streamInfo.duration(), frames), audio);
         } catch (final EOFException cutShort) {
             throw new InvalidFormatException("MP3 is cut short!");
         }
