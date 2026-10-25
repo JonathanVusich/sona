@@ -7,7 +7,7 @@ import java.time.Duration;
 import java.util.Map;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
  * The browser the E2E tests drive, named by {@code sona.e2e.browser} (firefox unless the e2eTest task is given another).
@@ -46,9 +46,9 @@ public final class RunningBrowser implements AutoCloseable {
     }
 
     private static GenericContainer<?> playwrightServer(final String version) {
-        final var image = DockerImageName.parse("mcr.microsoft.com/playwright:v" + version + "-noble");
-        final var command = "npx -y playwright@" + version + " run-server --port " + SERVER_PORT + " --host 0.0.0.0";
-        return new GenericContainer<>(image)
+        final var command = "pulseaudio --start --exit-idle-time=-1 && npx -y playwright@" + version
+                + " run-server --port " + SERVER_PORT + " --host 0.0.0.0";
+        return new GenericContainer<>(playwrightImage(version))
                 .withCommand("/bin/sh", "-c", command)
                 .withExposedPorts(SERVER_PORT)
                 // Lets the browser reach the server under test at host.testcontainers.internal.
@@ -58,6 +58,20 @@ public final class RunningBrowser implements AutoCloseable {
                 .withCreateContainerCmdModifier(
                         create -> create.withUser("pwuser").withWorkingDir("/home/pwuser"))
                 .waitingFor(Wait.forLogMessage(".*Listening on.*", 1).withStartupTimeout(Duration.ofMinutes(3)));
+    }
+
+    /**
+     * Microsoft's image, with a sound server: it has no sound device, and Firefox, unlike Chromium and WebKit, stops
+     * audio that has nowhere to play, where PulseAudio plays it to a null sink. Kept after the run, so it's built once
+     * per version.
+     */
+    private static ImageFromDockerfile playwrightImage(final String version) {
+        return new ImageFromDockerfile("sona-e2e-playwright:" + version, false)
+                .withDockerfileFromBuilder(dockerfile -> dockerfile
+                        .from("mcr.microsoft.com/playwright:v" + version + "-noble")
+                        .run("apt-get update && apt-get install -y --no-install-recommends pulseaudio"
+                                + " && rm -rf /var/lib/apt/lists/*")
+                        .build());
     }
 
     private BrowserType browserType(final String name) {

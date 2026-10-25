@@ -8,6 +8,11 @@ export const ApiRoutes = {
   RELEASES: "/api/releases",
   RELEASE_GROUPS: "/api/release-groups",
   ARTISTS: "/api/artists",
+  // Followed by a track's ID, and then by one of the paths below.
+  TRACKS: "/api/tracks",
+  TRACK_STREAM_TOKEN: "/stream-token",
+  // Takes the track's stream token as the access_token parameter.
+  TRACK_STREAM: "/stream",
   INGEST_GROUPS: "/api/ingest-groups",
   // STOMP over WebSocket.
   SOCKET: "/api/socket",

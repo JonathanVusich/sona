@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js";
 import { currentUser } from "./auth";
 import { updateById } from "./collections";
-import type { TrackResponse } from "./api/responses";
 import { trackContext, trackIdByTitle, trackResponse, tracksOf } from "./library";
+import type { QueuedTrack } from "./player";
 
 // Playlists are personal: each belongs to one user, and anyone can make their own, whatever their library permissions.
 
@@ -15,9 +15,8 @@ export interface Playlist {
 }
 
 /** A playlist's track with the release it's from, as the playlist page lists it. */
-export interface PlaylistTrack extends TrackResponse {
-  release: { releaseId: string; name: string };
-}
+// The shape the player queues, so playlists can play once they move to Sona.
+export type PlaylistTrack = QueuedTrack;
 
 /**
  * @returns the playlist's tracks in order, each with its release

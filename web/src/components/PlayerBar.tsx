@@ -1,9 +1,8 @@
 import { A } from "@solidjs/router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { formatTime } from "../format";
-import { trackContext, type Track } from "../library";
 import * as player from "../player";
-import { Playback, RepeatMode, ShuffleMode, Sound } from "../player";
+import { Playback, RepeatMode, ShuffleMode, Sound, type QueuedTrack } from "../player";
 import Cover, { CoverSize } from "./Cover";
 import { NextIcon, PauseIcon, PlayIcon, PreviousIcon, RepeatIcon, ShuffleIcon, VolumeIcon } from "./Icons";
 import Slider, { SliderSize, SliderStatus } from "./Slider";
@@ -132,26 +131,20 @@ function soundAtLevel(level: number): Sound {
   return Sound.ON;
 }
 
-function NowPlaying(props: { track: Track }) {
-  const context = () => trackContext(props.track);
+function NowPlaying(props: { track: QueuedTrack }) {
   return (
     <>
-      <Show when={context()} fallback={<div class="cover player-cover empty-cover" />}>
-        {(playing) => (
-          <A href={routeTo(AppRoutes.RELEASE, playing().release.id)} aria-label={`Go to ${playing().release.title}`}>
-            <Cover seed={playing().group.title} size={CoverSize.PLAYER} />
-          </A>
-        )}
-      </Show>
+      <A
+        href={routeTo(AppRoutes.RELEASE, props.track.release.releaseId)}
+        aria-label={`Go to ${props.track.release.name}`}
+      >
+        <Cover seed={props.track.release.name} size={CoverSize.PLAYER} />
+      </A>
       <div class="player-meta">
-        <div class="player-title">{props.track.title}</div>
-        <Show when={context()}>
-          {(playing) => (
-            <A href={routeTo(AppRoutes.ARTIST, playing().artist.id)} class="player-artist">
-              {playing().artist.name}
-            </A>
-          )}
-        </Show>
+        <div class="player-title">{props.track.name}</div>
+        <A href={routeTo(AppRoutes.ARTIST, props.track.artist.artistId)} class="player-artist">
+          {props.track.artist.name}
+        </A>
       </div>
     </>
   );
@@ -170,7 +163,7 @@ function NothingPlaying() {
 }
 
 // There's nothing to seek through until something plays.
-function seekStatus(track: Track | null): SliderStatus {
+function seekStatus(track: QueuedTrack | null): SliderStatus {
   if (track === null) {
     return SliderStatus.DISABLED;
   }

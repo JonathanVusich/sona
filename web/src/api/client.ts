@@ -16,6 +16,7 @@ import type {
   ReleaseGroupPageResponse,
   ReleaseGroupResponse,
   ReleaseResponse,
+  StreamTokenResponse,
   TokenResponse,
   TrackIngestResponse,
 } from "./responses";
@@ -111,6 +112,23 @@ export async function fetchArtists(accessToken: string, page: PageRequest): Prom
 export async function fetchArtist(accessToken: string, artistId: string): Promise<ApiResult<ArtistDetailsResponse>> {
   const path = `${ApiRoutes.ARTISTS}/${encodeURIComponent(artistId)}`;
   return sendForJson(path, getAsUser(accessToken));
+}
+
+export async function fetchStreamToken(accessToken: string, trackId: string): Promise<ApiResult<StreamTokenResponse>> {
+  const path = `${trackPath(trackId)}${ApiRoutes.TRACK_STREAM_TOKEN}`;
+  return sendForJson(path, getAsUser(accessToken));
+}
+
+/**
+ * @returns where an audio element streams the track from, which Sona answers in the parts it asks for as it seeks
+ */
+export function trackStreamUrl(trackId: string, streamToken: string): string {
+  const query = new URLSearchParams({ access_token: streamToken });
+  return `${trackPath(trackId)}${ApiRoutes.TRACK_STREAM}?${query}`;
+}
+
+function trackPath(trackId: string): string {
+  return `${ApiRoutes.TRACKS}/${encodeURIComponent(trackId)}`;
 }
 
 /**

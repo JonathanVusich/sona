@@ -313,11 +313,13 @@ testing*): run them rather than formatting by hand. The conventions below are co
 - Page paths come from `AppRoutes` in `web/src/routes.ts`, and paths with an ID from
   `routeTo(AppRoutes.ARTIST, artist.id)`, never from string literals.
 - No casts (`as T`) or non-null assertions (`!`); narrow instead.
-- async/await throughout, with no `.then` chains or `void` calls. Only the shared API client (`api/client.ts`) and
-  storage helper (`storage.ts`) use `try`/`catch`; API calls return an `ApiResult` that callers branch on.
+- async/await throughout, with no `.then` chains or `void` calls. Only the shared API client (`api/client.ts`),
+  storage helper (`storage.ts`) and audio output (`audio.ts`) use `try`/`catch`; API calls return an `ApiResult` that
+  callers branch on.
 - Every HTTP call goes through axios in `api/client.ts` (its `onUploadProgress` drives the upload bars), never `fetch`
   or `XMLHttpRequest`. Socket updates come over STOMP with `@stomp/stompjs`: `ingestProgress.ts` keeps one
-  connection open while an uploader is signed in.
+  connection open while an uploader is signed in. The player (`player.ts`) streams through the one audio element in
+  `audio.ts`, fetching each track's stream token as it starts the track.
 
 **Dependencies and parsers**
 - **Ask before adding any new dependency.** Latest JDK and Spring release candidates are acceptable.

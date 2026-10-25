@@ -45,6 +45,12 @@ public final class ReleaseGroupPage {
         return page.locator(".track-row").filter(new Locator.FilterOptions().setHasText(name));
     }
 
+    public Locator trackPlayButton(final String trackName) {
+        return page.getByRole(
+                AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("Play " + trackName).setExact(true));
+    }
+
     /**
      * @return every edition's row, in order
      */

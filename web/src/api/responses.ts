@@ -32,6 +32,11 @@ export const TokenType = {
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 
+/** Lets an audio element stream the one track it was issued for, as the access_token parameter of its stream URL. */
+export interface StreamTokenResponse {
+  token: string;
+}
+
 export interface TokenResponse {
   accessToken: string;
   tokenType: TokenType;
@@ -76,6 +81,7 @@ export const ErrorCode = {
   UNSUPPORTED_FORMAT: 303,
   INGEST_GROUP_NOT_FOUND: 304,
   FILE_TOO_LARGE: 305,
+  TRACK_NOT_FOUND: 306,
 
   INVALID_PARAMETER: 400,
   UNSUPPORTED_CONTENT_TYPE: 401,

@@ -9,7 +9,6 @@ import { openEditPlaylistDialog } from "../components/PlaylistDialog";
 import { PlaylistTrackList } from "../components/TrackList";
 import { formatTotal, plural } from "../format";
 import { tracksOf } from "../library";
-import { playListedTrack, playTracks, shufflePlay } from "../player";
 import { deletePlaylist, playlistById, playlistEntries } from "../playlists";
 import { coverSeeds } from "./Playlists";
 import { AppRoutes } from "../routes";
@@ -51,15 +50,12 @@ export default function PlaylistDetail() {
                   <p class="detail-meta">
                     {plural(playlistTracks().length, "song")} · {formatTotal(total())}
                   </p>
+                  {/* Playlists are still mocked, so their tracks have no files to stream (docs/GAPS.md). */}
                   <div class="detail-actions">
-                    <button
-                      class="primary"
-                      disabled={playlistTracks().length === 0}
-                      onClick={() => playTracks(playlistTracks())}
-                    >
+                    <button class="primary" disabled>
                       <PlayIcon size={16} /> Play
                     </button>
-                    <button disabled={playlistTracks().length === 0} onClick={() => shufflePlay(playlistTracks())}>
+                    <button disabled>
                       <ShuffleIcon size={16} /> Shuffle
                     </button>
                     <Menu kind={MenuKind.ACTIONS} label="More">
@@ -83,11 +79,7 @@ export default function PlaylistDetail() {
                 when={playlistTracks().length > 0}
                 fallback={<p class="empty">Add songs from any album with the ⋯ button on a track.</p>}
               >
-                <PlaylistTrackList
-                  tracks={playlistEntries(playlist())}
-                  playlistId={playlist().id}
-                  onPlay={(index) => playListedTrack(playlistTracks(), index)}
-                />
+                <PlaylistTrackList tracks={playlistEntries(playlist())} playlistId={playlist().id} onPlay={() => {}} />
               </Show>
               <Show when={action() === PlaylistAction.CONFIRMING_DELETE}>
                 <ConfirmDialog

@@ -7,8 +7,11 @@ import {
   type ReleaseGroupSummaryResponse,
 } from "../api/responses";
 import { formatYear, joinDetails, plural, releaseGroupTypeLabel } from "../format";
-import { canonicalRelease, tracksOfRelease } from "../library";
-import { playTracks } from "../player";
+import * as api from "../api/client";
+import { ResultKind } from "../api/client";
+import { sendAsCurrentUser } from "../auth";
+import { defaultReleaseTracks, playTracks } from "../player";
+import { toast } from "./Toast";
 import Cover, { ArtistAvatar, CoverSize } from "./Cover";
 import { PlayIcon } from "./Icons";
 import { AppRoutes, routeTo } from "../routes";
@@ -40,12 +43,15 @@ export function DiscographyGrid(props: { groups: ArtistReleaseGroupResponse[]; l
 }
 
 function ReleaseGroupCard(props: { group: ArtistReleaseGroupResponse; subtitle: string }) {
-  // Only the mocked library plays; nothing plays from Sona until it streams (docs/GAPS.md).
-  const play = () => {
-    const release = canonicalRelease(props.group.releaseGroupId);
-    if (release !== undefined) {
-      playTracks(tracksOfRelease(release.id));
+  // Cards don't have the tracks, so the release group's page data is loaded for its default release's.
+  const play = async () => {
+    const releaseGroupId = props.group.releaseGroupId;
+    const result = await sendAsCurrentUser((accessToken) => api.fetchReleaseGroup(accessToken, releaseGroupId));
+    if (result.kind !== ResultKind.OK) {
+      toast(`Couldn't play ${props.group.name}.`);
+      return;
     }
+    await playTracks(defaultReleaseTracks(result.body));
   };
 
   return (

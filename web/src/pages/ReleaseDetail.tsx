@@ -12,6 +12,7 @@ import { PageBody, PageHead, PageMessage } from "../components/PageLayout";
 import Section from "../components/Section";
 import { MediaTrackList } from "../components/TrackList";
 import { formatLabels, formatMedia, formatTotal, formatYear, joinDetails, plural } from "../format";
+import { playListedTrack, playTracks, releaseTracks, shufflePlay } from "../player";
 import { AppRoutes, routeTo } from "../routes";
 
 const NOT_IN_LIBRARY = "This release isn't in the library.";
@@ -48,6 +49,7 @@ function loadedPage(result: ApiResult<ReleaseResponse>): JSX.Element {
 }
 
 function ReleaseView(props: { release: ReleaseResponse }) {
+  const tracks = () => releaseTracks(props.release);
   const total = () =>
     props.release.media.flatMap((medium) => medium.tracks).reduce((sum, track) => sum + track.duration, 0);
   const details = () =>
@@ -75,12 +77,11 @@ function ReleaseView(props: { release: ReleaseResponse }) {
             <p class="detail-meta">
               <A href={routeTo(AppRoutes.RELEASE_GROUP, props.release.releaseGroupId)}>All editions</A>
             </p>
-            {/* Nothing plays until Sona streams (docs/GAPS.md). */}
             <div class="detail-actions">
-              <button class="primary">
+              <button class="primary" onClick={() => playTracks(tracks())}>
                 <PlayIcon size={16} /> Play
               </button>
-              <button>
+              <button onClick={() => shufflePlay(tracks())}>
                 <ShuffleIcon size={16} /> Shuffle
               </button>
               <button class="icon-button" aria-label="More">
@@ -91,7 +92,11 @@ function ReleaseView(props: { release: ReleaseResponse }) {
         </header>
       </PageHead>
       <PageBody>
-        <MediaTrackList media={props.release.media} artistId={props.release.artist.artistId} />
+        <MediaTrackList
+          media={props.release.media}
+          artistId={props.release.artist.artistId}
+          onPlay={(index) => playListedTrack(tracks(), index)}
+        />
         <OtherEditions release={props.release} />
         <MoreByArtist artist={props.release.artist} releaseGroupId={props.release.releaseGroupId} />
       </PageBody>

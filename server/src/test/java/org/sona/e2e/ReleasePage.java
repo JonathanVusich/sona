@@ -48,6 +48,22 @@ public final class ReleasePage {
         return track(trackName).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName(artistName));
     }
 
+    /**
+     * @return one of the buttons under the release's details, such as Play or Shuffle
+     */
+    public Locator actionButton(final String name) {
+        return page.locator(".detail-actions")
+                .getByRole(
+                        AriaRole.BUTTON,
+                        new Locator.GetByRoleOptions().setName(name).setExact(true));
+    }
+
+    public Locator trackPlayButton(final String trackName) {
+        return page.getByRole(
+                AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("Play " + trackName).setExact(true));
+    }
+
     public Locator editionTitles() {
         return page.locator(".edition-title");
     }

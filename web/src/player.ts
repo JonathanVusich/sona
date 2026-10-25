@@ -1,7 +1,52 @@
 import { createSignal } from "solid-js";
-import { markPlayed, type Track } from "./library";
+import * as api from "./api/client";
+import { ResultKind } from "./api/client";
+import type { MediumResponse, ReleaseGroupResponse, ReleaseResponse, TrackResponse } from "./api/responses";
+import {
+  clearAudio,
+  hasStream,
+  onAudioEnded,
+  onAudioError,
+  onAudioProgress,
+  pauseAudio,
+  resumeAudio,
+  seekAudio,
+  setAudioVolume,
+  StartOutcome,
+  startStream,
+} from "./audio";
+import { sendAsCurrentUser } from "./auth";
+import { toast } from "./components/Toast";
 
-// Playback state. The clock is simulated until the backend streams audio.
+// Playback state, which the audio element follows as Sona streams each track.
+
+/** A track the player can queue: one from Sona, with the release it's on, which the player links to. */
+export interface QueuedTrack extends TrackResponse {
+  release: { releaseId: string; name: string };
+}
+
+/**
+ * @returns the release's tracks, disc by disc, as the player queues them
+ */
+export function releaseTracks(release: ReleaseResponse): QueuedTrack[] {
+  return queuedMedia({ releaseId: release.releaseId, name: release.name }, release.media);
+}
+
+/**
+ * @returns the tracks of the release that stands for the group, disc by disc, as the player queues them
+ */
+export function defaultReleaseTracks(releaseGroup: ReleaseGroupResponse): QueuedTrack[] {
+  const defaultRelease = releaseGroup.defaultRelease;
+  const edition = releaseGroup.editions.find((listed) => listed.releaseId === defaultRelease.releaseId);
+  if (edition === undefined) {
+    throw new Error("A release group's default release is one of its editions.");
+  }
+  return queuedMedia({ releaseId: edition.releaseId, name: edition.name }, defaultRelease.media);
+}
+
+function queuedMedia(release: QueuedTrack["release"], media: MediumResponse[]): QueuedTrack[] {
+  return media.flatMap((medium) => medium.tracks).map((track) => ({ ...track, release }));
+}
 
 export const RepeatMode = {
   OFF: "off",
@@ -40,7 +85,7 @@ const Advance = {
 
 type Advance = (typeof Advance)[keyof typeof Advance];
 
-const [queue, setQueue] = createSignal<Track[]>([]);
+const [queue, setQueue] = createSignal<QueuedTrack[]>([]);
 // Play order as indexes into the queue; shuffled when shuffle is on.
 const [order, setOrder] = createSignal<number[]>([]);
 // Position within the play order.
@@ -57,7 +102,7 @@ export { playback, position, volume, sound, shuffleMode, repeat };
 /**
  * @returns the track the player is on, or null when nothing is queued
  */
-export function current(): Track | null {
+export function current(): QueuedTrack | null {
   const index = order()[cursor()];
   if (index === undefined) {
     return null;
@@ -65,14 +110,14 @@ export function current(): Track | null {
   return queue()[index] ?? null;
 }
 
-export function playTracks(tracks: Track[]) {
-  playListedTrack(tracks, 0);
+export async function playTracks(tracks: QueuedTrack[]) {
+  await playListedTrack(tracks, 0);
 }
 
 /**
  * Plays the track at the index, queueing the rest of the list around it.
  */
-export function playListedTrack(tracks: Track[], start: number) {
+export async function playListedTrack(tracks: QueuedTrack[], start: number) {
   if (tracks.length === 0) {
     return;
   }
@@ -87,17 +132,27 @@ export function playListedTrack(tracks: Track[], start: number) {
       setCursor(start);
       break;
   }
-  startTrack();
+  await startTrack();
 }
 
-export function shufflePlay(tracks: Track[]) {
+export async function shufflePlay(tracks: QueuedTrack[]) {
   setShuffleMode(ShuffleMode.ON);
-  playListedTrack(tracks, Math.floor(Math.random() * tracks.length));
+  await playListedTrack(tracks, Math.floor(Math.random() * tracks.length));
 }
 
-export function togglePlay() {
-  if (current() !== null) {
-    setPlayback(toggledPlayback(playback()));
+export async function togglePlay() {
+  if (current() === null) {
+    return;
+  }
+  const toggled = toggledPlayback(playback());
+  setPlayback(toggled);
+  switch (toggled) {
+    case Playback.PLAYING:
+      await resumePlayback();
+      break;
+    case Playback.PAUSED:
+      pauseAudio();
+      break;
   }
 }
 
@@ -110,18 +165,18 @@ function toggledPlayback(current: Playback): Playback {
   }
 }
 
-export function next() {
-  advance(Advance.SKIPPED);
+export async function next() {
+  await advance(Advance.SKIPPED);
 }
 
-export function previous() {
+export async function previous() {
   // Like most players: restart the track unless it has only just begun.
   if (position() > 3 || (cursor() === 0 && repeat() === RepeatMode.OFF)) {
-    setPosition(0);
+    restartTrack();
     return;
   }
   setCursor(previousCursor());
-  startTrack();
+  await startTrack();
 }
 
 // The previous track wraps around to the last.
@@ -135,7 +190,9 @@ function previousCursor(): number {
 export function seek(seconds: number) {
   const track = current();
   if (track !== null) {
-    setPosition(clamp(seconds, 0, track.duration));
+    const clamped = clamp(seconds, 0, track.duration);
+    setPosition(clamped);
+    seekAudio(clamped);
   }
 }
 
@@ -186,6 +243,7 @@ function nextRepeatMode(mode: RepeatMode): RepeatMode {
 export function setVolume(level: number) {
   setVolumeLevel(clamp(level, 0, 1));
   setSound(soundAtLevel(level));
+  setAudioVolume(audibleVolume());
 }
 
 function soundAtLevel(level: number): Sound {
@@ -208,6 +266,17 @@ export function toggleMute() {
       setSound(Sound.ON);
       break;
   }
+  setAudioVolume(audibleVolume());
+}
+
+// Muting silences the audio but keeps the volume to unmute to.
+function audibleVolume(): number {
+  switch (sound()) {
+    case Sound.ON:
+      return volume();
+    case Sound.MUTED:
+      return 0;
+  }
 }
 
 export function stop() {
@@ -216,29 +285,78 @@ export function stop() {
   setOrder([]);
   setCursor(0);
   setPosition(0);
+  clearAudio();
 }
 
-function startTrack() {
+async function startTrack() {
   setPosition(0);
   setPlayback(Playback.PLAYING);
   const track = current();
-  if (track !== null) {
-    markPlayed(track);
+  if (track === null) {
+    return;
+  }
+  // The track before stops while this one's token is on its way.
+  pauseAudio();
+  // The audio element can't send the access token, so each track is streamed with a token for it alone.
+  const result = await sendAsCurrentUser((accessToken) => api.fetchStreamToken(accessToken, track.trackId));
+  // The user moved on while the token was on its way.
+  if (current() !== track) {
+    return;
+  }
+  if (result.kind !== ResultKind.OK) {
+    failPlayback(track);
+    return;
+  }
+  const outcome = await startStream(api.trackStreamUrl(track.trackId, result.body.token));
+  followStart(outcome);
+}
+
+async function resumePlayback() {
+  // A track that failed to stream has no stream to resume, so it's asked for again.
+  if (!hasStream()) {
+    await startTrack();
+    return;
+  }
+  const outcome = await resumeAudio();
+  followStart(outcome);
+}
+
+function followStart(outcome: StartOutcome) {
+  switch (outcome) {
+    case StartOutcome.STARTED:
+    case StartOutcome.REPLACED:
+      break;
+    case StartOutcome.REFUSED:
+      setPlayback(Playback.PAUSED);
+      break;
   }
 }
 
-function advance(cause: Advance) {
+function restartTrack() {
+  setPosition(0);
+  seekAudio(0);
+}
+
+function failPlayback(track: QueuedTrack) {
+  setPlayback(Playback.PAUSED);
+  // Otherwise playing again would resume the track before.
+  clearAudio();
+  toast(`Couldn't play ${track.name}.`);
+}
+
+async function advance(cause: Advance) {
   if (cause === Advance.ENDED && repeat() === RepeatMode.ONE) {
-    setPosition(0);
+    restartTrack();
+    await resumePlayback();
   } else if (cursor() + 1 < order().length) {
     setCursor(cursor() + 1);
-    startTrack();
+    await startTrack();
   } else if (repeat() !== RepeatMode.OFF) {
     setCursor(0);
-    startTrack();
+    await startTrack();
   } else {
     setPlayback(Playback.PAUSED);
-    setPosition(0);
+    restartTrack();
   }
 }
 
@@ -259,19 +377,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-let lastTick = performance.now();
-setInterval(() => {
-  const now = performance.now();
-  const elapsed = (now - lastTick) / 1000;
-  lastTick = now;
+setAudioVolume(audibleVolume());
+onAudioProgress(setPosition);
+onAudioEnded(() => advance(Advance.ENDED));
+onAudioError(() => {
   const track = current();
-  if (playback() === Playback.PAUSED || track === null) {
-    return;
+  if (track !== null) {
+    failPlayback(track);
   }
-  const nextPosition = position() + elapsed;
-  if (nextPosition >= track.duration) {
-    advance(Advance.ENDED);
-  } else {
-    setPosition(nextPosition);
-  }
-}, 250);
+});

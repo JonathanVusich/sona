@@ -29,6 +29,15 @@ public final class AlbumsPage {
     }
 
     /**
+     * @return the play button on the album's card, which shows on hover
+     */
+    public Locator playButton(final String title) {
+        return page.getByRole(
+                AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("Play " + title).setExact(true));
+    }
+
+    /**
      * @return what the album's card says under its title: its artist, and its type if it isn't an album
      */
     public Locator subtitle(final String title) {
