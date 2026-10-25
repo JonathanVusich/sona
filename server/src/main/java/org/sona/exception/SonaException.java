@@ -10,6 +10,7 @@ public abstract sealed class SonaException extends RuntimeException
                 ReleaseGroupNotFoundException,
                 ArtistNotFoundException,
                 TrackNotFoundException,
+                PlaylistNotFoundException,
                 IngestGroupNotFoundException,
                 FileTooLargeException,
                 InvalidCredentialsException,
