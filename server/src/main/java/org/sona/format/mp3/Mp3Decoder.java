@@ -19,6 +19,10 @@ import org.sona.format.PcmFrame;
  * 11172-3 section 2.4.1.7, ISO/IEC 13818-3 section 2.4.1.7), and its main data, which may start in the frames before
  * it. The header and side information are whole bytes, so the bit stream holds no bits after them, and the stream
  * skips the CRC and reads the main data.
+ *
+ * <p>Scale factors start each granule's channel in the main data (ISO/IEC 11172-3 section 2.4.2.7, ISO/IEC 13818-3
+ * section 2.4.3.2). Both versions code them in the same order, which is then laid out by band. A mixed block's lowest
+ * bands are long: 8 in MPEG-1, and 6 in MPEG-2, and its short bands start at band 3.
  */
 public final class Mp3Decoder implements PcmAudio {
 
@@ -28,12 +32,32 @@ public final class Mp3Decoder implements PcmAudio {
     // MPEG-2's scale factors use pre-emphasis from this scalefac_compress on, except in intensity stereo's right
     // channel.
     private static final int LSF_PREFLAG_COMPRESS = 500;
+    // MPEG-1's short blocks have scale factors for 12 bands, in each window.
+    private static final int MPEG_1_SHORT_FACTORS = 12 * Windowing.WINDOWS;
+    // How many scale factors take slen1 bits, the rest taking slen2: bands 0 to 10 of a long block, and 0 to 5 of a
+    // short one.
+    private static final int MPEG_1_LONG_SLEN1_FACTORS = 11;
+    private static final int MPEG_1_SHORT_SLEN1_FACTORS = 6 * Windowing.WINDOWS;
+    // A mixed block has 8 long bands, then short bands 3 to 11, of which 3 to 5 take slen1 bits.
+    private static final int MPEG_1_MIXED_FACTORS = 8 + 9 * Windowing.WINDOWS;
+    private static final int MPEG_1_MIXED_SLEN1_FACTORS = 8 + 3 * Windowing.WINDOWS;
+    // The groups of long bands MPEG-1's second granule may share with its first: bands 0 to 20.
+    private static final int[] SHARED_GROUP_STARTS = {0, 6, 11, 16, 21};
+    private static final int FIRST_GROUP_BIT = 0b1000;
+    // MPEG-2's right channel of an intensity stereo frame halves scalefac_compress, then splits it at these.
+    private static final int LSF_INTENSITY_SPLIT_1 = 180;
+    private static final int LSF_INTENSITY_SPLIT_2 = 244;
+    // Its other channels split it at these.
+    private static final int LSF_SPLIT_1 = 400;
+    private static final int LSF_SPLIT_2 = 500;
 
     private final Mp3Parser parser;
     private final Mp3StreamInfo streamInfo;
     private final InputStream input;
     private final BitInputStream bits;
     private final BitReservoir reservoir = new BitReservoir();
+    // Each channel's scale factors for the last granule read, which MPEG-1's second granule may share.
+    private final ScaleFactors[] scaleFactors = {ScaleFactors.NONE, ScaleFactors.NONE};
 
     /**
      * @param parser the parser that reads each frame's header
@@ -79,6 +103,178 @@ public final class Mp3Decoder implements PcmAudio {
         input.skipNBytes(header.protection().crcSize());
         final var sideInfo = readSideInfo(header);
         return reservoir.readMainData(input, header, sideInfo);
+    }
+
+    /**
+     * Reads a channel's scale factors for a granule of the frame last read, from its main data, which must be at the
+     * start of the granule's channel. MPEG-1's second granule may keep the first's for groups of long bands, so it must
+     * be read after the first granule's.
+     *
+     * @param channel 0 for the left or only channel, and 1 for the right
+     */
+    ScaleFactors readScaleFactors(final Mp3Frame frame, final int granule, final int channel) throws IOException {
+        final var header = frame.header();
+        final var granuleChannel = frame.sideInfo().granules().get(granule).get(channel);
+        scaleFactors[channel] = switch (header.version()) {
+            case MPEG_1 -> readMpeg1Factors(frame.mainData(), granuleChannel, scaleFactors[channel]);
+            case MPEG_2, MPEG_2_5 -> readLsfFactors(frame.mainData(), header, granuleChannel, channel);
+        };
+        return scaleFactors[channel];
+    }
+
+    private ScaleFactors readMpeg1Factors(
+            final BitInputStream mainData, final GranuleChannel granuleChannel, final ScaleFactors previous)
+            throws IOException {
+        final var compress = granuleChannel.scalefacCompress();
+        final var slen1 = ScaleFactorTables.mpeg1Slen1(compress);
+        final var slen2 = ScaleFactorTables.mpeg1Slen2(compress);
+        final var layout = granuleChannel.windowing().layout();
+        return switch (layout) {
+            case LONG -> readMpeg1LongFactors(mainData, granuleChannel.scaleFactorSharing(), previous, slen1, slen2);
+            case SHORT ->
+                readMpeg1ShortFactors(mainData, layout, MPEG_1_SHORT_FACTORS, MPEG_1_SHORT_SLEN1_FACTORS, slen1, slen2);
+            case MIXED ->
+                readMpeg1ShortFactors(mainData, layout, MPEG_1_MIXED_FACTORS, MPEG_1_MIXED_SLEN1_FACTORS, slen1, slen2);
+        };
+    }
+
+    // Each group whose scfsi bit is set keeps the first granule's scale factors, and the rest are read. The first
+    // group's bit is the highest.
+    private ScaleFactors readMpeg1LongFactors(
+            final BitInputStream mainData,
+            final int sharing,
+            final ScaleFactors previous,
+            final int slen1,
+            final int slen2)
+            throws IOException {
+        final var factors = new int[ScaleFactors.SIZE];
+        var part2Length = 0;
+        for (var group = 0; group < SHARED_GROUP_STARTS.length - 1; group++) {
+            final var shared = (sharing & (FIRST_GROUP_BIT >> group)) != 0;
+            for (var band = SHARED_GROUP_STARTS[group]; band < SHARED_GROUP_STARTS[group + 1]; band++) {
+                if (shared) {
+                    factors[band] = previous.longFactor(band);
+                } else {
+                    final var slen = slen(band, MPEG_1_LONG_SLEN1_FACTORS, slen1, slen2);
+                    factors[band] = readFactor(mainData, slen);
+                    part2Length += slen;
+                }
+            }
+        }
+        return new ScaleFactors(factors, part2Length);
+    }
+
+    private ScaleFactors readMpeg1ShortFactors(
+            final BitInputStream mainData,
+            final BlockLayout layout,
+            final int count,
+            final int slen1Count,
+            final int slen1,
+            final int slen2)
+            throws IOException {
+        final var factors = new int[ScaleFactors.SIZE];
+        var part2Length = 0;
+        for (var index = 0; index < count; index++) {
+            final var slen = slen(index, slen1Count, slen1, slen2);
+            factors[slot(index, layout, MpegVersion.MPEG_1.mixedLongBands())] = readFactor(mainData, slen);
+            part2Length += slen;
+        }
+        return new ScaleFactors(factors, part2Length);
+    }
+
+    private int slen(final int index, final int slen1Count, final int slen1, final int slen2) {
+        if (index < slen1Count) {
+            return slen1;
+        }
+        return slen2;
+    }
+
+    // Each partition's scale factors take the same number of bits.
+    private ScaleFactors readLsfFactors(
+            final BitInputStream mainData,
+            final FrameHeader header,
+            final GranuleChannel granuleChannel,
+            final int channel)
+            throws IOException {
+        final var lengths = lsfLengths(header, channel, granuleChannel.scalefacCompress());
+        final var layout = granuleChannel.windowing().layout();
+        final var mixedLongBands = header.version().mixedLongBands();
+        final var factors = new int[ScaleFactors.SIZE];
+        var part2Length = 0;
+        var index = 0;
+        for (var partition = 0; partition < ScaleFactorTables.LSF_PARTITIONS; partition++) {
+            final var count = ScaleFactorTables.lsfBandCount(lengths.table(), layout, partition);
+            final var slen = lengths.slens().get(partition);
+            for (var factor = 0; factor < count; factor++) {
+                factors[slot(index++, layout, mixedLongBands)] = readFactor(mainData, slen);
+                part2Length += slen;
+            }
+        }
+        return new ScaleFactors(factors, part2Length);
+    }
+
+    /**
+     * @param channel 0 for the left or only channel, and 1 for the right
+     */
+    private LsfLengths lsfLengths(final FrameHeader header, final int channel, final int scalefacCompress) {
+        if (header.isIntensityStereo() && channel == 1) {
+            return intensityLsfLengths(scalefacCompress >> 1);
+        }
+        return lsfLengths(scalefacCompress);
+    }
+
+    private LsfLengths lsfLengths(final int compress) {
+        if (compress < LSF_SPLIT_1) {
+            return new LsfLengths(
+                    0, List.of((compress >> 4) / 5, (compress >> 4) % 5, (compress & 15) >> 2, compress & 3));
+        }
+        if (compress < LSF_SPLIT_2) {
+            final var offset = compress - LSF_SPLIT_1;
+            return new LsfLengths(1, List.of((offset >> 2) / 5, (offset >> 2) % 5, offset & 3, 0));
+        }
+        final var offset = compress - LSF_SPLIT_2;
+        return new LsfLengths(2, List.of(offset / 3, offset % 3, 0, 0));
+    }
+
+    private LsfLengths intensityLsfLengths(final int compress) {
+        if (compress < LSF_INTENSITY_SPLIT_1) {
+            return new LsfLengths(3, List.of(compress / 36, compress % 36 / 6, compress % 36 % 6, 0));
+        }
+        if (compress < LSF_INTENSITY_SPLIT_2) {
+            final var offset = compress - LSF_INTENSITY_SPLIT_1;
+            return new LsfLengths(4, List.of((offset & 63) >> 4, (offset & 15) >> 2, offset & 3, 0));
+        }
+        final var offset = compress - LSF_INTENSITY_SPLIT_2;
+        return new LsfLengths(5, List.of(offset / 3, offset % 3, 0, 0));
+    }
+
+    // A scale factor of no bits is 0.
+    private int readFactor(final BitInputStream mainData, final int slen) throws IOException {
+        if (slen == 0) {
+            return 0;
+        }
+        return (int) mainData.readBits(slen);
+    }
+
+    // Where the scale factor coded at the index goes: the layout's long bands come first, then its short bands by band
+    // and window.
+    private int slot(final int index, final BlockLayout layout, final int mixedLongBands) {
+        final var longCount = switch (layout) {
+            case LONG -> ScaleFactors.SIZE;
+            case SHORT -> 0;
+            case MIXED -> mixedLongBands;
+        };
+        if (index < longCount) {
+            return index;
+        }
+        return ScaleFactorBands.LONG_BANDS + firstShortBand(layout) * Windowing.WINDOWS + index - longCount;
+    }
+
+    private int firstShortBand(final BlockLayout layout) {
+        return switch (layout) {
+            case LONG, SHORT -> 0;
+            case MIXED -> ScaleFactors.MIXED_FIRST_SHORT_BAND;
+        };
     }
 
     private SideInfo readSideInfo(final FrameHeader header) throws IOException, InvalidFormatException {

@@ -29,6 +29,8 @@ final class HuffmanCode {
     // How many bits each entry's codeword takes after the bits that indexed its table; or, for a root entry that links
     // to a subtable, minus how many bits index the subtable.
     private final int[] lengths;
+    // How many bits each value's codeword takes, by value: each value has one codeword.
+    private final int[] codeLengths;
 
     /**
      * @param values the values in the order of their codewords, as bit strings
@@ -46,26 +48,43 @@ final class HuffmanCode {
         for (var index = 0; index < values.length; index++) {
             addCodeword(codes[index], lengths[index], values[index]);
         }
+        this.codeLengths = codeLengths(values, lengths);
+    }
+
+    /**
+     * @return how many bits the value's codeword takes, which a value read with {@link #readValue} took
+     */
+    int codeLength(final int value) {
+        return codeLengths[value];
     }
 
     /**
      * @return the value whose codeword the bits start with
      */
     int readValue(final BitInputStream bits) throws IOException {
+        final var value = peekValue(bits);
         // Table 0's one codeword is empty, and the stream reads no fewer than 1 bit.
+        if (codeLengths[value] > 0) {
+            bits.readBits(codeLengths[value]);
+        }
+        return value;
+    }
+
+    /**
+     * @return the value whose codeword the bits start with, leaving the bits to be read
+     */
+    int peekValue(final BitInputStream bits) throws IOException {
         if (rootBits == 0) {
             return values[0];
         }
         final var root = (int) bits.peekBits(rootBits);
         final var length = lengths[root];
         if (length > 0) {
-            bits.readBits(length);
             return values[root];
         }
-        bits.readBits(rootBits);
-        final var entry = values[root] + (int) bits.peekBits(-length);
-        bits.readBits(lengths[entry]);
-        return values[entry];
+        final var subtableBits = -length;
+        final var subtableIndex = (int) bits.peekBits(rootBits + subtableBits) & ((1 << subtableBits) - 1);
+        return values[values[root] + subtableIndex];
     }
 
     // Each codeword is the one before it plus 1, so its bits follow on from the one before's. In a complete,
@@ -86,6 +105,18 @@ final class HuffmanCode {
             throw new IllegalArgumentException("Some bit strings start with no codeword");
         }
         return codes;
+    }
+
+    private static int[] codeLengths(final int[] values, final int[] lengths) {
+        var maxValue = 0;
+        for (final var value : values) {
+            maxValue = Math.max(maxValue, value);
+        }
+        final var codeLengths = new int[maxValue + 1];
+        for (var index = 0; index < values.length; index++) {
+            codeLengths[values[index]] = lengths[index];
+        }
+        return codeLengths;
     }
 
     private static int maxLength(final int[] lengths) {
