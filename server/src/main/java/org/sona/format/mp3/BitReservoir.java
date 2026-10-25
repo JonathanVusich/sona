@@ -32,17 +32,19 @@ final class BitReservoir {
      *
      * @param input the frame's stream, at its main data
      * @return the frame, with its main data from where its granules start
+     * @throws InvalidFormatException when the frame's granules start before the stream's main data does, as in a
+     *     stream cut from a longer one, though its own main data is still kept for the frames after it
      */
     Mp3Frame readMainData(final InputStream input, final FrameHeader header, final SideInfo sideInfo)
             throws IOException, InvalidFormatException {
         keepLastBytes();
-        if (sideInfo.mainDataBegin() > size) {
-            throw new InvalidFormatException("MP3 frame's main data starts %d bytes back, before the stream's does!"
-                    .formatted(sideInfo.mainDataBegin()));
-        }
         final var start = size - sideInfo.mainDataBegin();
         IOUtils.readFully(input, bytes, size, header.mainDataSize());
         size += header.mainDataSize();
+        if (start < 0) {
+            throw new InvalidFormatException("MP3 frame's main data starts %d bytes back, before the stream's does!"
+                    .formatted(sideInfo.mainDataBegin()));
+        }
         Arrays.fill(bytes, size, size + PADDING, (byte) 0);
         final var mainData = new ByteArrayInputStream(bytes, start, size - start + PADDING);
         return new Mp3Frame(header, sideInfo, BitInputStream.wrap(mainData, ByteOrder.BIG_ENDIAN), size - start);

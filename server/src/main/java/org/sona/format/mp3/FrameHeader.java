@@ -100,13 +100,6 @@ public record FrameHeader(
         };
     }
 
-    /**
-     * @return whether the other frame can follow this one in a stream, which keeps its version and sample rate
-     */
-    public boolean isSameStream(final FrameHeader other) {
-        return version == other.version() && sampleRate == other.sampleRate();
-    }
-
     private int sideInfoSize(final int monoSize, final int stereoSize) {
         return switch (channelMode) {
             case STEREO, JOINT_STEREO, DUAL_CHANNEL -> stereoSize;

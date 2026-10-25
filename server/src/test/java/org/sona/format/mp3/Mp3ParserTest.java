@@ -161,7 +161,7 @@ class Mp3ParserTest {
         try (final var channel = FlacSample.COLDPLAY.channel()) {
             assertThatThrownBy(() -> new Mp3Parser().parse(channel))
                     .isInstanceOf(InvalidFormatException.class)
-                    .hasMessage("MP3 frame doesn't start with a frame sync!");
+                    .hasMessage("MP3 has no frames of audio!");
         }
     }
 
@@ -171,15 +171,15 @@ class Mp3ParserTest {
                 .isInstanceOf(InvalidFormatException.class);
     }
 
-    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short.
+    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short, so it's left out.
     @Test
-    void rejectsFrameCutShort() throws IOException {
+    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
         final var cut = Arrays.copyOf(bytes, bytes.length - 200);
 
-        assertThatThrownBy(() -> new Mp3Parser().parse(new SeekableInMemoryByteChannel(cut)))
-                .isInstanceOf(InvalidFormatException.class)
-                .hasMessageEndingWith("is cut short!");
+        final var parsed = new Mp3Parser().parse(new SeekableInMemoryByteChannel(cut));
+
+        assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(39);
     }
 
     @Test

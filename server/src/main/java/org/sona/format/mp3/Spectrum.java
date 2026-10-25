@@ -59,6 +59,14 @@ final class Spectrum {
         Arrays.fill(lines, nonZeroEnd, LINES, 0);
     }
 
+    /**
+     * Makes every line 0, for a granule whose values can't be read.
+     */
+    void clear() {
+        Arrays.fill(lines, 0);
+        nonZeroEnd = 0;
+    }
+
     double line(final int index) {
         return lines[index];
     }
