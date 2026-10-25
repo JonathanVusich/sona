@@ -26,7 +26,6 @@ import org.sona.controller.response.PlaylistsResponse;
 import org.sona.controller.response.TrackReleaseResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
@@ -68,9 +67,6 @@ class PlaylistControllerTest {
 
     @Autowired
     ReleaseDao releaseDao;
-
-    @Autowired
-    MediumDao mediumDao;
 
     @Autowired
     TrackDao trackDao;
@@ -361,8 +357,8 @@ class PlaylistControllerTest {
     }
 
     private Medium insertMedium(final Release release) {
-        return mediumDao
-                .upsertAll(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+        return releaseDao
+                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
                 .getFirst();
     }
 

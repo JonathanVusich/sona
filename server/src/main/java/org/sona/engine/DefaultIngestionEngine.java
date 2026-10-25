@@ -14,11 +14,8 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.db.ArtistDao;
-import org.sona.db.LabelDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
@@ -61,9 +58,6 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final ArtistDao artistDao;
     private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseDao releaseDao;
-    private final LabelDao labelDao;
-    private final ReleaseLabelDao releaseLabelDao;
-    private final MediumDao mediumDao;
     private final TrackDao trackDao;
 
     @Override
@@ -199,8 +193,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
         final var releaseGroup =
                 releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
-        final var medium = mediumDao
-                .loadByPosition(release.releaseId(), resolved.discNumber())
+        final var medium = releaseDao
+                .loadMediumByPosition(release.releaseId(), resolved.discNumber())
                 .orElseGet(() -> completeRelease(release, resolved));
         final var artistId = resolved.artist().artistId();
         final var artist =
@@ -246,10 +240,10 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     private void storeLabels(final Release release, final List<ResolvedLabel> resolvedLabels) {
-        final var labels = labelDao.upsertAll(resolvedLabels.stream()
+        final var labels = releaseDao.upsertLabels(resolvedLabels.stream()
                 .map(label -> new Label(uuidv7(), label.name(), label.labelId()))
                 .toList());
-        releaseLabelDao.upsertAll(labels.stream()
+        releaseDao.upsertReleaseLabels(labels.stream()
                 .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
                 .toList());
     }
@@ -270,7 +264,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     private List<Medium> storeMedia(final Release release, final List<ResolvedMedium> media) {
-        return mediumDao.upsertAll(media.stream()
+        return releaseDao.upsertMedia(media.stream()
                 .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
                 .toList());
     }

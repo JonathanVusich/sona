@@ -7,9 +7,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ReleaseGroupPageResponse;
 import org.sona.controller.response.ReleaseGroupResponse;
-import org.sona.db.ReleaseGroupDetailsDao;
+import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseGroupSummary;
-import org.sona.db.ReleaseGroupSummaryDao;
 import org.sona.exception.ReleaseGroupNotFoundException;
 import org.sona.mappers.ReleaseGroupResponseMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,8 +24,7 @@ public class ReleaseGroupController {
 
     private static final int MAX_LIMIT = 100;
 
-    private final ReleaseGroupSummaryDao summaryDao;
-    private final ReleaseGroupDetailsDao detailsDao;
+    private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseGroupResponseMapper mapper;
 
     /**
@@ -39,15 +37,15 @@ public class ReleaseGroupController {
             @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_LIMIT) final int limit) {
         // One more than the page holds tells whether there's a page after it.
         if (after == null) {
-            return pageResponse(summaryDao.loadFirstPage(limit + 1), limit);
+            return pageResponse(releaseGroupDao.loadFirstPage(limit + 1), limit);
         }
-        return pageResponse(summaryDao.loadNextPage(after, limit + 1), limit);
+        return pageResponse(releaseGroupDao.loadNextPage(after, limit + 1), limit);
     }
 
     @GetMapping(ApiRoutes.RELEASE_GROUP)
     public ReleaseGroupResponse releaseGroup(@PathVariable final UUID releaseGroupId) {
-        return detailsDao
-                .loadById(releaseGroupId)
+        return releaseGroupDao
+                .loadDetails(releaseGroupId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ReleaseGroupNotFoundException(releaseGroupId));
     }

@@ -15,11 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestGroupDao;
-import org.sona.db.LabelDao;
-import org.sona.db.MediumDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.ReleaseLabelDao;
 import org.sona.db.TrackDao;
 import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
@@ -164,9 +161,6 @@ public class DevLibraryRunner implements ApplicationRunner {
     private final ArtistDao artistDao;
     private final ReleaseGroupDao releaseGroupDao;
     private final ReleaseDao releaseDao;
-    private final LabelDao labelDao;
-    private final ReleaseLabelDao releaseLabelDao;
-    private final MediumDao mediumDao;
     private final TrackDao trackDao;
     private final IngestGroupDao ingestGroupDao;
     private final TrackToIngestDao trackToIngestDao;
@@ -225,10 +219,10 @@ public class DevLibraryRunner implements ApplicationRunner {
     }
 
     private void upsertLabels(final Release release, final List<String> names) {
-        final var labels = labelDao.upsertAll(names.stream()
+        final var labels = releaseDao.upsertLabels(names.stream()
                 .map(name -> new Label(uuidv7(), name, musicBrainzId("label", name)))
                 .toList());
-        releaseLabelDao.upsertAll(labels.stream()
+        releaseDao.upsertReleaseLabels(labels.stream()
                 .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
                 .toList());
     }
@@ -244,7 +238,7 @@ public class DevLibraryRunner implements ApplicationRunner {
                         index + 1,
                         devMedia.get(index).format()))
                 .toList();
-        final var stored = mediumDao.upsertAll(media);
+        final var stored = releaseDao.upsertMedia(media);
         return stored.stream().sorted(comparingInt(Medium::position)).toList();
     }
 
