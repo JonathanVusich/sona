@@ -3,17 +3,29 @@ package org.sona.format.mp3;
 import dev.javax.bitstream.BitInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.sona.exception.InvalidFormatException;
+import org.sona.exception.UncheckedInvalidFormatException;
 import org.sona.format.PcmAudio;
 import org.sona.format.PcmFrame;
 
 /**
- * The audio of an MP3, which {@link Mp3Parser#parse} opens in its {@link ParsedMp3}. Its samples will be decoded to
- * 16 bits, as Layer III has no bit depth of its own.
+ * The audio of an MP3, which {@link Mp3Parser#parse} opens in its {@link ParsedMp3}, decoded a frame at a time as it's
+ * iterated, to 16 bits, as Layer III has no bit depth of its own. Only the samples that were encoded are given: the
+ * encoder's delay and padding, and the decoder's own delay, are left out, as a LAME tag says. Every frame is decoded
+ * into the same {@link PcmFrame}, which holds its samples until the next is read.
+ *
+ * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, and
+ * {@link UncheckedInvalidFormatException} when a frame is corrupt.
+ *
+ * <p>Each granule's scale factors and spectrum are decoded for each channel, then its joint stereo, and each channel's
+ * reordering, alias reduction, IMDCT and synthesis. The decoder keeps each channel's state from granule to granule,
+ * and decodes every frame into the same buffers: only what it reads from the frame is new for each one.
  *
  * <p>Each frame is read from the file's stream in turn: its header, through the parser, its side information (ISO/IEC
  * 11172-3 section 2.4.1.7, ISO/IEC 13818-3 section 2.4.1.7), and its main data, which may start in the frames before
@@ -27,6 +39,8 @@ import org.sona.format.PcmFrame;
 public final class Mp3Decoder implements PcmAudio {
 
     private static final int BITS_PER_SAMPLE = 16;
+    private static final int MAX_CHANNELS = 2;
+    private static final double FULL_SCALE = 32768;
     // A granule has 576 values, so at most 288 pairs.
     private static final int MAX_BIG_VALUES = 288;
     // MPEG-2's scale factors use pre-emphasis from this scalefac_compress on, except in intensity stereo's right
@@ -58,8 +72,17 @@ public final class Mp3Decoder implements PcmAudio {
     private final InputStream input;
     private final BitInputStream bits;
     private final BitReservoir reservoir = new BitReservoir();
-    // Each channel's scale factors for the last granule read, which MPEG-1's second granule may share.
+    // Each channel's scale factors for the last granule read, which stereo decoding takes and MPEG-1's second granule
+    // may share.
     private final ScaleFactors[] scaleFactors = {ScaleFactors.NONE, ScaleFactors.NONE};
+    private final Spectrum[] spectra = {new Spectrum(), new Spectrum()};
+    private final StereoProcessor stereoProcessor = new StereoProcessor();
+    private final Imdct[] imdcts = {new Imdct(), new Imdct()};
+    private final PolyphaseSynthesis[] syntheses = {new PolyphaseSynthesis(), new PolyphaseSynthesis()};
+    private final int[][] samples;
+    private final PcmFrame pcmFrame;
+    private boolean iterated;
+    private long framesDecoded;
 
     /**
      * @param parser the parser that reads each frame's header
@@ -70,6 +93,8 @@ public final class Mp3Decoder implements PcmAudio {
         this.streamInfo = streamInfo;
         this.input = input;
         this.bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
+        this.samples = new int[streamInfo.channelCount()][streamInfo.samplesPerFrame()];
+        this.pcmFrame = new PcmFrame(samples);
     }
 
     public Mp3StreamInfo streamInfo() {
@@ -87,20 +112,142 @@ public final class Mp3Decoder implements PcmAudio {
     }
 
     /**
-     * @throws UnsupportedOperationException always, until Sona decodes Layer III
+     * @throws IllegalStateException when called a second time
      */
     @Override
     public Iterator<PcmFrame> iterator() {
-        // TODO: Decode Layer III frames (ISO/IEC 11172-3 and 13818-3) from the channel the file was parsed from.
-        throw new UnsupportedOperationException("MP3 audio can't be decoded yet!");
+        if (iterated) {
+            throw new IllegalStateException("MP3 decoder can only be iterated once!");
+        }
+        iterated = true;
+        return new FrameIterator();
+    }
+
+    private final class FrameIterator implements Iterator<PcmFrame> {
+
+        @Override
+        public boolean hasNext() {
+            return framesDecoded < framesWithSamples();
+        }
+
+        @Override
+        public PcmFrame next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException("MP3 stream has no more frames!");
+            }
+            try {
+                return readPcmFrame();
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (final InvalidFormatException e) {
+                throw new UncheckedInvalidFormatException(e);
+            }
+        }
+    }
+
+    // The frames up to the last sample given, which a LAME tag's padding may leave short of the stream's end.
+    private long framesWithSamples() {
+        final var lastSample = streamInfo.leadingSamples() + streamInfo.sampleCount();
+        final var samplesPerFrame = streamInfo.samplesPerFrame();
+        return Math.min(Math.ceilDiv(lastSample, samplesPerFrame), streamInfo.frameCount());
+    }
+
+    // Frames whose samples all come before the first one given are still decoded, as each frame's state carries on to
+    // the next.
+    private PcmFrame readPcmFrame() throws IOException, InvalidFormatException {
+        while (true) {
+            final var firstSample = framesDecoded * streamInfo.samplesPerFrame();
+            final var frame = decodeFrame();
+            framesDecoded++;
+            final var start = Math.max(streamInfo.leadingSamples() - firstSample, 0);
+            final var end = Math.min(
+                    streamInfo.leadingSamples() + streamInfo.sampleCount() - firstSample, streamInfo.samplesPerFrame());
+            if (start < end) {
+                frame.setRange((int) start, (int) end);
+                return frame;
+            }
+        }
+    }
+
+    /**
+     * @return the frame's 16-bit samples, in the frame the decoder rewrites for each frame it decodes
+     * @throws InvalidFormatException when the frame has more or fewer channels than the stream's first
+     */
+    private PcmFrame decodeFrame() throws IOException, InvalidFormatException {
+        final var frame = readFrame();
+        final var header = frame.header();
+        if (header.channelCount() != samples.length) {
+            throw new InvalidFormatException("MP3 frame changes the stream's channel count!");
+        }
+        checkGranulesFit(frame);
+        for (var granule = 0; granule < header.granuleCount(); granule++) {
+            readSpectra(frame, granule);
+            final var sideInfo = frame.sideInfo();
+            if (header.channelCount() == MAX_CHANNELS) {
+                stereoProcessor.processStereo(
+                        header,
+                        spectra[0],
+                        spectra[1],
+                        sideInfo.granules().get(granule).get(1),
+                        scaleFactors[1]);
+            }
+            for (var channel = 0; channel < header.channelCount(); channel++) {
+                synthesizeGranule(
+                        header, sideInfo.granules().get(granule).get(channel).windowing(), channel);
+                toSamples(channel, granule * FrameHeader.GRANULE_SIZE);
+            }
+        }
+        pcmFrame.setRange(0, header.version().getSamplesPerFrame());
+        return pcmFrame;
+    }
+
+    // Each channel's bits start with its scale factors, and its values follow, until its part2_3_length is used up.
+    private void readSpectra(final Mp3Frame frame, final int granule) throws IOException, InvalidFormatException {
+        final var header = frame.header();
+        for (var channel = 0; channel < header.channelCount(); channel++) {
+            final var granuleChannel = frame.sideInfo().granules().get(granule).get(channel);
+            final var channelFactors = readScaleFactors(frame, granule, channel);
+            spectra[channel].read(frame.mainData(), header, granuleChannel, channelFactors);
+        }
+    }
+
+    // The main data is padded with zeros, which a frame whose granules take more bits than it holds would read.
+    private void checkGranulesFit(final Mp3Frame frame) throws InvalidFormatException {
+        final var granuleBits = frame.sideInfo().granules().stream()
+                .flatMap(List::stream)
+                .mapToInt(GranuleChannel::part23Length)
+                .sum();
+        if (granuleBits > frame.mainDataLength() * Byte.SIZE) {
+            throw new InvalidFormatException("MP3 frame's granules take more bits than its main data holds!");
+        }
+    }
+
+    private void synthesizeGranule(final FrameHeader header, final Windowing windowing, final int channel) {
+        final var spectrum = spectra[channel];
+        spectrum.reorderShortBands(header, windowing);
+        spectrum.reduceAliasing(windowing);
+        imdcts[channel].transform(spectrum, windowing);
+        syntheses[channel].synthesize(imdcts[channel]);
+    }
+
+    // Rounded to the nearest 16-bit value, half to even, and clipped to the 16-bit range.
+    private void toSamples(final int channel, final int first) {
+        final var synthesis = syntheses[channel];
+        for (var sample = 0; sample < FrameHeader.GRANULE_SIZE; sample++) {
+            final var value = Math.rint(synthesis.sample(sample) * FULL_SCALE);
+            samples[channel][first + sample] = (int) Math.clamp(value, Short.MIN_VALUE, Short.MAX_VALUE);
+        }
     }
 
     /**
      * @return the next frame, whose main data must be read before the next frame is
      */
-    // TODO: Read free-format frames, whose length the stream gives rather than their headers.
     Mp3Frame readFrame() throws IOException, InvalidFormatException {
         final var header = parser.readAudioFrameHeader(bits);
+        // TODO: Decode free-format frames, whose length the stream gives rather than their headers.
+        if (header.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) {
+            throw new InvalidFormatException("Free-format MP3s can't be decoded yet!");
+        }
         // The CRC isn't checked: a frame that fails it is still decoded, as other decoders do.
         input.skipNBytes(header.protection().crcSize());
         final var sideInfo = readSideInfo(header);
@@ -406,29 +553,18 @@ public final class Mp3Decoder implements PcmAudio {
 
     private Windowing readSwitchedWindowing() throws IOException, InvalidFormatException {
         final var blockType = BlockType.fromSwitchedBits((int) bits.readBits(2));
-        final var layout = layout(blockType, bits.readBits(1));
+        final var mixedBlock = bits.readBits(1) == 1;
         final var table0 = readTable();
         final var table1 = readTable();
         final var subblockGains = new ArrayList<Integer>();
         for (var window = 0; window < Windowing.WINDOWS; window++) {
             subblockGains.add((int) bits.readBits(3));
         }
-        return new Windowing.Switched(blockType, layout, table0, table1, List.copyOf(subblockGains));
+        return new Windowing.Switched(blockType, mixedBlock, table0, table1, List.copyOf(subblockGains));
     }
 
     private int readTable() throws IOException {
         return (int) bits.readBits(5);
-    }
-
-    // The mixed block flag only mixes short blocks.
-    private BlockLayout layout(final BlockType blockType, final long mixedBlockFlag) {
-        if (blockType != BlockType.SHORT) {
-            return BlockLayout.LONG;
-        }
-        if (mixedBlockFlag == 0) {
-            return BlockLayout.SHORT;
-        }
-        return BlockLayout.MIXED;
     }
 
     private int readPreflag(final FrameHeader header, final int channel, final int scalefacCompress)

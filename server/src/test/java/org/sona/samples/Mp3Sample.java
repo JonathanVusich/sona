@@ -42,6 +42,14 @@ public enum Mp3Sample {
     }
 
     /**
+     * @return what FFmpeg 4.2 decodes the file to, as 16-bit little-endian samples with the channels interleaved, for
+     *     the samples that have it ({@code ffmpeg -i <file> -f s16le -acodec pcm_s16le <file>.pcm})
+     */
+    public InputStream ffmpegPcm() {
+        return Mp3Sample.class.getResourceAsStream("mp3/" + fileName.replace(".mp3", ".pcm"));
+    }
+
+    /**
      * @return the file in memory, as parsers read it
      */
     public SeekableByteChannel channel() throws IOException {

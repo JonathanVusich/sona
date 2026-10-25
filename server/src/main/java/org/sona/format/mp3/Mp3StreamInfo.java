@@ -20,11 +20,26 @@ public record Mp3StreamInfo(
         int encoderDelay,
         int encoderPadding) {
 
+    // The delay of the synthesis filterbank and the IMDCT's overlap, in samples.
+    private static final int DECODER_DELAY = 529;
+
     /**
      * @return samples per channel of the audio that was encoded, without the encoder's delay and padding
      */
     public long sampleCount() {
         return Math.max(frameCount * samplesPerFrame - encoderDelay - encoderPadding, 0);
+    }
+
+    /**
+     * @return how many decoded samples per channel come before the first one that was encoded: the encoder's delay,
+     *     and the 529 samples of the decoder's own, which a LAME tag's delay leaves out. A stream without one is
+     *     played from its first sample, as other decoders do.
+     */
+    public long leadingSamples() {
+        if (encoderDelay == 0 && encoderPadding == 0) {
+            return 0;
+        }
+        return encoderDelay + DECODER_DELAY;
     }
 
     /**
