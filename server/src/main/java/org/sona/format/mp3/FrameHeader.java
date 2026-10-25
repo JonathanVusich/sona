@@ -1,47 +1,53 @@
 package org.sona.format.mp3;
 
-import dev.javax.bitstream.BitInputStream;
-import java.io.IOException;
-import org.sona.exception.InvalidFormatException;
-
 /**
- * The four-byte header of a Layer III frame (ISO/IEC 11172-3 section 2.4.1.3).
+ * The four-byte header of a Layer III frame (ISO/IEC 11172-3 section 2.4.1.3), which {@link Mp3Parser} reads.
  *
+ * @param protection whether a CRC follows the header
  * @param bitrate in bits per second, or {@link #FREE_FORMAT_BITRATE} for a free-format frame until its stream gives its
  *     length (see {@link #withFreeFormatLength})
  * @param padding 1 when the frame has an extra byte to keep the stream at its bitrate, otherwise 0
+ * @param modeExtension in joint stereo, which stereo coding the frame uses: bit 1 for mid/side, bit 0 for intensity
  */
-public record FrameHeader(MpegVersion version, int bitrate, int sampleRate, int padding, ChannelMode channelMode) {
+public record FrameHeader(
+        MpegVersion version,
+        Protection protection,
+        int bitrate,
+        int sampleRate,
+        int padding,
+        ChannelMode channelMode,
+        int modeExtension) {
 
     public static final int SIZE = 4;
     // A free-format frame's header gives no bitrate: the encoder chose one off the table.
     public static final int FREE_FORMAT_BITRATE = 0;
 
-    private static final int SYNC = 0x7FF;
-    private static final int LAYER_III = 0b01;
+    /**
+     * How many samples per channel a granule holds.
+     */
+    public static final int GRANULE_SIZE = 576;
+
+    private static final int INTENSITY_STEREO = 0b01;
 
     /**
-     * Reads the header, which must be a Layer III frame's.
+     * @return whether the frame codes its channels with intensity stereo, which joint stereo's mode extension says
      */
-    public FrameHeader(final BitInputStream bits) throws IOException, InvalidFormatException {
-        if (bits.readBits(11) != SYNC) {
-            throw new InvalidFormatException("MP3 frame doesn't start with a frame sync!");
-        }
-        final var version = MpegVersion.fromBits((int) bits.readBits(2));
-        if (bits.readBits(2) != LAYER_III) {
-            throw new InvalidFormatException("MP3 frame isn't Layer III!");
-        }
-        // The protection bit says whether a CRC follows the header.
-        bits.readBits(1);
-        final var bitrate = version.bitrate((int) bits.readBits(4));
-        final var sampleRate = version.sampleRate((int) bits.readBits(2));
-        final var padding = (int) bits.readBits(1);
-        // The private bit is the encoder's own. The mode extension, copyright, original and emphasis fields follow the
-        // channel mode.
-        bits.readBits(1);
-        final var channelMode = ChannelMode.values()[(int) bits.readBits(2)];
-        bits.readBits(6);
-        this(version, bitrate, sampleRate, padding, channelMode);
+    public boolean isIntensityStereo() {
+        return channelMode == ChannelMode.JOINT_STEREO && (modeExtension & INTENSITY_STEREO) != 0;
+    }
+
+    /**
+     * @return how many granules of 576 samples the frame holds: two in MPEG-1, and one in MPEG-2
+     */
+    public int granuleCount() {
+        return version.getSamplesPerFrame() / GRANULE_SIZE;
+    }
+
+    /**
+     * @return how many bytes of main data the frame holds after its header, CRC and side information
+     */
+    public int mainDataSize() {
+        return frameLength() - SIZE - protection.crcSize() - sideInfoSize();
     }
 
     /**
@@ -54,7 +60,7 @@ public record FrameHeader(MpegVersion version, int bitrate, int sampleRate, int 
         final var slotFactor = version.getSamplesPerFrame() / 8;
         final var scaledLength = (long) unpaddedLength * sampleRate;
         final var freeFormatBitrate = (int) ((scaledLength + slotFactor - 1) / slotFactor);
-        return new FrameHeader(version, freeFormatBitrate, sampleRate, padding, channelMode);
+        return new FrameHeader(version, protection, freeFormatBitrate, sampleRate, padding, channelMode, modeExtension);
     }
 
     /**

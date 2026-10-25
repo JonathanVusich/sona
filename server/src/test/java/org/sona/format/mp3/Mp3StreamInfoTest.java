@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.samples.Mp3Sample;
 
-class StreamInfoReaderTest {
+class Mp3StreamInfoTest {
 
     // The ID3v2 tag before the first frame of each sample, and the ID3v1 tag after the last.
     private static final int STEREO_CBR_TAG_SIZE = 291;
@@ -96,7 +96,7 @@ class StreamInfoReaderTest {
     private static Mp3StreamInfo readStreamInfo(final byte[] bytes, final int audioStart, final int audioEnd)
             throws IOException, InvalidFormatException {
         final var input = new ByteArrayInputStream(bytes, audioStart, bytes.length - audioStart);
-        return new StreamInfoReader().readStreamInfo(input, audioStart, audioEnd);
+        return new Mp3Parser().readStreamInfo(input, audioStart, audioEnd);
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {
