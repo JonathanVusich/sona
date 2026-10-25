@@ -51,6 +51,19 @@ public final class ApiRoutes {
      */
     public static final String TRACK_STREAM = TRACK + "/stream";
 
+    /**
+     * The signed-in user's own playlists.
+     */
+    public static final String PLAYLISTS = API + "/playlists";
+
+    public static final String PLAYLIST = PLAYLISTS + "/{playlistId}";
+    public static final String PLAYLIST_TRACKS = PLAYLIST + "/tracks";
+    public static final String PLAYLIST_TRACK = PLAYLIST_TRACKS + "/{trackId}";
+    /**
+     * Where the track is on the playlist, which setting moves it.
+     */
+    public static final String PLAYLIST_TRACK_POSITION = PLAYLIST_TRACK + "/position";
+
     public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**
      * Under the ID Sona gave the group when the uploader created it.

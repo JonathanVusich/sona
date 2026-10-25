@@ -184,6 +184,22 @@ public final class ApiClient {
                 .exchange();
     }
 
+    public RestTestClient.ResponseSpec putJson(final String accessToken, final String path, final Object body) {
+        return client.put()
+                .uri(path)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .exchange();
+    }
+
+    public RestTestClient.ResponseSpec deleteWithToken(final String path, final String accessToken) {
+        return client.delete()
+                .uri(path)
+                .headers(headers -> headers.setBearerAuth(accessToken))
+                .exchange();
+    }
+
     /**
      * Sends one file of an upload, as the frontend does: its bytes as the body, and its name as a parameter.
      */
