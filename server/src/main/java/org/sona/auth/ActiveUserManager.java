@@ -10,7 +10,7 @@ import org.springframework.security.core.Authentication;
  * Allows requests (and STOMP messages) only from users whose account is active, so a user who must change their
  * password can't do anything else first.
  */
-public final class ActiveUserService<T> implements AuthorizationManager<T> {
+public final class ActiveUserManager<T> implements AuthorizationManager<T> {
 
     @Override
     public AuthorizationResult authorize(final Supplier<? extends Authentication> authentication, final T context) {

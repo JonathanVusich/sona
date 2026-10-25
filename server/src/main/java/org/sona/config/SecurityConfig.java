@@ -19,7 +19,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
-import org.sona.auth.ActiveUserService;
+import org.sona.auth.ActiveUserManager;
 import org.sona.auth.OidcDiscoveryClient;
 import org.sona.auth.SignInHandler;
 import org.sona.auth.SilentSignInResolver;
@@ -84,7 +84,7 @@ public class SecurityConfig {
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD)
                         .authenticated()
                         .anyRequest()
-                        .access(new ActiveUserService<>()))
+                        .access(new ActiveUserManager<>()))
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.decoder(tokenDecoder).jwtAuthenticationConverter(new SonaJwtConverter()))
                         .authenticationEntryPoint(authenticationEntryPoint)

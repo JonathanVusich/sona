@@ -109,11 +109,6 @@ public final class DefaultLibrary implements Library {
     }
 
     @Override
-    public InputStream readTrack(final Track track) throws IOException {
-        return Files.newInputStream(resolveLibraryPath(track.path()), StandardOpenOption.READ);
-    }
-
-    @Override
     public Resource trackFile(final Track track) {
         return new FileSystemResource(resolveLibraryPath(track.path()));
     }

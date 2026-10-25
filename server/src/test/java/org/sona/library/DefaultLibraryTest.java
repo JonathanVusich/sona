@@ -119,7 +119,8 @@ class DefaultLibraryTest {
 
         library.importTrack(ingestTrack, path);
 
-        try (final var imported = library.readTrack(newTrack(path, ingestTrack.trackIngestId()))) {
+        try (final var imported =
+                library.trackFile(newTrack(path, ingestTrack.trackIngestId())).getInputStream()) {
             assertThat(imported.readAllBytes()).isEqualTo(bytes);
         }
         assertThatThrownBy(() -> library.readIngestTrack(ingestTrack)).isInstanceOf(NoSuchFileException.class);

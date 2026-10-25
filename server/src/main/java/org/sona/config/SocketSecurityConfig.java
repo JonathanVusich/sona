@@ -4,7 +4,7 @@ import static org.sona.controller.ApiRoutes.INGEST_PROGRESS;
 import static org.springframework.security.authorization.AuthorityAuthorizationManager.hasAuthority;
 import static org.springframework.security.authorization.AuthorizationManagers.allOf;
 
-import org.sona.auth.ActiveUserService;
+import org.sona.auth.ActiveUserManager;
 import org.sona.auth.Permission;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,6 +46,6 @@ public class SocketSecurityConfig {
     }
 
     private static AuthorizationManager<MessageAuthorizationContext<?>> activeUserWith(final Permission permission) {
-        return allOf(new ActiveUserService<>(), hasAuthority(permission.getAuthority()));
+        return allOf(new ActiveUserManager<>(), hasAuthority(permission.getAuthority()));
     }
 }

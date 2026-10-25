@@ -38,10 +38,8 @@ public interface Library {
      */
     void importTrack(TrackToIngest trackIngest, String libraryPath) throws IOException;
 
-    InputStream readTrack(Track track) throws IOException;
-
     /**
-     * @return the track's file in the library, for serving to clients
+     * @return the track's file in the library, which opens a new stream each time it's read, as range requests do
      */
     Resource trackFile(Track track);
 }
