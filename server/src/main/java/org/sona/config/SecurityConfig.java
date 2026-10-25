@@ -24,7 +24,7 @@ import org.sona.auth.OidcDiscoveryClient;
 import org.sona.auth.SignInHandler;
 import org.sona.auth.SilentSignInResolver;
 import org.sona.auth.SonaJwtConverter;
-import org.sona.auth.StreamAccessService;
+import org.sona.auth.StreamAccessManager;
 import org.sona.auth.StreamTokenService;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
@@ -131,7 +131,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests.dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, TRACK_STREAM)
-                        .access(new StreamAccessService("trackId"))
+                        .access(new StreamAccessManager("trackId"))
                         .anyRequest()
                         .denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer

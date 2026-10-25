@@ -15,7 +15,7 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
  * Allows a stream request only for the track its stream token was issued for.
  */
 @RequiredArgsConstructor
-public final class StreamAccessService implements AuthorizationManager<RequestAuthorizationContext> {
+public final class StreamAccessManager implements AuthorizationManager<RequestAuthorizationContext> {
 
     /**
      * The path variable that holds the track's ID.
