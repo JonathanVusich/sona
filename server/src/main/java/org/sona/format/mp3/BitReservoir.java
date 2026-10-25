@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import org.apache.commons.io.IOUtils;
 import org.sona.exception.InvalidFormatException;
 
@@ -19,8 +20,10 @@ final class BitReservoir {
     private static final int MAX_MAIN_DATA_BEGIN = 511;
     // The most main data a frame can hold: a free-format MPEG-2.5 frame at 640 kbit/s and 8 kHz.
     private static final int MAX_MAIN_DATA_SIZE = 72 * 640_000 / 8000 + 1;
+    // Zero bytes after the main data, as Huffman codes are looked up by peeking up to 19 bits ahead of the last one.
+    private static final int PADDING = 3;
 
-    private final byte[] bytes = new byte[MAX_MAIN_DATA_BEGIN + MAX_MAIN_DATA_SIZE];
+    private final byte[] bytes = new byte[MAX_MAIN_DATA_BEGIN + MAX_MAIN_DATA_SIZE + PADDING];
     private int size;
 
     /**
@@ -40,7 +43,8 @@ final class BitReservoir {
         final var start = size - sideInfo.mainDataBegin();
         IOUtils.readFully(input, bytes, size, header.mainDataSize());
         size += header.mainDataSize();
-        final var mainData = new ByteArrayInputStream(bytes, start, size - start);
+        Arrays.fill(bytes, size, size + PADDING, (byte) 0);
+        final var mainData = new ByteArrayInputStream(bytes, start, size - start + PADDING);
         return new Mp3Frame(header, sideInfo, BitInputStream.wrap(mainData, ByteOrder.BIG_ENDIAN), size - start);
     }
 

@@ -50,6 +50,16 @@ public enum MpegVersion {
     }
 
     /**
+     * @return how many long bands a mixed block has below its short bands: 36 lines, in either version
+     */
+    int mixedLongBands() {
+        return switch (this) {
+            case MPEG_1 -> 8;
+            case MPEG_2, MPEG_2_5 -> 6;
+        };
+    }
+
+    /**
      * @param index a frame header's sample rate index, of which 3 is reserved
      */
     public int sampleRate(final int index) throws InvalidFormatException {

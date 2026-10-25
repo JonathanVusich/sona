@@ -80,6 +80,30 @@ enum ScaleFactorBands {
     }
 
     /**
+     * @param band from 0 to {@link #LONG_BANDS}, which is the end of the last band
+     * @return the first line of the band in a long block
+     */
+    int longBandStart(final int band) {
+        var start = 0;
+        for (var previous = 0; previous < band; previous++) {
+            start += longWidths[previous];
+        }
+        return start;
+    }
+
+    /**
+     * @param band from 0 to {@link #SHORT_BANDS}, which is the end of the last band
+     * @return the first line of the band in each of a short block's windows
+     */
+    int shortBandStart(final int band) {
+        var start = 0;
+        for (var previous = 0; previous < band; previous++) {
+            start += shortWidths[previous];
+        }
+        return start;
+    }
+
+    /**
      * @param band from 0 to {@link #SHORT_BANDS} - 1
      * @return how many lines the band covers in each of a short block's three windows
      */
