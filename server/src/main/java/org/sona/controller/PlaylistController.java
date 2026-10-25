@@ -15,9 +15,6 @@ import org.sona.controller.response.CreatedPlaylistResponse;
 import org.sona.controller.response.PlaylistResponse;
 import org.sona.controller.response.PlaylistsResponse;
 import org.sona.db.PlaylistDao;
-import org.sona.db.PlaylistDetailsDao;
-import org.sona.db.PlaylistSummaryDao;
-import org.sona.db.PlaylistTrackDao;
 import org.sona.exception.PlaylistNotFoundException;
 import org.sona.mappers.PlaylistResponseMapper;
 import org.sona.model.tables.pojos.Playlist;
@@ -42,23 +39,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlaylistController {
 
     private final PlaylistDao playlistDao;
-    private final PlaylistTrackDao playlistTrackDao;
-    private final PlaylistSummaryDao summaryDao;
-    private final PlaylistDetailsDao detailsDao;
     private final PlaylistResponseMapper mapper;
 
     @GetMapping(ApiRoutes.PLAYLISTS)
     public PlaylistsResponse playlists(final UserAuthentication authentication) {
         final var userId = authentication.user().userId();
-        final var playlists =
-                summaryDao.loadByUser(userId).stream().map(mapper::toResponse).toList();
+        final var playlists = playlistDao.loadSummaries(userId).stream()
+                .map(mapper::toResponse)
+                .toList();
         return new PlaylistsResponse(playlists);
     }
 
     @GetMapping(ApiRoutes.PLAYLIST)
     public PlaylistResponse playlist(final UserAuthentication authentication, @PathVariable final UUID playlistId) {
-        return detailsDao
-                .loadById(authentication.user().userId(), playlistId)
+        return playlistDao
+                .loadDetails(authentication.user().userId(), playlistId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
@@ -70,7 +65,7 @@ public class PlaylistController {
         final var userId = authentication.user().userId();
         final var playlist = new Playlist(uuidv7(), userId, request.name(), request.description(), 0);
         playlistDao.insert(playlist);
-        playlistTrackDao.insertAll(userId, playlist.playlistId(), request.trackIds());
+        playlistDao.insertTracks(userId, playlist.playlistId(), request.trackIds());
         return new CreatedPlaylistResponse(playlist.playlistId());
     }
 
@@ -106,8 +101,8 @@ public class PlaylistController {
             final UserAuthentication authentication,
             @PathVariable final UUID playlistId,
             @PathVariable final UUID trackId) {
-        playlistTrackDao
-                .delete(authentication.user().userId(), playlistId, trackId)
+        playlistDao
+                .deleteTrack(authentication.user().userId(), playlistId, trackId)
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
 
@@ -121,8 +116,8 @@ public class PlaylistController {
             @PathVariable final UUID playlistId,
             @PathVariable final UUID trackId,
             @RequestBody @Valid final MoveTrackRequest request) {
-        playlistTrackDao
-                .updatePosition(authentication.user().userId(), playlistId, trackId, request.position())
+        playlistDao
+                .updateTrackPosition(authentication.user().userId(), playlistId, trackId, request.position())
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
 
@@ -131,8 +126,8 @@ public class PlaylistController {
             final UserAuthentication authentication,
             @PathVariable final UUID playlistId,
             @RequestBody @Valid final AddTracksRequest request) {
-        return playlistTrackDao
-                .insertAll(authentication.user().userId(), playlistId, request.trackIds())
+        return playlistDao
+                .insertTracks(authentication.user().userId(), playlistId, request.trackIds())
                 .map(AddedTracksResponse::new)
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
