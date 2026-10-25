@@ -49,8 +49,8 @@ IngestWorker (every second, oldest PENDING first) ◄─────────
    ▼
 IngestionEngine.processTrack
    1. pick a Parser by file extension (format/, case-insensitive)
-   2. Parser.parse(SeekableByteChannel) ──► RawMetadata = tags + duration (metadata/), and the audio's Fingerprint
-        (FLAC only: MP3s are matched by their tags alone until Mp3Decoder decodes their audio)
+   2. Parser.parse(SeekableByteChannel) ──► RawMetadata = tags + duration (metadata/), and the audio's Fingerprint,
+        decoded from the same channel (FlacDecoder, Mp3Decoder)
    3. MetadataResolver.resolveTrack ──► AcoustID lookup of the fingerprint, then MusicBrainz (client/) ──► ResolvedTrack
         ├─ close AcoustID match ──► its recording, whatever the tags say
         └─ otherwise ──► MusicBrainz search by the tags, preferring a recording AcoustID matched loosely
