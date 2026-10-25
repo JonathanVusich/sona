@@ -28,12 +28,21 @@ public record FrameHeader(
     public static final int GRANULE_SIZE = 576;
 
     private static final int INTENSITY_STEREO = 0b01;
+    private static final int MID_SIDE_STEREO = 0b10;
 
     /**
      * @return whether the frame codes its channels with intensity stereo, which joint stereo's mode extension says
      */
     public boolean isIntensityStereo() {
         return channelMode == ChannelMode.JOINT_STEREO && (modeExtension & INTENSITY_STEREO) != 0;
+    }
+
+    /**
+     * @return whether the frame codes its channels as their sum and difference, which joint stereo's mode extension
+     *     says
+     */
+    public boolean isMidSideStereo() {
+        return channelMode == ChannelMode.JOINT_STEREO && (modeExtension & MID_SIDE_STEREO) != 0;
     }
 
     /**
