@@ -39,6 +39,17 @@ public final class ApiRoutes {
     public static final String RELEASE_GROUP = RELEASE_GROUPS + "/{releaseGroupId}";
     public static final String ARTISTS = API + "/artists";
     public static final String ARTIST = ARTISTS + "/{artistId}";
+    public static final String TRACKS = API + "/tracks";
+    public static final String TRACK = TRACKS + "/{trackId}";
+    /**
+     * Gives a token that may stream the track, as a URL a client can hand an audio element.
+     */
+    public static final String TRACK_STREAM_TOKEN = TRACK + "/stream-token";
+    /**
+     * The track's file as it's stored, with its stream token as the {@code access_token} parameter. Takes range
+     * requests, so players can seek.
+     */
+    public static final String TRACK_STREAM = TRACK + "/stream";
 
     public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**

@@ -35,6 +35,7 @@ public class TestAuthConfig {
                 List.of("openid", "offline_access"),
                 "groups",
                 List.of(FakeOidcProvider.ADMIN_GROUP));
-        return new AuthProperties(accessTokenLifetime, Duration.ofDays(30), "/", List.of(provider));
+        return new AuthProperties(
+                accessTokenLifetime, Duration.ofDays(30), Duration.ofHours(6), "/", List.of(provider));
     }
 }

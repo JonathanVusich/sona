@@ -8,7 +8,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 /**
  * @param accessTokenLifetime  how long an access token issued by Sona stays valid
  * @param refreshTokenLifetime how long a refresh token stays valid. Each refresh replaces it with a new one.
- * @param frontendUrl          where the browser is sent after signing in through an OIDC provider: the web frontend,
+ * @param streamTokenLifetime  how long a token that streams one track stays valid. Players request parts of the
+ *                             file as they seek, so it must outlast listening to the track.
+ * @param frontendUrl         where the browser is sent after signing in through an OIDC provider: the web frontend,
  *                             whose {@code register} page finishes a new user's sign-up
  * @param oidcProviders        OIDC providers users can sign in through
  */
@@ -16,5 +18,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record AuthProperties(
         @DefaultValue("15m") Duration accessTokenLifetime,
         @DefaultValue("30d") Duration refreshTokenLifetime,
+        @DefaultValue("6h") Duration streamTokenLifetime,
         @DefaultValue("/") String frontendUrl,
         @DefaultValue List<OidcProvider> oidcProviders) {}

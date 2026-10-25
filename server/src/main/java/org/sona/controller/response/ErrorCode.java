@@ -37,6 +37,7 @@ public enum ErrorCode {
     INGEST_GROUP_NOT_FOUND(
             304, HttpStatus.NOT_FOUND, "This upload group doesn't exist. Create it before uploading its files."),
     FILE_TOO_LARGE(305, HttpStatus.CONTENT_TOO_LARGE, "This file is larger than Sona accepts."),
+    TRACK_NOT_FOUND(306, HttpStatus.NOT_FOUND, "This track isn't in the library."),
 
     INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid."),
     UNSUPPORTED_CONTENT_TYPE(

@@ -73,6 +73,32 @@ public final class ApiClient {
                 .exchange();
     }
 
+    /**
+     * Streams a track by its stream URL, as an audio element does.
+     */
+    public RestTestClient.ResponseSpec streamTrack(final UUID trackId, final String streamToken) {
+        return client.get()
+                .uri(uri -> uri.path(ApiRoutes.TRACK_STREAM)
+                        .queryParam("access_token", streamToken)
+                        .build(trackId))
+                .exchange();
+    }
+
+    /**
+     * Streams part of a track, as an audio element does when the user seeks.
+     *
+     * @param range the {@code Range} header, such as {@code bytes=0-99}
+     */
+    public RestTestClient.ResponseSpec streamTrackRange(
+            final UUID trackId, final String streamToken, final String range) {
+        return client.get()
+                .uri(uri -> uri.path(ApiRoutes.TRACK_STREAM)
+                        .queryParam("access_token", streamToken)
+                        .build(trackId))
+                .header(HttpHeaders.RANGE, range)
+                .exchange();
+    }
+
     public RestTestClient.ResponseSpec getAnonymously(final String path) {
         return client.get().uri(path).exchange();
     }
