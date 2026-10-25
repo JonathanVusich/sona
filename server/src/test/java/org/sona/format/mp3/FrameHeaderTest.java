@@ -20,7 +20,9 @@ class FrameHeaderTest {
         // The first frame of audio in Mp3Sample.STEREO_CBR_ID3V24.
         final var header = readHeader("FFFB9064");
 
-        assertThat(header).isEqualTo(new FrameHeader(MpegVersion.MPEG_1, 128_000, 44100, 0, ChannelMode.JOINT_STEREO));
+        assertThat(header)
+                .isEqualTo(new FrameHeader(
+                        MpegVersion.MPEG_1, Protection.NONE, 128_000, 44100, 0, ChannelMode.JOINT_STEREO, 2));
         assertThat(header.frameLength()).isEqualTo(417);
         assertThat(header.channelCount()).isEqualTo(2);
         assertThat(header.sideInfoSize()).isEqualTo(32);
@@ -31,7 +33,8 @@ class FrameHeaderTest {
         // MPEG-2, 56 kbit/s, 22.05 kHz, padded, mono.
         final var header = readHeader("FFF372C0");
 
-        assertThat(header).isEqualTo(new FrameHeader(MpegVersion.MPEG_2, 56_000, 22050, 1, ChannelMode.MONO));
+        assertThat(header)
+                .isEqualTo(new FrameHeader(MpegVersion.MPEG_2, Protection.NONE, 56_000, 22050, 1, ChannelMode.MONO, 0));
         assertThat(header.frameLength()).isEqualTo(72 * 56_000 / 22050 + 1);
         assertThat(header.sideInfoSize()).isEqualTo(9);
     }
@@ -48,7 +51,7 @@ class FrameHeaderTest {
     @Test
     void readsWholeHeader() throws IOException, InvalidFormatException {
         final var bits = bits("FFFB906441");
-        new FrameHeader(bits);
+        new Mp3Parser().readAudioFrameHeader(bits);
 
         assertThat(bits.readBits(8)).isEqualTo(0x41);
     }
@@ -63,18 +66,25 @@ class FrameHeaderTest {
         assertThat(header.withFreeFormatLength(417).frameLength()).isEqualTo(417);
     }
 
-    // Every length a free-format frame can have, at every sample rate, comes back from the bitrate it's given.
-    @Test
-    void freeFormatBitrateGivesBackItsLength() throws InvalidFormatException {
-        for (final var version : MpegVersion.values()) {
-            for (var sampleRateIndex = 0; sampleRateIndex < 3; sampleRateIndex++) {
-                final var sampleRate = version.sampleRate(sampleRateIndex);
-                final var header = new FrameHeader(version, 0, sampleRate, 0, ChannelMode.STEREO);
-                for (var length = FrameHeader.SIZE; length <= 5761; length++) {
-                    assertThat(header.withFreeFormatLength(length).frameLength())
-                            .isEqualTo(length);
-                }
-            }
+    // Every length a free-format frame can have, at every sample rate, comes back from the bitrate it's given. Each
+    // header is MPEG-1, MPEG-2 or MPEG-2.5, with no CRC, bitrate index 0 and each sample rate index.
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "FFFB0000",
+                "FFFB0400",
+                "FFFB0800",
+                "FFF30000",
+                "FFF30400",
+                "FFF30800",
+                "FFE30000",
+                "FFE30400",
+                "FFE30800"
+            })
+    void freeFormatBitrateGivesBackItsLength(final String hex) throws IOException, InvalidFormatException {
+        final var header = readHeader(hex);
+        for (var length = FrameHeader.SIZE; length <= 5761; length++) {
+            assertThat(header.withFreeFormatLength(length).frameLength()).isEqualTo(length);
         }
     }
 
@@ -97,7 +107,7 @@ class FrameHeaderTest {
     }
 
     private static FrameHeader readHeader(final String hex) throws IOException, InvalidFormatException {
-        return new FrameHeader(bits(hex));
+        return new Mp3Parser().readAudioFrameHeader(bits(hex));
     }
 
     private static BitInputStream bits(final String hex) {
