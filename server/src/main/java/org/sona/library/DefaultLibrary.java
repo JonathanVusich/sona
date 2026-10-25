@@ -24,6 +24,8 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 /**
@@ -107,8 +109,8 @@ public final class DefaultLibrary implements Library {
     }
 
     @Override
-    public InputStream readTrack(final Track track) throws IOException {
-        return Files.newInputStream(resolveLibraryPath(track.path()), StandardOpenOption.READ);
+    public Resource trackFile(final Track track) {
+        return new FileSystemResource(resolveLibraryPath(track.path()));
     }
 
     // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it.

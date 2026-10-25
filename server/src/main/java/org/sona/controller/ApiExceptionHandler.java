@@ -15,6 +15,7 @@ import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.ReleaseGroupNotFoundException;
 import org.sona.exception.ReleaseNotFoundException;
 import org.sona.exception.SonaException;
+import org.sona.exception.TrackNotFoundException;
 import org.sona.exception.UnchangedPasswordException;
 import org.sona.exception.UsernameTakenException;
 import org.springframework.http.ResponseEntity;
@@ -105,6 +106,7 @@ public final class ApiExceptionHandler {
             case ReleaseNotFoundException _ -> ErrorCode.RELEASE_NOT_FOUND;
             case ReleaseGroupNotFoundException _ -> ErrorCode.RELEASE_GROUP_NOT_FOUND;
             case ArtistNotFoundException _ -> ErrorCode.ARTIST_NOT_FOUND;
+            case TrackNotFoundException _ -> ErrorCode.TRACK_NOT_FOUND;
             case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
             case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;

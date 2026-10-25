@@ -158,7 +158,7 @@ class DefaultIngestionEngineTest {
                 .isEqualTo("%s[A Rush of Blood to the Head]/%s[A Rush of Blood to the Head]/%s[A Whisper].flac"
                         .formatted(releaseGroup.releaseGroupId(), release.releaseId(), track.trackId()));
 
-        try (final var imported = library.readTrack(track)) {
+        try (final var imported = library.trackFile(track).getInputStream()) {
             assertThat(imported.readAllBytes()).isEqualTo(flac);
         }
         assertThatThrownBy(() -> library.readIngestTrack(ingest)).isInstanceOf(NoSuchFileException.class);
@@ -180,7 +180,7 @@ class DefaultIngestionEngineTest {
         assertThat(track.duration()).isEqualTo(1);
         assertThat(track.format()).isEqualTo(AudioFormat.MP3);
         assertThat(track.path()).endsWith(".mp3");
-        try (final var imported = library.readTrack(track)) {
+        try (final var imported = library.trackFile(track).getInputStream()) {
             assertThat(imported.readAllBytes()).isEqualTo(mp3);
         }
     }
@@ -333,7 +333,7 @@ class DefaultIngestionEngineTest {
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
         assertThat(loadRelease().trackCount()).isEqualTo(1);
-        try (final var imported = library.readTrack(loadTrack(ingest))) {
+        try (final var imported = library.trackFile(loadTrack(ingest)).getInputStream()) {
             assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisperMetadata()));
         }
     }

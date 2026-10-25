@@ -11,6 +11,7 @@ import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
+import org.springframework.core.io.Resource;
 
 public interface Library {
 
@@ -37,5 +38,8 @@ public interface Library {
      */
     void importTrack(TrackToIngest trackIngest, String libraryPath) throws IOException;
 
-    InputStream readTrack(Track track) throws IOException;
+    /**
+     * @return the track's file in the library, which opens a new stream each time it's read, as range requests do
+     */
+    Resource trackFile(Track track);
 }

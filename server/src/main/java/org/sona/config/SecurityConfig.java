@@ -13,19 +13,23 @@ import static org.sona.controller.ApiRoutes.OIDC_AUTHORIZE;
 import static org.sona.controller.ApiRoutes.OIDC_CALLBACK;
 import static org.sona.controller.ApiRoutes.OIDC_PROVIDERS;
 import static org.sona.controller.ApiRoutes.SOCKET;
+import static org.sona.controller.ApiRoutes.TRACK_STREAM;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
-import org.sona.auth.ActiveUserService;
+import org.sona.auth.ActiveUserManager;
 import org.sona.auth.OidcDiscoveryClient;
 import org.sona.auth.SignInHandler;
 import org.sona.auth.SilentSignInResolver;
 import org.sona.auth.SonaJwtConverter;
+import org.sona.auth.StreamAccessManager;
+import org.sona.auth.StreamTokenService;
 import org.sona.config.properties.AuthProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -38,6 +42,7 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepo
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -79,7 +84,7 @@ public class SecurityConfig {
                         .requestMatchers(CURRENT_USER, CURRENT_USER_PASSWORD)
                         .authenticated()
                         .anyRequest()
-                        .access(new ActiveUserService<>()))
+                        .access(new ActiveUserManager<>()))
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.decoder(tokenDecoder).jwtAuthenticationConverter(new SonaJwtConverter()))
                         .authenticationEntryPoint(authenticationEntryPoint)
@@ -96,6 +101,44 @@ public class SecurityConfig {
                         // The web frontend has the sign-in page, so Spring doesn't generate one.
                         .loginPage(properties.frontendUrl()))
                 // An API request without a valid token gets an error response, not a redirect to a sign-in page.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .build();
+    }
+
+    /**
+     * Stream URLs are handed to audio elements, which can't send an {@code Authorization} header, so they carry a
+     * stream token for the one track instead, as RFC 6750's {@code access_token} parameter. Comes before the API's
+     * chain, which would refuse them.
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain streamFilterChain(
+            final HttpSecurity http,
+            final RSAKey signingKey,
+            final AuthenticationEntryPoint authenticationEntryPoint,
+            final AccessDeniedHandler accessDeniedHandler)
+            throws JOSEException {
+        final var tokenResolver = new DefaultBearerTokenResolver();
+        tokenResolver.setAllowUriQueryParameter(true);
+        final var streamTokenDecoder =
+                NimbusJwtDecoder.withPublicKey(signingKey.toRSAPublicKey()).build();
+        streamTokenDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(StreamTokenService.ISSUER));
+        return http.securityMatcher(TRACK_STREAM)
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(requests -> requests.dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, TRACK_STREAM)
+                        .access(new StreamAccessManager("trackId"))
+                        .anyRequest()
+                        .denyAll())
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .bearerTokenResolver(tokenResolver)
+                        .jwt(jwt -> jwt.decoder(streamTokenDecoder))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
