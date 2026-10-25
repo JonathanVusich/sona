@@ -13,6 +13,9 @@ import org.sona.exception.InvalidFormatException;
 final class Spectrum {
 
     static final int LINES = FrameHeader.GRANULE_SIZE;
+    // The filterbank's 32 subbands each hold 18 lines.
+    static final int SUBBANDS = 32;
+    static final int SUBBAND_LINES = 18;
 
     // The global gain of 210 leaves a value unscaled.
     private static final int GAIN_OFFSET = 210;
@@ -28,9 +31,9 @@ final class Spectrum {
     private final double[] lines = new double[LINES];
     // What each line's value is multiplied by: 2 to the power of a quarter of its gain, less its scale factor.
     private final double[] scales = new double[LINES];
+    // One short band's lines as they're reordered.
+    private final double[] reorderBuffer = new double[LINES];
     private int nonZeroEnd;
-    // How many of the channel's values' bits have been read.
-    private int bitsRead;
 
     /**
      * Reads the granule's values for the channel, which follow its scale factors, and the bits after them that its
@@ -47,18 +50,21 @@ final class Spectrum {
             throw new InvalidFormatException("MP3 granule's scale factors run past its part2_3_length!");
         }
         computeScales(header, granuleChannel, scaleFactors);
-        bitsRead = 0;
-        final var bigValuesEnd = readBigValues(bits, header, granuleChannel);
-        if (bitsRead > part3Length) {
+        final var bigValuesEnd = Math.min(2 * granuleChannel.bigValues(), LINES);
+        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd);
+        if (bigValueBits > part3Length) {
             throw new InvalidFormatException("MP3 granule's big values run past its part2_3_length!");
         }
-        nonZeroEnd = readCount1(bits, granuleChannel.count1Code(), bigValuesEnd, part3Length);
+        nonZeroEnd = readCount1(bits, granuleChannel.count1Code(), bigValuesEnd, part3Length - bigValueBits);
         Arrays.fill(lines, nonZeroEnd, LINES, 0);
-        skipBits(bits, part3Length - bitsRead);
     }
 
     double line(final int index) {
         return lines[index];
+    }
+
+    void setLine(final int index, final double value) {
+        lines[index] = value;
     }
 
     /**
@@ -66,6 +72,63 @@ final class Spectrum {
      */
     int nonZeroEnd() {
         return nonZeroEnd;
+    }
+
+    /**
+     * @param end the line after the last one that may not be 0, such as after stereo processing spreads one channel's
+     *     lines to the other
+     */
+    void setNonZeroEnd(final int end) {
+        nonZeroEnd = end;
+    }
+
+    /**
+     * Reorders a short or mixed block's short bands from the order they're coded in, each window's lines in turn, to
+     * the order the IMDCT takes them in: each line's three windows in turn (ISO/IEC 11172-3 section 2.4.3.4.8).
+     */
+    void reorderShortBands(final FrameHeader header, final Windowing windowing) {
+        final var layout = windowing.layout();
+        if (layout == BlockLayout.LONG) {
+            return;
+        }
+        final var bands = ScaleFactorBands.fromSampleRate(header.sampleRate());
+        final var firstBand = firstShortBand(layout);
+        var start = Windowing.WINDOWS * bands.shortBandStart(firstBand);
+        for (var band = firstBand; band < ScaleFactorBands.SHORT_BANDS; band++) {
+            final var width = bands.shortBandWidth(band);
+            for (var line = 0; line < width; line++) {
+                for (var window = 0; window < Windowing.WINDOWS; window++) {
+                    reorderBuffer[Windowing.WINDOWS * line + window] = lines[start + window * width + line];
+                }
+            }
+            System.arraycopy(reorderBuffer, 0, lines, start, Windowing.WINDOWS * width);
+            start += Windowing.WINDOWS * width;
+        }
+        // Lines move up from the windows above, so any may now not be 0.
+        nonZeroEnd = LINES;
+    }
+
+    /**
+     * Undoes the aliasing the encoder's filterbank put between neighbouring subbands, with butterflies across each
+     * boundary of the long blocks' subbands (ISO/IEC 11172-3 section 2.4.3.4.9).
+     */
+    void reduceAliasing(final Windowing windowing) {
+        final var boundaries = switch (windowing.layout()) {
+            case LONG -> SUBBANDS - 1;
+            case MIXED -> 1;
+            case SHORT -> 0;
+        };
+        for (var boundary = 1; boundary <= boundaries; boundary++) {
+            final var first = SUBBAND_LINES * boundary;
+            for (var butterfly = 0; butterfly < AliasCoefficients.COUNT; butterfly++) {
+                final var below = lines[first - 1 - butterfly];
+                final var above = lines[first + butterfly];
+                final var cs = AliasCoefficients.cs(butterfly);
+                final var ca = AliasCoefficients.ca(butterfly);
+                lines[first - 1 - butterfly] = below * cs - above * ca;
+                lines[first + butterfly] = above * cs + below * ca;
+            }
+        }
     }
 
     private void computeScales(
@@ -129,11 +192,15 @@ final class Spectrum {
         };
     }
 
-    // The big values come in up to three regions, each coded with its own table.
-    private int readBigValues(final BitInputStream bits, final FrameHeader header, final GranuleChannel granuleChannel)
+    /**
+     * Reads the big values, which come in up to three regions, each coded with its own table.
+     *
+     * @return how many bits they take
+     */
+    private int readBigValues(
+            final BitInputStream bits, final FrameHeader header, final GranuleChannel granuleChannel, final int end)
             throws IOException, InvalidFormatException {
         final var bands = ScaleFactorBands.fromSampleRate(header.sampleRate());
-        final var end = Math.min(2 * granuleChannel.bigValues(), LINES);
         return switch (granuleChannel.windowing()) {
             case Windowing.Normal normal -> readNormalRegions(bits, bands, normal, end);
             case Windowing.Switched switched -> readSwitchedRegions(bits, bands, switched, end);
@@ -148,10 +215,9 @@ final class Spectrum {
         final var region2Band =
                 Math.min(normal.region0Count() + normal.region1Count() + 2, ScaleFactorBands.LONG_BANDS);
         final var region2 = Math.max(Math.min(bands.longBandStart(region2Band), end), region1);
-        readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1);
-        readRegion(bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2);
-        readRegion(bits, HuffmanTables.bigValueTable(normal.table2()), region2, end);
-        return end;
+        return readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1)
+                + readRegion(bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2)
+                + readRegion(bits, HuffmanTables.bigValueTable(normal.table2()), region2, end);
     }
 
     // The first region takes 8 long bands, or 3 short bands of three windows, and the second takes the rest.
@@ -163,54 +229,62 @@ final class Spectrum {
             case NORMAL, START, STOP -> bands.longBandStart(8);
         };
         final var region1 = Math.min(region1Start, end);
-        readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1);
-        readRegion(bits, HuffmanTables.bigValueTable(switched.table1()), region1, end);
-        return end;
+        return readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1)
+                + readRegion(bits, HuffmanTables.bigValueTable(switched.table1()), region1, end);
     }
 
     // Each codeword codes a pair of values, x and y.
-    private void readRegion(final BitInputStream bits, final BigValueTable table, final int start, final int end)
+    private int readRegion(final BitInputStream bits, final BigValueTable table, final int start, final int end)
             throws IOException {
+        var bitsRead = 0;
         for (var line = start; line < end; line += 2) {
             final var pair = table.code().readValue(bits);
-            bitsRead += table.code().codeLength(pair);
-            lines[line] = readValue(bits, table, pair / table.size(), line);
-            lines[line + 1] = readValue(bits, table, pair % table.size(), line + 1);
+            bitsRead += table.code().codeLength(pair)
+                    + readValue(bits, table, pair / table.size(), line)
+                    + readValue(bits, table, pair % table.size(), line + 1);
         }
+        return bitsRead;
     }
 
     // A value of 15 in a table with linbits is followed by that many bits to add to it, and a value that isn't 0 by its
-    // sign.
-    private double readValue(final BitInputStream bits, final BigValueTable table, final int magnitude, final int line)
+    // sign. Returns how many bits those take.
+    private int readValue(final BitInputStream bits, final BigValueTable table, final int magnitude, final int line)
             throws IOException {
         if (magnitude == 0) {
+            lines[line] = 0;
             return 0;
         }
         var value = magnitude;
+        var linbits = 0;
         if (magnitude == LINBITS_VALUE && table.linbits() > 0) {
-            value += (int) bits.readBits(table.linbits());
-            bitsRead += table.linbits();
+            linbits = table.linbits();
+            value += (int) bits.readBits(linbits);
         }
-        return signed(bits, POW_4_3[value] * scales[line]);
+        lines[line] = signed(bits, POW_4_3[value] * scales[line]);
+        return linbits + 1;
     }
 
     // Count1 values come four at a time, each 0 or 1 with a sign bit for each 1, until the channel's bits run out. Some
-    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread.
-    private int readCount1(final BitInputStream bits, final HuffmanCode code, final int start, final int part3Length)
+    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread. The channel's bits
+    // may end with some its values don't use, which are skipped, so the next channel's bits start where they're read.
+    private int readCount1(final BitInputStream bits, final HuffmanCode code, final int start, final int available)
             throws IOException {
         var line = start;
-        while (line + QUAD <= LINES && bitsRead < part3Length) {
+        var left = available;
+        while (line + QUAD <= LINES && left > 0) {
             final var quad = code.peekValue(bits);
-            if (bitsRead + code.codeLength(quad) + Integer.bitCount(quad) > part3Length) {
-                return line;
+            final var quadBits = code.codeLength(quad) + Integer.bitCount(quad);
+            if (quadBits > left) {
+                break;
             }
             code.readValue(bits);
-            bitsRead += code.codeLength(quad);
             for (var value = 0; value < QUAD; value++) {
                 lines[line + value] = readCount1Value(bits, quad >> (QUAD - 1 - value) & 1, line + value);
             }
+            left -= quadBits;
             line += QUAD;
         }
+        skipBits(bits, left);
         return line;
     }
 
@@ -222,15 +296,13 @@ final class Spectrum {
     }
 
     // A sign bit of 1 is negative.
-    private double signed(final BitInputStream bits, final double value) throws IOException {
-        bitsRead++;
+    private static double signed(final BitInputStream bits, final double value) throws IOException {
         if (bits.readBits(1) == 1) {
             return -value;
         }
         return value;
     }
 
-    // A channel's bits may end with some its values don't use.
     private static void skipBits(final BitInputStream bits, final int count) throws IOException {
         for (var left = count; left > 0; left -= MAX_READ_BITS) {
             bits.readBits(Math.min(left, MAX_READ_BITS));
