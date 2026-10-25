@@ -38,7 +38,8 @@ class Mp3StreamInfoTest {
         final var streamInfo = readStreamInfo(bytes, MONO_VBR_TAG_SIZE, bytes.length - ID3V1_SIZE);
 
         // The Xing header's frame takes 182 bytes.
-        assertThat(streamInfo).isEqualTo(new Mp3StreamInfo(MONO_VBR_TAG_SIZE + 182, 22050, 1, 576, 41, 576, 990));
+        assertThat(streamInfo)
+                .isEqualTo(new Mp3StreamInfo(MONO_VBR_TAG_SIZE + 182, 22050, 1, 576, 41, true, 576, 990, 0));
         assertThat(streamInfo.duration()).isEqualTo(Duration.ofSeconds(1));
     }
 

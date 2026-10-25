@@ -2,7 +2,9 @@ package org.sona.samples;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.SeekableByteChannel;
+import java.util.zip.GZIPInputStream;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 /**
@@ -10,6 +12,10 @@ import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
  * at hand writes. The derived ones were written by a one-off script, to the byte layouts in the ID3v2 and MPEG audio
  * specs, and FFmpeg reads back the tags and frames it can (ID3v2.2, and ID3v2.4's compressed and unsynchronised
  * frames).
+ *
+ * <p>Then the Layer III streams of the ISO/IEC 11172-4 conformance tests, as FFmpeg's test suite has them
+ * (fate-suite.ffmpeg.org/mp3-conformance), which cover what LAME never writes, and half-second files that FFmpeg 4.2
+ * encoded with LAME and shine from tones with sharp attacks, which LAME codes in short blocks.
  */
 public enum Mp3Sample {
     // 44.1 kHz joint stereo at 128 kbit/s, with an Info header and LAME tag, and an ID3v2.4 tag.
@@ -29,7 +35,34 @@ public enum Mp3Sample {
     COMPRESSED_ID3V24("compressed_id3v24.mp3"),
     // The same frames between an ID3v2.4 tag with a title and an artist, and an appended ID3v2.4 tag with a title,
     // followed by an ID3v1 tag with a title and an album.
-    APPENDED_ID3V24("appended_id3v24.mp3");
+    APPENDED_ID3V24("appended_id3v24.mp3"),
+    // The conformance streams. These have their reference decoder's output, which plays them from their first sample.
+    // MPEG-1 mono at 32 and 48 kHz, going through every bitrate from 32 to 320 kbit/s.
+    HE_32KHZ("he_32khz.mp3"),
+    HE_48KHZ("he_48khz.mp3"),
+    // MPEG-1 stereo at 44.1 kHz in free format, of about 120 kbit/s.
+    HE_FREE("he_free.mp3"),
+    // MPEG-1 stereo at 44.1 kHz and 128 kbit/s.
+    HECOMMON("hecommon.mp3"),
+    // MPEG-1 mono at 44.1 kHz and 64 kbit/s: side information of many kinds, block switching with every block type
+    // with and without the mixed block flag, and every Huffman table there is.
+    SI("si.mp3"),
+    SI_BLOCK("si_block.mp3"),
+    SI_HUFF("si_huff.mp3"),
+    // MPEG-1 at 44.1 kHz that goes from mono to dual channel, stereo, and joint stereo with every mode extension
+    // (intensity stereo among them, in long, short and mixed blocks), then back to mono. Its reference is FFmpeg's
+    // decoder's, each frame with its own channels: ISO's reference decoder splits intensity coded mixed blocks
+    // differently, and Sona decodes as FFmpeg does, as AcoustID's fpcalc decodes with it.
+    HE_MODE("he_mode.mp3"),
+    // Tones with sharp attacks, which LAME codes in short blocks, with mid/side stereo: MPEG-1 at 48 kHz and 192
+    // kbit/s, MPEG-2 at 22.05 kHz and 48 kbit/s, and MPEG-2.5 at 11.025 kHz and 32 kbit/s, each with an Info header and
+    // LAME tag. No encoder at hand writes MPEG-2's intensity stereo.
+    MPEG1_SHORT_BLOCKS("mpeg1_short_blocks.mp3"),
+    MPEG2_SHORT_BLOCKS("mpeg2_short_blocks.mp3"),
+    MPEG25_SHORT_BLOCKS("mpeg25_short_blocks.mp3"),
+    // Two tones in stereo at 32 kHz and 64 kbit/s, by shine, whose Info header FFmpeg follows with a LAME tag of no
+    // delay.
+    SHINE("shine.mp3");
 
     private final String fileName;
 
@@ -42,11 +75,17 @@ public enum Mp3Sample {
     }
 
     /**
-     * @return what FFmpeg 4.2 decodes the file to, as 16-bit little-endian samples with the channels interleaved, for
-     *     the samples that have it ({@code ffmpeg -i <file> -f s16le -acodec pcm_s16le <file>.pcm})
+     * @return what a reference decoder decodes the file to, as 16-bit little-endian samples with each frame's channels
+     *     interleaved, for the samples that have it: FFmpeg 4.2's ({@code ffmpeg -i <file> -f s16le <file>.pcm}), or a
+     *     conformance stream's own, gzipped
      */
-    public InputStream ffmpegPcm() {
-        return Mp3Sample.class.getResourceAsStream("mp3/" + fileName.replace(".mp3", ".pcm"));
+    public InputStream referencePcm() {
+        try {
+            return new GZIPInputStream(
+                    Mp3Sample.class.getResourceAsStream("mp3/" + fileName.replace(".mp3", ".pcm.gz")));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

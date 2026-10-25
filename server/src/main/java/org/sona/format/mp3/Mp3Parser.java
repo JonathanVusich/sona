@@ -183,8 +183,9 @@ public final class Mp3Parser implements Parser {
         frame.skipNBytes(frame.getRemaining());
         final var nextFrame = audioStart + header.frameLength();
         return switch (firstFrame) {
-            case VbrHeader vbrHeader -> streamInfo(header, nextFrame, vbrHeader);
-            case AudioFrame _ -> streamInfo(header, audioStart, countFrames(input, bits, header, nextFrame, audioEnd));
+            case VbrHeader vbrHeader -> streamInfo(header, nextFrame, vbrHeader, 0);
+            case AudioFrame _ ->
+                streamInfo(header, audioStart, countFrames(input, bits, header, nextFrame, audioEnd), 0);
         };
     }
 
@@ -201,9 +202,13 @@ public final class Mp3Parser implements Parser {
         input.skipNBytes(header.sideInfoSize());
         final var length =
                 findNextFrame(bits, streamBits, audioStart, audioEnd, FrameHeader.SIZE + header.sideInfoSize());
-        final var firstHeader = header.withFreeFormatLength(length - header.padding());
+        final var unpaddedLength = length - header.padding();
+        final var firstHeader = header.withFreeFormatLength(unpaddedLength);
         return streamInfo(
-                firstHeader, audioStart, countFrames(input, bits, firstHeader, audioStart + length, audioEnd));
+                firstHeader,
+                audioStart,
+                countFrames(input, bits, firstHeader, audioStart + length, audioEnd),
+                unpaddedLength);
     }
 
     // How far after the first frame's start the next one starts, looking a byte at a time from the given distance. A
@@ -228,15 +233,21 @@ public final class Mp3Parser implements Parser {
                 "Free-format MP3 frame at byte %d has no next frame to give its length!".formatted(audioStart));
     }
 
-    private Mp3StreamInfo streamInfo(final FrameHeader firstHeader, final long audioStart, final VbrHeader length) {
+    /**
+     * @param freeFormatLength how many bytes each frame of a free-format stream takes but for its padding, otherwise 0
+     */
+    private Mp3StreamInfo streamInfo(
+            final FrameHeader firstHeader, final long audioStart, final VbrHeader length, final int freeFormatLength) {
         return new Mp3StreamInfo(
                 audioStart,
                 firstHeader.sampleRate(),
                 firstHeader.channelCount(),
                 firstHeader.version().getSamplesPerFrame(),
                 length.frameCount(),
+                length.lameTag(),
                 length.encoderDelay(),
-                length.encoderPadding());
+                length.encoderPadding(),
+                freeFormatLength);
     }
 
     // The encoder's delay and padding are unknown without a VBR header, so they're counted as audio. Every frame must
@@ -261,10 +272,14 @@ public final class Mp3Parser implements Parser {
             input.skipNBytes(header.frameLength() - FrameHeader.SIZE);
             offset += header.frameLength();
         }
-        return new VbrHeader(frameCount, 0, 0);
+        return new VbrHeader(frameCount, false, 0, 0);
     }
 
-    private FrameHeader withLength(final FrameHeader header, final int unpaddedLength) {
+    /**
+     * @param unpaddedLength how many bytes each frame of the stream takes but for its padding, which only a free-format
+     *     frame's header needs given
+     */
+    FrameHeader withLength(final FrameHeader header, final int unpaddedLength) {
         if (header.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) {
             return header.withFreeFormatLength(unpaddedLength);
         }

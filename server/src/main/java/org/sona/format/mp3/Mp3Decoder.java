@@ -80,7 +80,9 @@ public final class Mp3Decoder implements PcmAudio {
     private final Imdct[] imdcts = {new Imdct(), new Imdct()};
     private final PolyphaseSynthesis[] syntheses = {new PolyphaseSynthesis(), new PolyphaseSynthesis()};
     private final int[][] samples;
-    private final PcmFrame pcmFrame;
+    // A stream may change between mono and stereo from frame to frame, and each frame is given with its own channels.
+    private final PcmFrame monoFrame;
+    private final PcmFrame stereoFrame;
     private boolean iterated;
     private long framesDecoded;
 
@@ -93,8 +95,9 @@ public final class Mp3Decoder implements PcmAudio {
         this.streamInfo = streamInfo;
         this.input = input;
         this.bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
-        this.samples = new int[streamInfo.channelCount()][streamInfo.samplesPerFrame()];
-        this.pcmFrame = new PcmFrame(samples);
+        this.samples = new int[MAX_CHANNELS][streamInfo.samplesPerFrame()];
+        this.monoFrame = new PcmFrame(new int[][] {samples[0]});
+        this.stereoFrame = new PcmFrame(samples);
     }
 
     public Mp3StreamInfo streamInfo() {
@@ -170,15 +173,12 @@ public final class Mp3Decoder implements PcmAudio {
     }
 
     /**
-     * @return the frame's 16-bit samples, in the frame the decoder rewrites for each frame it decodes
-     * @throws InvalidFormatException when the frame has more or fewer channels than the stream's first
+     * @return the frame's 16-bit samples, in the frame the decoder rewrites for each frame it decodes with as many
+     *     channels
      */
     private PcmFrame decodeFrame() throws IOException, InvalidFormatException {
         final var frame = readFrame();
         final var header = frame.header();
-        if (header.channelCount() != samples.length) {
-            throw new InvalidFormatException("MP3 frame changes the stream's channel count!");
-        }
         checkGranulesFit(frame);
         for (var granule = 0; granule < header.granuleCount(); granule++) {
             readSpectra(frame, granule);
@@ -197,6 +197,10 @@ public final class Mp3Decoder implements PcmAudio {
                 toSamples(channel, granule * FrameHeader.GRANULE_SIZE);
             }
         }
+        final var pcmFrame = switch (header.channelMode()) {
+            case MONO -> monoFrame;
+            case STEREO, JOINT_STEREO, DUAL_CHANNEL -> stereoFrame;
+        };
         pcmFrame.setRange(0, header.version().getSamplesPerFrame());
         return pcmFrame;
     }
@@ -243,11 +247,7 @@ public final class Mp3Decoder implements PcmAudio {
      * @return the next frame, whose main data must be read before the next frame is
      */
     Mp3Frame readFrame() throws IOException, InvalidFormatException {
-        final var header = parser.readAudioFrameHeader(bits);
-        // TODO: Decode free-format frames, whose length the stream gives rather than their headers.
-        if (header.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) {
-            throw new InvalidFormatException("Free-format MP3s can't be decoded yet!");
-        }
+        final var header = parser.withLength(parser.readAudioFrameHeader(bits), streamInfo.freeFormatLength());
         // The CRC isn't checked: a frame that fails it is still decoded, as other decoders do.
         input.skipNBytes(header.protection().crcSize());
         final var sideInfo = readSideInfo(header);

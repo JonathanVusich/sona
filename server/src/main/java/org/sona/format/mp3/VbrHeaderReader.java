@@ -88,12 +88,12 @@ final class VbrHeaderReader {
             final BoundedInputStream frame, final BitInputStream bits, final long frameCount) throws IOException {
         final var encoder = readId(frame, bits, 0);
         if (encoder != LAME && encoder != LAVF && encoder != LAVC) {
-            return new VbrHeader(frameCount, 0, 0);
+            return new VbrHeader(frameCount, false, 0, 0);
         }
         frame.skipNBytes(LAME_DELAY_OFFSET);
         final var delay = (int) bits.readBits(12);
         final var padding = (int) bits.readBits(12);
-        return new VbrHeader(frameCount, delay, padding);
+        return new VbrHeader(frameCount, true, delay, padding);
     }
 
     // In MPEG-1 stereo, the Xing header's place is VBRI's too, so the ID read there is VBRI's.
@@ -106,7 +106,7 @@ final class VbrHeaderReader {
             return new AudioFrame();
         }
         frame.skipNBytes(VBRI_FIELDS_SIZE);
-        return new VbrHeader(bits.readBits(32), 0, 0);
+        return new VbrHeader(bits.readBits(32), false, 0, 0);
     }
 
     private static long vbriId(
