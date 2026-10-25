@@ -245,6 +245,41 @@ class DefaultIngestionEngineTest {
             throws IOException, InvalidFormatException, InterruptedException {
         // The tags say A Whisper, but AcoustID knows the audio as another recording, which wins.
         final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+
+        processMatchingFingerprintClosely(ingest);
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        final var track = loadTrack(ingest);
+        assertThat(track.name()).isEqualTo("Lower Your Eyelids to Die With the Sun");
+        assertThat(track.position()).isEqualTo(15);
+        final var release = releaseDao
+                .loadByMusicBrainzId(UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"))
+                .orElseThrow();
+        assertThat(release.name()).isEqualTo("Before the Dawn Heals Us");
+        assertThat(artistDao.loadByMusicBrainzId(UUID.fromString("6d7b7cd4-254b-4c25-83f6-dd20f98ceacd")))
+                .hasValueSatisfying(artist -> assertThat(track.artistId()).isEqualTo(artist.artistId()));
+    }
+
+    // An MP3 is fingerprinted from its decoded audio as a FLAC is. This one has no tags, so only its fingerprint can
+    // find its recording.
+    @Test
+    void importTheRecordingAnMp3sFingerprintMatchesClosely()
+            throws IOException, InvalidFormatException, InterruptedException {
+        final byte[] mp3;
+        try (final var inputStream = Mp3Sample.HE_32KHZ.inputStream()) {
+            mp3 = inputStream.readAllBytes();
+        }
+        final var ingest = storeIngest(mp3, "he_32khz.mp3");
+
+        processMatchingFingerprintClosely(ingest);
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(loadTrack(ingest).name()).isEqualTo("Lower Your Eyelids to Die With the Sun");
+    }
+
+    // AcoustID matches any fingerprint closely with Lower Your Eyelids to Die With the Sun.
+    private void processMatchingFingerprintClosely(final TrackToIngest ingest)
+            throws IOException, InvalidFormatException, InterruptedException {
         final var stubId = UUID.randomUUID();
         // Above the stub in src/test/resources/wiremock/mappings that matches every fingerprint with nothing.
         musicBrainz.stubFor(post(urlPathEqualTo("/v2/lookup"))
@@ -259,17 +294,6 @@ class DefaultIngestionEngineTest {
             // The stub server is shared with other tests.
             musicBrainz.removeStubMapping(musicBrainz.getStubMapping(stubId).getItem());
         }
-
-        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
-        final var track = loadTrack(ingest);
-        assertThat(track.name()).isEqualTo("Lower Your Eyelids to Die With the Sun");
-        assertThat(track.position()).isEqualTo(15);
-        final var release = releaseDao
-                .loadByMusicBrainzId(UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"))
-                .orElseThrow();
-        assertThat(release.name()).isEqualTo("Before the Dawn Heals Us");
-        assertThat(artistDao.loadByMusicBrainzId(UUID.fromString("6d7b7cd4-254b-4c25-83f6-dd20f98ceacd")))
-                .hasValueSatisfying(artist -> assertThat(track.artistId()).isEqualTo(artist.artistId()));
     }
 
     @Test

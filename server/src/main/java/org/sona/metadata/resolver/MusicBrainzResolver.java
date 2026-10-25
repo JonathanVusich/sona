@@ -56,11 +56,6 @@ public final class MusicBrainzResolver implements MetadataResolver {
         return resolveFromTags(trackToIngest, metadata, matchedRecordingIds);
     }
 
-    @Override
-    public Optional<ResolvedTrack> resolveTrackByTags(final TrackToIngest trackToIngest, final RawMetadata metadata) {
-        return resolveFromTags(trackToIngest, metadata, Set.of());
-    }
-
     private List<LookupResult> lookUpFingerprint(final Fingerprint fingerprint, final Duration duration) {
         if (fingerprint.isEmpty()) {
             return List.of();
