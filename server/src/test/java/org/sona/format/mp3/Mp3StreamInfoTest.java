@@ -65,24 +65,36 @@ class Mp3StreamInfoTest {
         assertThat(streamInfo.duration()).isEqualTo(Duration.ofNanos(40 * 1152 * 1_000_000_000L / 44100));
     }
 
-    // The first frame takes 417 bytes, so the second starts there.
+    // The first frame takes 417 bytes, so the second starts there, and without its header it's skipped.
     @Test
-    void rejectsDataBetweenFrames() throws IOException {
+    void skipsWhatIsNotAFrame() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
         Arrays.fill(bytes, 417, 417 + FrameHeader.SIZE, (byte) 0);
 
-        assertThatThrownBy(() -> readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE))
-                .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("MP3 frame doesn't start with a frame sync!");
+        final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE);
+
+        assertThat(streamInfo.frameCount()).isEqualTo(39);
     }
 
     @Test
-    void rejectsFrameCutShort() throws IOException {
+    void findsFirstFrameAfterOtherBytes() throws IOException, InvalidFormatException {
+        final var frames = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var bytes = new byte[100 + frames.length];
+        System.arraycopy(frames, 0, bytes, 100, frames.length);
+
+        final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE);
+
+        assertThat(streamInfo.audioStart()).isEqualTo(100);
+        assertThat(streamInfo.frameCount()).isEqualTo(40);
+    }
+
+    @Test
+    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
 
-        assertThatThrownBy(() -> readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE - 200))
-                .isInstanceOf(InvalidFormatException.class)
-                .hasMessageEndingWith("is cut short!");
+        final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE - 200);
+
+        assertThat(streamInfo.frameCount()).isEqualTo(39);
     }
 
     @Test
@@ -91,7 +103,7 @@ class Mp3StreamInfoTest {
 
         assertThatThrownBy(() -> readStreamInfo(bytes, 0, bytes.length))
                 .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("MP3 frame doesn't start with a frame sync!");
+                .hasMessage("MP3 has no frames of audio!");
     }
 
     private static Mp3StreamInfo readStreamInfo(final byte[] bytes, final int audioStart, final int audioEnd)

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.stream.IntStream;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -81,9 +82,61 @@ class Mp3DecoderTest {
         assertThat(decode(Mp3Sample.FREE_FORMAT)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
     }
 
-    // Each frame's samples, with its own channels interleaved.
+    // The second frame starts at byte 417. Bytes between frames are skipped, as other decoders skip them.
+    @Test
+    void skipsWhatIsNotAFrame() throws IOException, InvalidFormatException {
+        final var frames = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var bytes = new byte[frames.length + 50];
+        System.arraycopy(frames, 0, bytes, 0, 417);
+        Arrays.fill(bytes, 417, 467, (byte) 0xFF);
+        System.arraycopy(frames, 417, bytes, 467, frames.length - 417);
+
+        assertThat(decode(bytes)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
+    }
+
+    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short, so it's left out.
+    @Test
+    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
+        final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var whole = decode(Mp3Sample.NO_XING_ID3V1);
+
+        final var decoded = decode(Arrays.copyOf(bytes, bytes.length - 200));
+
+        assertThat(decoded).containsExactly(Arrays.copyOf(whole, whole.length - FRAME_SAMPLES));
+    }
+
+    // A stream cut from a longer one may start with frames whose main data starts in the frames that were cut off,
+    // which are played as silence. The second frame starts at byte 417.
+    @Test
+    void playsFramesWhoseMainDataIsMissingAsSilence() throws IOException, InvalidFormatException {
+        final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var whole = decode(Mp3Sample.NO_XING_ID3V1);
+
+        final var decoded = decode(Arrays.copyOfRange(bytes, 417, bytes.length));
+
+        assertThat(decoded).hasSize(whole.length - FRAME_SAMPLES);
+        assertThat(Arrays.copyOf(decoded, FRAME_SAMPLES)).containsOnly(0);
+    }
+
+    // The Info header counts the frames the file had before it was cut short, so the decoder stops at its end.
+    @Test
+    void stopsAtTheEndOfAStreamCutShort() throws IOException, InvalidFormatException {
+        final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
+        final var whole = decode(Mp3Sample.STEREO_CBR_ID3V24);
+
+        final var decoded = decode(Arrays.copyOf(bytes, bytes.length - 2000));
+
+        assertThat(decoded.length).isLessThan(whole.length);
+        assertThat(decoded).containsExactly(Arrays.copyOf(whole, decoded.length));
+    }
+
     private static int[] decode(final Mp3Sample sample) throws IOException, InvalidFormatException {
-        try (final var channel = sample.channel()) {
+        return decode(sampleBytes(sample));
+    }
+
+    // Each frame's samples, with its own channels interleaved.
+    private static int[] decode(final byte[] bytes) throws IOException, InvalidFormatException {
+        try (final var channel = new SeekableInMemoryByteChannel(bytes)) {
             final var samples = IntStream.builder();
             for (final PcmFrame frame : new Mp3Parser().parse(channel).audio()) {
                 for (var index = 0; index < frame.sampleCount(); index++) {
@@ -93,6 +146,12 @@ class Mp3DecoderTest {
                 }
             }
             return samples.build().toArray();
+        }
+    }
+
+    private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {
+        try (final var inputStream = sample.inputStream()) {
+            return inputStream.readAllBytes();
         }
     }
 
