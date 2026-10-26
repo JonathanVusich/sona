@@ -16,12 +16,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.sona.mappers.ArtistMapper;
+import org.jooq.Records;
 import org.sona.mappers.PlayMapper;
-import org.sona.mappers.PlayedTrackMapper;
-import org.sona.mappers.PlaylistEntryMapper;
-import org.sona.mappers.ReleaseMapper;
-import org.sona.mappers.TrackMapper;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Play;
 import org.springframework.stereotype.Component;
@@ -37,11 +33,6 @@ public class PlayDao {
 
     private final DSLContext dsl;
     private final PlayMapper playMapper;
-    private final TrackMapper trackMapper;
-    private final ArtistMapper artistMapper;
-    private final ReleaseMapper releaseMapper;
-    private final PlaylistEntryMapper entryMapper;
-    private final PlayedTrackMapper playedTrackMapper;
 
     /**
      * Records that the user played the track just now.
@@ -80,10 +71,15 @@ public class PlayDao {
 
     private List<PlayedTrack> loadPage(final Condition plays, final int size) {
         return dsl.select(
-                        PLAY.convertFrom(playMapper::fromRecord),
-                        TRACK.convertFrom(trackMapper::fromRecord),
-                        ARTIST.convertFrom(artistMapper::fromRecord),
-                        RELEASE.convertFrom(releaseMapper::fromRecord))
+                        PLAY.PLAY_ID,
+                        TRACK.TRACK_ID,
+                        TRACK.NAME,
+                        TRACK.DURATION,
+                        TRACK.POSITION,
+                        ARTIST.ARTIST_ID,
+                        ARTIST.NAME,
+                        RELEASE.RELEASE_ID,
+                        RELEASE.NAME)
                 .from(PLAY)
                 .join(TRACK)
                 .on(TRACK.TRACK_ID.eq(PLAY.TRACK_ID))
@@ -96,7 +92,6 @@ public class PlayDao {
                 .where(plays)
                 .orderBy(PLAY.PLAY_ID.desc())
                 .limit(size)
-                .fetch(row -> playedTrackMapper.fromPojos(
-                        row.value1(), entryMapper.fromPojos(row.value2(), row.value3(), row.value4())));
+                .fetch(Records.mapping(PlayedTrack::new));
     }
 }

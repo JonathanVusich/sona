@@ -261,8 +261,9 @@ testing*): run them rather than formatting by hand. The conventions below are co
 **Database**
 - Use jOOQ's typed DSL with generated `Tables.*` constants; keep queries in `db/` DAOs.
 - Map between jOOQ records and pojos with MapStruct (`@Mapper(componentModel = "spring")`), and build API responses
-  from pojos with MapStruct too. DAOs return their table's pojos, not per-caller column picks (`Records.mapping`,
-  `fetchInto`).
+  from them with MapStruct too. A DAO returns a table's pojo when the caller needs the row (`loadById`, `upsert`). A read
+  that only shows part of a row, above all a list or a page, **selects just the columns it shows** and never a whole
+  row it then drops most of: see the next rule. Don't use `fetchInto`.
 - One DAO per feature: a feature's tables, and the joined reads of the pages that show it, share one DAO named for
   the feature (`PlaylistDao` writes `playlist` and `playlist_track`, and reads the playlists list and a playlist's
   page). Don't split them into a DAO per table and a DAO per composite read.
@@ -275,10 +276,12 @@ testing*): run them rather than formatting by hand. The conventions below are co
   results together in Java. Secondary sections and menus (a release's **More by** and **Other editions**) load after
   it, from the endpoints that already serve that data (the artist's, the release group's), rather than slowing the
   page's own query. The tests enforce one query per read (`SingleQueryListener`).
-- Only a table's own mapper sees its jOOQ records. A composite read converts every table it selects to its pojo as
-  it's read (`RELEASE.convertFrom(releaseMapper::fromRecord)`, and `multiset(...).convertFrom(rows -> rows.map(...))`
-  for lists), and its composite mappers build their results from pojos only (`fromPojos(Medium medium,
-  List<TrackWithArtist> tracks)`).
+- Only a table's own mapper sees its jOOQ records. A read that needs whole rows converts each table it selects to its
+  pojo as it's read (`RELEASE.convertFrom(releaseMapper::fromRecord)`, and `multiset(...).convertFrom(rows ->
+  rows.map(...))` for lists), and its composite mappers build their results from pojos only (`fromPojos(Medium medium,
+  List<TrackWithArtist> tracks)`). A read that shows only some columns selects exactly those, in the order of the
+  constructor of a record of its own in `db/`, and builds it with `Records.mapping(PlayedTrack::new)`; its response
+  comes from that record with MapStruct (`PlayResponseMapper`).
 - Ingestion loads each row a track needs, or resolves it from MusicBrainz and upserts it when it isn't stored, the same
   way for every kind of row (release, medium, artist).
 - Model relationships on the MusicBrainz database when in doubt (a track is on a medium of a release, and has its

@@ -74,6 +74,6 @@ public class PlayController {
             // The response marks the last page with a null next.
             return new PlayPageResponse(plays, null);
         }
-        return new PlayPageResponse(plays, page.getLast().play().playId());
+        return new PlayPageResponse(plays, page.getLast().playId());
     }
 }
