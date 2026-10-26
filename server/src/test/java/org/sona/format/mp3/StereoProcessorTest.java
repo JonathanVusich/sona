@@ -13,7 +13,6 @@ class StereoProcessorTest {
     // MPEG-1 joint stereo at 44.1 kHz, with mid/side or intensity stereo.
     private static final String MID_SIDE_HEADER = "FFFB9060";
     private static final String INTENSITY_HEADER = "FFFB9050";
-    private static final int MPEG_1_INTENSITY_LIMIT = 7;
     private static final int LONG_FACTORS = 21;
     private static final int LAST_BAND = 20;
 
@@ -86,16 +85,12 @@ class StereoProcessorTest {
         return new double[] {left.line(line), right.line(line)};
     }
 
-    // The right channel is a long block, whose scale factors are the intensity positions, each limited at MPEG-1's 7.
+    // The right channel is a long block, whose scale factors are the intensity positions.
     private void processStereo(final String header, final Spectrum left, final Spectrum right, final int[] positions)
             throws IOException, InvalidFormatException {
         final var factors = new int[ScaleFactors.SIZE];
-        final var intensityLimits = new int[ScaleFactors.SIZE];
-        for (var band = 0; band < positions.length; band++) {
-            factors[band] = positions[band];
-            intensityLimits[band] = MPEG_1_INTENSITY_LIMIT;
-        }
-        final var rightFactors = new ScaleFactors(factors, intensityLimits, 0);
+        System.arraycopy(positions, 0, factors, 0, positions.length);
+        final var rightFactors = new ScaleFactors(factors, 0);
 
         processor.processStereo(Mp3Fixtures.header(header), left, right, Mp3Fixtures.longChannel(), rightFactors);
     }

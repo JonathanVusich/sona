@@ -56,10 +56,17 @@ public enum Mp3Sample {
     HE_MODE("he_mode.mp3"),
     // Tones with sharp attacks, which LAME codes in short blocks, with mid/side stereo: MPEG-1 at 48 kHz and 192
     // kbit/s, MPEG-2 at 22.05 kHz and 48 kbit/s, and MPEG-2.5 at 11.025 kHz and 32 kbit/s, each with an Info header and
-    // LAME tag. No encoder at hand writes MPEG-2's intensity stereo.
+    // LAME tag.
     MPEG1_SHORT_BLOCKS("mpeg1_short_blocks.mp3"),
     MPEG2_SHORT_BLOCKS("mpeg2_short_blocks.mp3"),
     MPEG25_SHORT_BLOCKS("mpeg25_short_blocks.mp3"),
+    // MPEG-2's intensity stereo, which no encoder at hand writes, so a one-off script wrote it to the bitstream syntax
+    // of ISO/IEC 13818-3: 60 frames of joint stereo at 24 kHz and 48 kbit/s, in intensity stereo alone or with mid/side
+    // stereo, in long, start, short, stop and mixed blocks, with both intensity scales. Each frame's values are random
+    // 0s and 1s, coded with count1 table B: the left channel's up to a line that changes from frame to frame, and the
+    // right channel's only in its lowest lines, so its intensity positions, of 3, 2 and 1 bits, place the rest. FFmpeg
+    // decodes it as it decodes any other stream, which is its reference.
+    MPEG2_INTENSITY_STEREO("mpeg2_intensity_stereo.mp3"),
     // Two tones in stereo at 32 kHz and 64 kbit/s, by shine, whose Info header FFmpeg follows with a LAME tag of no
     // delay.
     SHINE("shine.mp3");

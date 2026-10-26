@@ -67,8 +67,7 @@ final class StereoProcessor {
                     bands.longBandStart(band),
                     bands.longBandWidth(band),
                     rightPart(band, lastCodedBand),
-                    rightFactors.longFactor(positionBand),
-                    rightFactors.longIntensityLimit(positionBand));
+                    rightFactors.longFactor(positionBand));
         }
     }
 
@@ -95,8 +94,7 @@ final class StereoProcessor {
                         shortLineStart(bands, band, window),
                         bands.shortBandWidth(band),
                         rightPart(band, lastCodedBand),
-                        rightFactors.shortFactor(positionBand, window),
-                        rightFactors.shortIntensityLimit(positionBand, window));
+                        rightFactors.shortFactor(positionBand, window));
             }
         }
         return coded;
@@ -112,9 +110,8 @@ final class StereoProcessor {
             final int start,
             final int width,
             final RightPart rightPart,
-            final int position,
-            final int limit) {
-        if (rightPart == RightPart.ZERO && position < limit) {
+            final int position) {
+        if (rightPart == RightPart.ZERO && position < IntensityRatios.positionLimit(header.version())) {
             final var compress = rightChannel.scalefacCompress();
             final var leftRatio = IntensityRatios.leftRatio(header.version(), compress, position);
             final var rightRatio = IntensityRatios.rightRatio(header.version(), compress, position);

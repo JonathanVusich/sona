@@ -62,6 +62,7 @@ class Mp3DecoderTest {
                 "MPEG1_SHORT_BLOCKS",
                 "MPEG2_SHORT_BLOCKS",
                 "MPEG25_SHORT_BLOCKS",
+                "MPEG2_INTENSITY_STEREO",
                 "SHINE"
             })
     void decodesAsReferenceDecoderDoes(final Mp3Sample sample) throws IOException, InvalidFormatException {
