@@ -277,7 +277,8 @@ public final class Mp3Decoder implements PcmAudio {
             reservoir.restart(input, header);
             return false;
         }
-        decodeGranules(reservoir.readMainData(input, header, sideInfo));
+        final var frame = reservoir.readMainData(input, header, sideInfo);
+        reservoir.keepAfterGranules(frame, decodeGranules(frame));
         return true;
     }
 
@@ -285,8 +286,10 @@ public final class Mp3Decoder implements PcmAudio {
      * Decodes the frame's granules, each channel's from where its bits start, so one channel's bits running out leaves
      * the next where it starts, as FFmpeg reads them. A granule whose bits start before the stream's main data, as when
      * a stream is cut from a longer one, is decoded as silence, as FFmpeg drops it.
+     *
+     * @return how many bits the granules take
      */
-    private void decodeGranules(final Mp3Frame frame) throws IOException {
+    private int decodeGranules(final Mp3Frame frame) throws IOException {
         final var header = frame.header();
         final var sideInfo = frame.sideInfo();
         var offset = 0;
@@ -309,6 +312,7 @@ public final class Mp3Decoder implements PcmAudio {
                 toSamples(channel, granule * FrameHeader.GRANULE_SIZE, FrameHeader.GRANULE_SIZE);
             }
         }
+        return offset;
     }
 
     // Each channel's bits start with its scale factors, and its values follow, until its part2_3_length is used up.

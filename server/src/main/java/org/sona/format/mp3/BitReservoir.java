@@ -15,15 +15,15 @@ import org.apache.commons.io.IOUtils;
  */
 final class BitReservoir {
 
-    // The furthest back main_data_begin can reach, in its nine bits.
-    private static final int MAX_MAIN_DATA_BEGIN = 511;
+    // The most of a frame's main data FFmpeg keeps for the next frame, and of what it kept before that.
+    private static final int BACKSTEP = 512;
     // The most main data a frame can hold: a free-format MPEG-2.5 frame at 640 kbit/s and 8 kHz.
     private static final int MAX_MAIN_DATA_SIZE = 72 * 640_000 / 8000 + 1;
     // Zeros after the main data, as FFmpeg's buffers have, which a granule's channel reads when its part2_3_length runs
     // past the main data: up to its 4095 bits, and the 19 a Huffman code is looked up by peeking.
     private static final int PADDING = (4095 + 19) / Byte.SIZE + 1;
 
-    private final byte[] bytes = new byte[MAX_MAIN_DATA_BEGIN + MAX_MAIN_DATA_SIZE + PADDING];
+    private final byte[] bytes = new byte[2 * BACKSTEP + MAX_MAIN_DATA_SIZE + PADDING];
     private int size;
 
     /**
@@ -36,7 +36,6 @@ final class BitReservoir {
      */
     Mp3Frame readMainData(final InputStream input, final FrameHeader header, final SideInfo sideInfo)
             throws IOException {
-        keepLastBytes();
         final var granulesStart = size - sideInfo.mainDataBegin();
         IOUtils.readFully(input, bytes, size, header.mainDataSize());
         size += header.mainDataSize();
@@ -45,15 +44,44 @@ final class BitReservoir {
     }
 
     /**
-     * Starts the reservoir again with a frame's main data alone, for a frame FFmpeg drops, which keeps only the end of
-     * that frame for the frames after it.
+     * Starts the reservoir again with the end of a frame's main data alone, for a frame FFmpeg drops, which keeps only
+     * the last 512 bytes of that frame for the frames after it.
      *
      * @param input the frame's stream, at its main data
      */
     void restart(final InputStream input, final FrameHeader header) throws IOException {
-        size = 0;
         IOUtils.readFully(input, bytes, 0, header.mainDataSize());
         size = header.mainDataSize();
+        keepLast(BACKSTEP);
+    }
+
+    /**
+     * Keeps only the bytes after where the frame's granules end, as FFmpeg does, for the next frame to reach back into:
+     * the rest of the frames' main data before this frame's, up to 512 bytes, and the rest of this frame's, of which it
+     * keeps only the last 512 bytes when there are more, or when the granules run past it.
+     *
+     * @param granuleBits how many bits the frame's granules take, from where they start
+     */
+    void keepAfterGranules(final Mp3Frame frame, final int granuleBits) {
+        final var frameStart = size - frame.header().mainDataSize();
+        final var end = Math.max(frame.granulesStart() + Math.ceilDiv(granuleBits, Byte.SIZE), 0);
+        if (end > size || size - Math.max(end, frameStart) > BACKSTEP) {
+            keepLast(Math.min(BACKSTEP, frame.header().mainDataSize()));
+            return;
+        }
+        if (end >= frameStart) {
+            keepLast(size - end);
+            return;
+        }
+        // The old bytes FFmpeg keeps only when there are no more than 512 of them.
+        final var oldBytes = frameStart - end;
+        final var start = oldBytes <= BACKSTEP ? end : frameStart;
+        keepLast(size - start);
+    }
+
+    private void keepLast(final int count) {
+        System.arraycopy(bytes, size - count, bytes, 0, count);
+        size = count;
     }
 
     /**
@@ -70,12 +98,5 @@ final class BitReservoir {
             bits.readBits(skipped);
         }
         return bits;
-    }
-
-    // Only the last 511 bytes can be reached back to.
-    private void keepLastBytes() {
-        final var kept = Math.min(size, MAX_MAIN_DATA_BEGIN);
-        System.arraycopy(bytes, size - kept, bytes, 0, kept);
-        size = kept;
     }
 }

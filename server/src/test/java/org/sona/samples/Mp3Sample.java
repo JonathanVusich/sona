@@ -69,7 +69,38 @@ public enum Mp3Sample {
     MPEG2_INTENSITY_STEREO("mpeg2_intensity_stereo.mp3"),
     // Two tones in stereo at 32 kHz and 64 kbit/s, by shine, whose Info header FFmpeg follows with a LAME tag of no
     // delay.
-    SHINE("shine.mp3");
+    SHINE("shine.mp3"),
+    // Layers I and II, from the ISO/IEC 13818-4 conformance tests (standards.iso.org/ittf/PubliclyAvailableStandards),
+    // whose reference here is FFmpeg's decoder, as Sona decodes as it does. Those of MPEG-1 code more channels in an
+    // extension of their frames, which an MPEG-1 decoder skips, decoding the stereo they're compatible with.
+    // MPEG-1 Layer II stereo at 44.1 kHz and 384 kbit/s, with CRCs: allocation table B.2b.
+    ISO_TEST01("iso_test01.mp3"),
+    // MPEG-1 Layer II stereo at 48 kHz and 256 kbit/s, with CRCs: allocation table B.2a.
+    ISO_TEST04("iso_test04.mp3"),
+    // MPEG-1 Layer I stereo at 44.1 kHz and 384 kbit/s.
+    ISO_TEST22("iso_test22.mp3"),
+    // MPEG-2 Layer II at 16 kHz, in stereo and joint stereo with every bound.
+    ISO_TEST24("iso_test24.mp3"),
+    // MPEG-2 Layer II mono at 24 kHz.
+    ISO_TEST30("iso_test30.mp3"),
+    // MPEG-2 Layer II dual channel at 24 kHz.
+    ISO_TEST31("iso_test31.mp3"),
+    // MPEG-2 Layer I at 22.05 kHz, in stereo and joint stereo with every bound.
+    ISO_TEST33("iso_test33.mp3"),
+    // Half-second tones that FFmpeg 4.2 encoded in Layer II stereo at 64 kbit/s: at 44.1 kHz, allocation table B.2c,
+    // and at 32 kHz, table B.2d.
+    LAYER2_TABLE_C("layer2_table_c.mp3"),
+    LAYER2_TABLE_D("layer2_table_d.mp3"),
+    // Damaged files a one-off script made from the samples above, which FFmpeg decodes as it does.
+    // NO_XING_ID3V1 with 50 bytes of 0xA5 before its third frame, which FFmpeg's decoder drops, leaving the fourth
+    // without the main data it starts in.
+    JUNK_BETWEEN_FRAMES("junk_between_frames.mp3"),
+    // NO_XING_ID3V1 from its second frame, whose main data starts in the first.
+    CUT_AT_SECOND_FRAME("cut_at_second_frame.mp3"),
+    // NO_XING_ID3V1 without its last 200 bytes: its ID3v1 tag and the end of its last frame.
+    CUT_IN_LAST_FRAME("cut_in_last_frame.mp3"),
+    // STEREO_CBR_ID3V24 without its last 2000 bytes, so its Info header counts frames it doesn't have.
+    CUT_SHORT_OF_INFO_HEADER("cut_short_of_info_header.mp3");
 
     private final String fileName;
 

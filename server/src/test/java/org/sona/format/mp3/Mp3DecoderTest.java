@@ -24,11 +24,14 @@ class Mp3DecoderTest {
     // An MPEG-1 frame's samples, in stereo.
     private static final int FRAME_SAMPLES = 2 * 2 * FrameHeader.GRANULE_SIZE;
 
-    // Each frame's side information gives how long it is and where its main data starts, and each granule's channel
-    // starts with its scale factors, then its values, so every frame is only decoded whole, with no granule running
-    // past its main data, when the side information and scale factors are read right.
+    // Each frame's header gives how long it is, so every frame is only decoded when each is read right, and the samples
+    // add up to what the stream's VBR header or frames say. The file cut short of its Info header has fewer frames than
+    // the header counts.
     @ParameterizedTest
-    @EnumSource(Mp3Sample.class)
+    @EnumSource(
+            value = Mp3Sample.class,
+            names = {"CUT_SHORT_OF_INFO_HEADER"},
+            mode = EnumSource.Mode.EXCLUDE)
     void decodesEveryFrame(final Mp3Sample sample) throws IOException, InvalidFormatException {
         try (final var channel = sample.channel()) {
             final var audio = new Mp3Parser().parse(channel).audio();
@@ -63,7 +66,20 @@ class Mp3DecoderTest {
                 "MPEG2_SHORT_BLOCKS",
                 "MPEG25_SHORT_BLOCKS",
                 "MPEG2_INTENSITY_STEREO",
-                "SHINE"
+                "SHINE",
+                "ISO_TEST01",
+                "ISO_TEST04",
+                "ISO_TEST22",
+                "ISO_TEST24",
+                "ISO_TEST30",
+                "ISO_TEST31",
+                "ISO_TEST33",
+                "LAYER2_TABLE_C",
+                "LAYER2_TABLE_D",
+                "JUNK_BETWEEN_FRAMES",
+                "CUT_AT_SECOND_FRAME",
+                "CUT_IN_LAST_FRAME",
+                "CUT_SHORT_OF_INFO_HEADER"
             })
     void decodesAsReferenceDecoderDoes(final Mp3Sample sample) throws IOException, InvalidFormatException {
         final var reference = referenceSamples(sample);
