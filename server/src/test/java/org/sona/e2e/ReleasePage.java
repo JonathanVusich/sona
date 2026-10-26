@@ -64,6 +64,21 @@ public final class ReleasePage {
                 new Page.GetByRoleOptions().setName("Play " + trackName).setExact(true));
     }
 
+    public void openTrackMenu(final String trackName) {
+        track(trackName).hover();
+        page.getByRole(
+                        AriaRole.BUTTON,
+                        new Page.GetByRoleOptions()
+                                .setName("More for " + trackName)
+                                .setExact(true))
+                .click();
+    }
+
+    public Locator menuItem(final String name) {
+        return page.getByRole(
+                AriaRole.MENUITEM, new Page.GetByRoleOptions().setName(name).setExact(true));
+    }
+
     public Locator editionTitles() {
         return page.locator(".edition-title");
     }

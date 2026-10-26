@@ -35,3 +35,28 @@ export interface IngestGroupRequest {
   kind: IngestGroupKind;
   name: string;
 }
+
+export interface CreatePlaylistRequest {
+  name: string;
+  /** Null for none. */
+  description: string | null;
+  /** The tracks to start it with, in order, which may be none. */
+  trackIds: string[];
+}
+
+/** A playlist's new name and description. */
+export interface PlaylistDetailsRequest {
+  name: string;
+  /** Null for none. */
+  description: string | null;
+}
+
+export interface AddTracksRequest {
+  /** The tracks to add to the end of the playlist, in order; any already on it are skipped. */
+  trackIds: string[];
+}
+
+export interface MoveTrackRequest {
+  /** Where the track goes on the playlist, from 1. */
+  position: number;
+}

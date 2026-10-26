@@ -617,6 +617,11 @@ select {
   background: var(--surface-2);
 }
 
+/* The track whose place a playlist track being dragged would take. */
+.track-row.drop-target {
+  background: var(--accent-soft);
+}
+
 .track-play {
   display: grid;
   place-items: center;

@@ -20,7 +20,8 @@ export default function Toast() {
   // Always rendered so screen readers announce changes to it.
   return (
     <div class="toast" classList={{ visible: message() !== null }} role="status">
-      <Show when={message()}>{(shown) => shown()}</Show>
+      {/* Read in JSX, so a newer toast replaces the text of one still shown. */}
+      <Show when={message()}>{(shown) => <>{shown()}</>}</Show>
     </div>
   );
 }

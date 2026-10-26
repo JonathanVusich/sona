@@ -16,6 +16,5 @@ Data a page will show that its endpoint doesn't serve yet.
 
 | Gap | Until it's served |
 |---|---|
-| **Playlists.** Playlists are still mocked in the frontend, so their tracks have no files to stream. | A playlist's Play and Shuffle buttons are disabled and its tracks don't play, and the library's tracks can't be added to playlists. |
 | **An artist's tracks.** No endpoint serves every track of an artist. | The artist page's Shuffle button does nothing. |
 | **Release actions.** | The More buttons on the release and release group pages do nothing. |
