@@ -268,7 +268,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 resolved.title(),
                 Math.toIntExact(duration.toSeconds()),
                 format.toAudioFormat(),
-                library.libraryPath(releaseGroup, release, trackId, resolved.title(), format),
+                library.libraryPath(releaseGroup, release, trackId, resolved.title(), trackToIngest),
                 medium.mediumId(),
                 resolved.trackNumber(),
                 artist.artistId(),

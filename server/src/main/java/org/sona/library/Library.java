@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.util.UUID;
 import org.sona.exception.InvalidFormatException;
-import org.sona.format.Format;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
@@ -29,9 +28,11 @@ public interface Library {
     SeekableByteChannel readIngestTrack(TrackToIngest trackIngest) throws IOException;
 
     /**
+     * @param trackIngest the track's ingest, whose filename's extension the file keeps in the library
      * @return where a track lives in the library, relative to the media folder and '/'-separated
      */
-    String libraryPath(ReleaseGroup releaseGroup, Release release, UUID trackId, String trackName, Format format);
+    String libraryPath(
+            ReleaseGroup releaseGroup, Release release, UUID trackId, String trackName, TrackToIngest trackIngest);
 
     /**
      * Moves an ingested file to {@code libraryPath} (as returned by {@link #libraryPath}).
