@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
+import type { PlaylistDetailsRequest } from "../api/requests";
 import { ErrorCode, type PlaylistResponse, type PlaylistTrackResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
 import { CoverSize, Mosaic } from "../components/Cover";
@@ -27,7 +28,8 @@ const PlaylistAction = {
 type PlaylistAction = (typeof PlaylistAction)[keyof typeof PlaylistAction];
 
 // One of the user's playlists: its tracks in their order, which the user can play, remove and drag into a new order.
-// Each change is sent to Sona, and the playlist loaded again, except a move, which shows at once.
+// Each change shows at once and is sent to Sona; the playlist is only loaded again if Sona refuses one, as another
+// change may have been made since.
 export default function PlaylistDetail() {
   const params = useParams<{ id: string }>();
   const [result, { refetch, mutate }] = createResource(
@@ -41,12 +43,11 @@ export default function PlaylistDetail() {
     }
     return loaded.body;
   };
-  const reorder = (loaded: PlaylistResponse, tracks: PlaylistTrackResponse[]) =>
-    mutate({ kind: ResultKind.OK, body: { ...loaded, tracks } });
+  const update = (changed: PlaylistResponse) => mutate({ kind: ResultKind.OK, body: changed });
 
   return (
     <Show when={playlist()} fallback={<FailureMessage result={result()} />}>
-      {(loaded) => <PlaylistView playlist={loaded()} onChanged={() => refetch()} onReordered={reorder} />}
+      {(loaded) => <PlaylistView playlist={loaded()} onUpdated={update} onRefused={() => refetch()} />}
     </Show>
   );
 }
@@ -91,8 +92,8 @@ function refusalMessage(code: ErrorCode, reason: string): string {
 
 function PlaylistView(props: {
   playlist: PlaylistResponse;
-  onChanged: () => void;
-  onReordered: (playlist: PlaylistResponse, tracks: PlaylistTrackResponse[]) => void;
+  onUpdated: (playlist: PlaylistResponse) => void;
+  onRefused: () => void;
 }) {
   const navigate = useNavigate();
   const [action, setAction] = createSignal<PlaylistAction>(PlaylistAction.VIEWING);
@@ -108,27 +109,32 @@ function PlaylistView(props: {
     }
     navigate(AppRoutes.PLAYLISTS);
   };
+  const showTracks = (changed: PlaylistTrackResponse[]) => props.onUpdated({ ...props.playlist, tracks: changed });
+  const showDetails = (details: PlaylistDetailsRequest) => props.onUpdated({ ...props.playlist, ...details });
+  const reportRefusal = (result: ApiResult<void>) => {
+    if (result.kind !== ResultKind.OK) {
+      toast(result.reason);
+      props.onRefused();
+    }
+  };
   const removeTrack = async (track: PlaylistTrackResponse) => {
+    showTracks(tracks().filter((other) => other !== track));
     const result = await sendAsCurrentUser((accessToken) =>
       api.removePlaylistTrack(accessToken, playlistId(), track.trackId),
     );
-    reportFailure(result);
-    props.onChanged();
+    reportRefusal(result);
   };
   const moveTrack = async (track: PlaylistTrackResponse, position: number) => {
     const moved = movedTracks(tracks(), track, position);
     if (moved === null) {
       return;
     }
-    props.onReordered(props.playlist, moved);
+    showTracks(moved);
     const request = { position };
     const result = await sendAsCurrentUser((accessToken) =>
       api.movePlaylistTrack(accessToken, playlistId(), track.trackId, request),
     );
-    if (result.kind !== ResultKind.OK) {
-      toast(result.reason);
-      props.onChanged();
-    }
+    reportRefusal(result);
   };
 
   return (
@@ -156,7 +162,7 @@ function PlaylistView(props: {
                 <button
                   class="menu-item"
                   role="menuitem"
-                  onClick={() => openEditPlaylistDialog(props.playlist, props.onChanged)}
+                  onClick={() => openEditPlaylistDialog(props.playlist, showDetails)}
                 >
                   Edit details
                 </button>
@@ -196,12 +202,6 @@ function PlaylistView(props: {
       </PageBody>
     </>
   );
-}
-
-function reportFailure(result: ApiResult<void>) {
-  if (result.kind !== ResultKind.OK) {
-    toast(result.reason);
-  }
 }
 
 /**

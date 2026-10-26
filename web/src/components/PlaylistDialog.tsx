@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import * as api from "../api/client";
 import { ResultKind, type ApiResult } from "../api/client";
+import type { PlaylistDetailsRequest } from "../api/requests";
 import type { AddedTracksResponse, PlaylistResponse, PlaylistSummaryResponse } from "../api/responses";
 import { sendAsCurrentUser } from "../auth";
 import { failureReason, FormStatus, isBlank } from "../forms";
@@ -20,10 +21,10 @@ interface NewPlaylist {
   onCreated: (playlist: CreatedPlaylist) => void;
 }
 
-// Saving a playlist's details tells the page showing it to load it again.
+// Saving a playlist's details hands the saved details to the page showing it.
 interface EditedPlaylist {
   playlist: PlaylistResponse;
-  onSaved: () => void;
+  onSaved: (details: PlaylistDetailsRequest) => void;
 }
 
 // One dialog for the whole app, opened from anywhere: null while no playlist is being created or edited.
@@ -34,7 +35,7 @@ export function openNewPlaylistDialog(trackIds: string[], onCreated: (playlist: 
   setNewPlaylist({ trackIds, onCreated });
 }
 
-export function openEditPlaylistDialog(playlist: PlaylistResponse, onSaved: () => void) {
+export function openEditPlaylistDialog(playlist: PlaylistResponse, onSaved: (details: PlaylistDetailsRequest) => void) {
   setEditedPlaylist({ playlist, onSaved });
 }
 
@@ -112,7 +113,7 @@ function EditPlaylistForm(props: { edited: EditedPlaylist; onDone: () => void })
       setError(reason);
       return;
     }
-    props.edited.onSaved();
+    props.edited.onSaved(request);
     props.onDone();
   };
 
