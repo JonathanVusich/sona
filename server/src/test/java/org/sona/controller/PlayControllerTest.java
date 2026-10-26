@@ -12,8 +12,9 @@ import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
 import org.sona.controller.request.PlayRequest;
 import org.sona.controller.response.ArtistResponse;
+import org.sona.controller.response.PlayPageResponse;
+import org.sona.controller.response.PlayResponse;
 import org.sona.controller.response.PlaylistTrackResponse;
-import org.sona.controller.response.RecentPlaysResponse;
 import org.sona.controller.response.TrackReleaseResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestDao;
@@ -97,7 +98,7 @@ class PlayControllerTest {
     }
 
     @Test
-    void recentPlaysListTheLatestPlaysFirstAndAgainForATrackPlayedAgain() {
+    void playsListTheLatestPlaysFirstAndAgainForATrackPlayedAgain() {
         final var yellow = insertTrack("Yellow", 5, IngestState.COMPLETED);
         final var shiver = insertTrack("Shiver", 2, IngestState.COMPLETED);
 
@@ -105,11 +106,11 @@ class PlayControllerTest {
         recordPlay(alice, shiver);
         recordPlay(alice, yellow);
 
-        assertThat(recentPlays(alice)).containsExactly(entry(yellow), entry(shiver), entry(yellow));
+        assertThat(playedTracks(alice)).containsExactly(entry(yellow), entry(shiver), entry(yellow));
     }
 
     @Test
-    void recentPlaysAreLimitedToTheLatestTwenty() {
+    void aPageHoldsTwentyPlaysByDefaultAndPointsToTheNext() {
         final var yellow = insertTrack("Yellow", 5, IngestState.COMPLETED);
         final var shiver = insertTrack("Shiver", 2, IngestState.COMPLETED);
 
@@ -118,7 +119,44 @@ class PlayControllerTest {
             recordPlay(alice, shiver);
         }
 
-        assertThat(recentPlays(alice)).hasSize(20).containsOnly(entry(shiver));
+        final var page = loadPage(alice, ApiRoutes.PLAYS);
+        assertThat(page.plays()).hasSize(20);
+        assertThat(page.next()).isEqualTo(page.plays().getLast().playId());
+        assertThat(loadPage(alice, ApiRoutes.PLAYS + "?after=" + page.next()).plays())
+                .extracting(PlayResponse::track)
+                .containsExactly(entry(yellow));
+    }
+
+    @Test
+    void scrollingBackThroughThePlaysListsEachOnceUntilTheLastPage() {
+        final var tracks = List.of(
+                insertTrack("Yellow", 5, IngestState.COMPLETED),
+                insertTrack("Shiver", 2, IngestState.COMPLETED),
+                insertTrack("Sparks", 4, IngestState.COMPLETED));
+        for (final var track : List.of(tracks.get(0), tracks.get(1), tracks.get(2), tracks.get(0), tracks.get(1))) {
+            recordPlay(alice, track);
+        }
+        // Another user's plays in between don't take up room on Alice's pages.
+        recordPlay(bob, tracks.get(2));
+
+        final var first = loadPage(alice, ApiRoutes.PLAYS + "?limit=2");
+        final var second = loadPage(alice, ApiRoutes.PLAYS + "?limit=2&after=" + first.next());
+        final var third = loadPage(alice, ApiRoutes.PLAYS + "?limit=2&after=" + second.next());
+
+        assertThat(tracksOf(first)).containsExactly(entry(tracks.get(1)), entry(tracks.get(0)));
+        assertThat(tracksOf(second)).containsExactly(entry(tracks.get(2)), entry(tracks.get(1)));
+        assertThat(tracksOf(third)).containsExactly(entry(tracks.get(0)));
+        assertThat(third.next()).isNull();
+    }
+
+    @Test
+    void aPageHoldsAtMostOneHundredPlays() {
+        api.getWithToken(ApiRoutes.PLAYS + "?limit=101", alice)
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo(400);
     }
 
     @Test
@@ -129,13 +167,13 @@ class PlayControllerTest {
         recordPlay(alice, yellow);
         recordPlay(bob, shiver);
 
-        assertThat(recentPlays(alice)).containsExactly(entry(yellow));
-        assertThat(recentPlays(bob)).containsExactly(entry(shiver));
+        assertThat(playedTracks(alice)).containsExactly(entry(yellow));
+        assertThat(playedTracks(bob)).containsExactly(entry(shiver));
     }
 
     @Test
     void noPlaysListNothing() {
-        assertThat(recentPlays(alice)).isEmpty();
+        assertThat(playedTracks(alice)).isEmpty();
     }
 
     @Test
@@ -150,7 +188,7 @@ class PlayControllerTest {
                     .jsonPath("$.code")
                     .isEqualTo(306);
         }
-        assertThat(recentPlays(alice)).isEmpty();
+        assertThat(playedTracks(alice)).isEmpty();
     }
 
     @Test
@@ -169,18 +207,25 @@ class PlayControllerTest {
                 .isNoContent();
     }
 
-    private List<PlaylistTrackResponse> recentPlays(final String accessToken) {
-        return api.getWithToken(ApiRoutes.RECENT_PLAYS, accessToken)
+    private List<PlaylistTrackResponse> playedTracks(final String accessToken) {
+        return tracksOf(loadPage(accessToken, ApiRoutes.PLAYS));
+    }
+
+    private static List<PlaylistTrackResponse> tracksOf(final PlayPageResponse page) {
+        return page.plays().stream().map(PlayResponse::track).toList();
+    }
+
+    private PlayPageResponse loadPage(final String accessToken, final String path) {
+        return api.getWithToken(path, accessToken)
                 .expectStatus()
                 .isOk()
-                .expectBody(RecentPlaysResponse.class)
+                .expectBody(PlayPageResponse.class)
                 .returnResult()
-                .getResponseBody()
-                .tracks();
+                .getResponseBody();
     }
 
     /**
-     * @return how the recently played list shows a track of Parachutes
+     * @return how the play history lists a track of Parachutes
      */
     private PlaylistTrackResponse entry(final Track track) {
         return new PlaylistTrackResponse(

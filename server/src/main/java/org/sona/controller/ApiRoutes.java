@@ -69,8 +69,6 @@ public final class ApiRoutes {
      */
     public static final String PLAYS = API + "/plays";
 
-    public static final String RECENT_PLAYS = PLAYS + "/recent";
-
     public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**
      * Under the ID Sona gave the group when the uploader created it.

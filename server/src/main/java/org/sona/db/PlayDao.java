@@ -14,9 +14,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.sona.mappers.ArtistMapper;
 import org.sona.mappers.PlayMapper;
+import org.sona.mappers.PlayedTrackMapper;
 import org.sona.mappers.PlaylistEntryMapper;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.mappers.TrackMapper;
@@ -39,6 +41,7 @@ public class PlayDao {
     private final ArtistMapper artistMapper;
     private final ReleaseMapper releaseMapper;
     private final PlaylistEntryMapper entryMapper;
+    private final PlayedTrackMapper playedTrackMapper;
 
     /**
      * Records that the user played the track just now.
@@ -58,11 +61,26 @@ public class PlayDao {
     }
 
     /**
-     * @return the tracks the user played last, latest first, each once for every time it was played, with its artist
-     * and the release it's on
+     * @return up to {@code size} of the user's latest plays, latest first, each with its track, the track's artist and
+     * the release it's on
      */
-    public List<PlaylistEntry> loadRecentTracks(final UUID userId, final int limit) {
+    public List<PlayedTrack> loadFirstPage(final UUID userId, final int size) {
+        return loadPage(PLAY.USER_ID.eq(userId), size);
+    }
+
+    /**
+     * Play IDs are UUIDv7, so the plays after {@code after} in time are those with a smaller ID.
+     *
+     * @param after the last play of the page before
+     * @return up to {@code size} of the user's plays that came before {@code after}, latest first
+     */
+    public List<PlayedTrack> loadNextPage(final UUID userId, final UUID after, final int size) {
+        return loadPage(PLAY.USER_ID.eq(userId).and(PLAY.PLAY_ID.lt(after)), size);
+    }
+
+    private List<PlayedTrack> loadPage(final Condition plays, final int size) {
         return dsl.select(
+                        PLAY.convertFrom(playMapper::fromRecord),
                         TRACK.convertFrom(trackMapper::fromRecord),
                         ARTIST.convertFrom(artistMapper::fromRecord),
                         RELEASE.convertFrom(releaseMapper::fromRecord))
@@ -75,9 +93,10 @@ public class PlayDao {
                 .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
                 .join(RELEASE)
                 .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID))
-                .where(PLAY.USER_ID.eq(userId))
+                .where(plays)
                 .orderBy(PLAY.PLAY_ID.desc())
-                .limit(limit)
-                .fetch(entry -> entryMapper.fromPojos(entry.value1(), entry.value2(), entry.value3()));
+                .limit(size)
+                .fetch(row -> playedTrackMapper.fromPojos(
+                        row.value1(), entryMapper.fromPojos(row.value2(), row.value3(), row.value4())));
     }
 }
