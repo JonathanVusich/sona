@@ -1,16 +1,18 @@
 package org.sona.format.mp3;
 
 /**
- * The four-byte header of a Layer III frame (ISO/IEC 11172-3 section 2.4.1.3), which {@link Mp3Parser} reads.
+ * The four-byte header of an MPEG audio frame (ISO/IEC 11172-3 section 2.4.1.3), which {@link Mp3Parser} reads.
  *
  * @param protection whether a CRC follows the header
- * @param bitrate in bits per second, or {@link #FREE_FORMAT_BITRATE} for a free-format frame until its stream gives its
- *     length (see {@link #withFreeFormatLength})
- * @param padding 1 when the frame has an extra byte to keep the stream at its bitrate, otherwise 0
- * @param modeExtension in joint stereo, which stereo coding the frame uses: bit 1 for mid/side, bit 0 for intensity
+ * @param bitrate in bits per second, or {@link #FREE_FORMAT_BITRATE} for a free-format Layer III frame until its stream
+ *     gives its length (see {@link #withFreeFormatLength})
+ * @param padding 1 when the frame has an extra slot to keep the stream at its bitrate, otherwise 0
+ * @param modeExtension in joint stereo, which stereo coding the frame uses: in Layer III, bit 1 for mid/side and bit 0
+ *     for intensity, and in Layers I and II, the subband intensity stereo starts at
  */
 public record FrameHeader(
         MpegVersion version,
+        Layer layer,
         Protection protection,
         int bitrate,
         int sampleRate,
@@ -27,6 +29,9 @@ public record FrameHeader(
      */
     public static final int GRANULE_SIZE = 576;
 
+    // A Layer I frame's 384 samples take 12 slots of four bytes for each bit per sample of its bitrate.
+    private static final int LAYER_I_SLOTS = 12;
+    private static final int LAYER_I_SLOT_SIZE = 4;
     private static final int INTENSITY_STEREO = 0b01;
     private static final int MID_SIDE_STEREO = 0b10;
 
@@ -46,10 +51,25 @@ public record FrameHeader(
     }
 
     /**
-     * @return how many granules of 576 samples the frame holds: two in MPEG-1, and one in MPEG-2
+     * @return how many samples per channel the frame holds
+     */
+    public int samplesPerFrame() {
+        return switch (layer) {
+            case I -> 384;
+            case II -> 1152;
+            case III ->
+                switch (version) {
+                    case MPEG_1 -> 1152;
+                    case MPEG_2, MPEG_2_5 -> 576;
+                };
+        };
+    }
+
+    /**
+     * @return how many granules of 576 samples a Layer III frame holds: two in MPEG-1, and one in MPEG-2
      */
     public int granuleCount() {
-        return version.getSamplesPerFrame() / GRANULE_SIZE;
+        return samplesPerFrame() / GRANULE_SIZE;
     }
 
     /**
@@ -61,26 +81,31 @@ public record FrameHeader(
 
     /**
      * @param unpaddedLength how many bytes the stream's frames take without padding, header included
-     * @return this free-format frame's header, with the bitrate that gives that length
+     * @return this free-format Layer III frame's header, with the bitrate that gives that length
      */
     public FrameHeader withFreeFormatLength(final int unpaddedLength) {
         // frameLength is slotFactor * bitrate / sampleRate, rounded down. Rounding this bitrate up gives back exactly
         // the length, as the most it adds is slotFactor / sampleRate, which is less than a byte at every sample rate.
-        final var slotFactor = version.getSamplesPerFrame() / 8;
+        final var slotFactor = samplesPerFrame() / 8;
         final var scaledLength = (long) unpaddedLength * sampleRate;
         final var freeFormatBitrate = (int) ((scaledLength + slotFactor - 1) / slotFactor);
-        return new FrameHeader(version, protection, freeFormatBitrate, sampleRate, padding, channelMode, modeExtension);
+        return new FrameHeader(
+                version, layer, protection, freeFormatBitrate, sampleRate, padding, channelMode, modeExtension);
     }
 
     /**
-     * @return how many bytes the frame takes, header included
+     * @return how many bytes the frame takes, header included: a whole number of slots, which are four bytes in Layer
+     *     I and one in the others
      * @throws IllegalStateException for a free-format frame that hasn't been given its length
      */
     public int frameLength() {
         if (bitrate == FREE_FORMAT_BITRATE) {
             throw new IllegalStateException("A free-format frame's length comes from its stream");
         }
-        return version.getSamplesPerFrame() / 8 * bitrate / sampleRate + padding;
+        return switch (layer) {
+            case I -> (LAYER_I_SLOTS * bitrate / sampleRate + padding) * LAYER_I_SLOT_SIZE;
+            case II, III -> samplesPerFrame() / Byte.SIZE * bitrate / sampleRate + padding;
+        };
     }
 
     public int channelCount() {
@@ -91,7 +116,8 @@ public record FrameHeader(
     }
 
     /**
-     * @return how many bytes of side information follow the header (and its CRC, if it has one)
+     * @return how many bytes of Layer III side information follow the header (and its CRC, if it has one), which is
+     *     also where a VBR header follows the header in its frame, whatever the frame's layer
      */
     public int sideInfoSize() {
         return switch (version) {

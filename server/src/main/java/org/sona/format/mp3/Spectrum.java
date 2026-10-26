@@ -3,7 +3,6 @@ package org.sona.format.mp3;
 import dev.javax.bitstream.BitInputStream;
 import java.io.IOException;
 import java.util.Arrays;
-import org.sona.exception.InvalidFormatException;
 
 /**
  * A granule's 576 frequency lines for one channel: its Huffman-coded values, requantized (ISO/IEC 11172-3 sections
@@ -25,8 +24,6 @@ final class Spectrum {
     private static final double[] POW_4_3 = pow43(15 + (1 << 13) - 1);
     private static final int LINBITS_VALUE = 15;
     private static final int QUAD = 4;
-    // The most bits the bit stream reads at once is 57.
-    private static final int MAX_READ_BITS = 56;
 
     private final double[] lines = new double[LINES];
     // What each line's value is multiplied by: 2 to the power of a quarter of its gain, less its scale factor.
@@ -36,31 +33,26 @@ final class Spectrum {
     private int nonZeroEnd;
 
     /**
-     * Reads the granule's values for the channel, which follow its scale factors, and the bits after them that its
-     * part2_3_length takes, so that the bit stream is left where the next channel's bits start.
+     * Reads the granule's values for the channel, which follow its scale factors, until its part2_3_length is used up,
+     * as FFmpeg reads them: a pair of big values is read whole if it starts before the channel's bits run out, the
+     * lines after the last one read are 0, and count1's last quadruple is left out if it runs past them.
      */
     void read(
             final BitInputStream bits,
             final FrameHeader header,
             final GranuleChannel granuleChannel,
             final ScaleFactors scaleFactors)
-            throws IOException, InvalidFormatException {
+            throws IOException {
+        Arrays.fill(lines, 0);
         final var part3Length = granuleChannel.part23Length() - scaleFactors.part2Length();
-        if (part3Length < 0) {
-            throw new InvalidFormatException("MP3 granule's scale factors run past its part2_3_length!");
-        }
         computeScales(header, granuleChannel, scaleFactors);
         final var bigValuesEnd = Math.min(2 * granuleChannel.bigValues(), LINES);
-        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd);
-        if (bigValueBits > part3Length) {
-            throw new InvalidFormatException("MP3 granule's big values run past its part2_3_length!");
-        }
+        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd, part3Length);
         nonZeroEnd = readCount1(bits, granuleChannel.count1Code(), bigValuesEnd, part3Length - bigValueBits);
-        Arrays.fill(lines, nonZeroEnd, LINES, 0);
     }
 
     /**
-     * Makes every line 0, for a granule whose values can't be read.
+     * Makes every line 0, for a granule whose bits start before the stream's main data does.
      */
     void clear() {
         Arrays.fill(lines, 0);
@@ -201,51 +193,76 @@ final class Spectrum {
     }
 
     /**
-     * Reads the big values, which come in up to three regions, each coded with its own table.
+     * Reads the big values, which come in up to three regions, each coded with its own table, while the channel has
+     * bits left.
      *
+     * @param available how many bits the channel has for its values
      * @return how many bits they take
      */
     private int readBigValues(
-            final BitInputStream bits, final FrameHeader header, final GranuleChannel granuleChannel, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final FrameHeader header,
+            final GranuleChannel granuleChannel,
+            final int end,
+            final int available)
+            throws IOException {
         final var bands = ScaleFactorBands.fromSampleRate(header.sampleRate());
         return switch (granuleChannel.windowing()) {
-            case Windowing.Normal normal -> readNormalRegions(bits, bands, normal, end);
-            case Windowing.Switched switched -> readSwitchedRegions(bits, bands, switched, end);
+            case Windowing.Normal normal -> readNormalRegions(bits, bands, normal, end, available);
+            case Windowing.Switched switched -> readSwitchedRegions(bits, bands, switched, end, available);
         };
     }
 
     // The regions end at the long bands the side information gives.
     private int readNormalRegions(
-            final BitInputStream bits, final ScaleFactorBands bands, final Windowing.Normal normal, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final ScaleFactorBands bands,
+            final Windowing.Normal normal,
+            final int end,
+            final int available)
+            throws IOException {
         final var region1 = Math.min(bands.longBandStart(normal.region0Count() + 1), end);
         final var region2Band =
                 Math.min(normal.region0Count() + normal.region1Count() + 2, ScaleFactorBands.LONG_BANDS);
         final var region2 = Math.max(Math.min(bands.longBandStart(region2Band), end), region1);
-        return readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1)
-                + readRegion(bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2)
-                + readRegion(bits, HuffmanTables.bigValueTable(normal.table2()), region2, end);
+        final var region0Bits = readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1, available);
+        final var region1Bits = readRegion(
+                bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2, available - region0Bits);
+        return region0Bits
+                + region1Bits
+                + readRegion(
+                        bits,
+                        HuffmanTables.bigValueTable(normal.table2()),
+                        region2,
+                        end,
+                        available - region0Bits - region1Bits);
     }
 
     // The first region takes 8 long bands, or 3 short bands of three windows, and the second takes the rest.
     private int readSwitchedRegions(
-            final BitInputStream bits, final ScaleFactorBands bands, final Windowing.Switched switched, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final ScaleFactorBands bands,
+            final Windowing.Switched switched,
+            final int end,
+            final int available)
+            throws IOException {
         final var region1Start = switch (switched.blockType()) {
             case SHORT -> 3 * bands.shortBandStart(3);
             case NORMAL, START, STOP -> bands.longBandStart(8);
         };
         final var region1 = Math.min(region1Start, end);
-        return readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1)
-                + readRegion(bits, HuffmanTables.bigValueTable(switched.table1()), region1, end);
+        final var region0Bits = readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1, available);
+        return region0Bits
+                + readRegion(
+                        bits, HuffmanTables.bigValueTable(switched.table1()), region1, end, available - region0Bits);
     }
 
-    // Each codeword codes a pair of values, x and y.
-    private int readRegion(final BitInputStream bits, final BigValueTable table, final int start, final int end)
+    // Each codeword codes a pair of values, x and y. A pair is read whole when it starts before the bits run out.
+    private int readRegion(
+            final BitInputStream bits, final BigValueTable table, final int start, final int end, final int available)
             throws IOException {
         var bitsRead = 0;
-        for (var line = start; line < end; line += 2) {
+        for (var line = start; line < end && bitsRead < available; line += 2) {
             final var pair = table.code().readValue(bits);
             bitsRead += table.code().codeLength(pair)
                     + readValue(bits, table, pair / table.size(), line)
@@ -273,8 +290,7 @@ final class Spectrum {
     }
 
     // Count1 values come four at a time, each 0 or 1 with a sign bit for each 1, until the channel's bits run out. Some
-    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread. The channel's bits
-    // may end with some its values don't use, which are skipped, so the next channel's bits start where they're read.
+    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread.
     private int readCount1(final BitInputStream bits, final HuffmanCode code, final int start, final int available)
             throws IOException {
         var line = start;
@@ -292,7 +308,6 @@ final class Spectrum {
             left -= quadBits;
             line += QUAD;
         }
-        skipBits(bits, left);
         return line;
     }
 
@@ -309,12 +324,6 @@ final class Spectrum {
             return -value;
         }
         return value;
-    }
-
-    private static void skipBits(final BitInputStream bits, final int count) throws IOException {
-        for (var left = count; left > 0; left -= MAX_READ_BITS) {
-            bits.readBits(Math.min(left, MAX_READ_BITS));
-        }
     }
 
     private static double[] pow43(final int maxValue) {

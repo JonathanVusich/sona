@@ -16,16 +16,20 @@ final class PolyphaseSynthesis {
     // N[i][k] = cos((16 + i) * (2k + 1) * pi / 64).
     private static final double[][] MATRIX = matrix();
 
+    // A Layer II frame's 36 instants are the most synthesized at once.
+    private static final int MAX_INSTANTS = 36;
+
     private final double[] history = new double[HISTORY];
     private final double[] windowed = new double[SynthesisWindow.SIZE];
-    private final double[] pcm = new double[FrameHeader.GRANULE_SIZE];
+    private final double[] pcm = new double[MAX_INSTANTS * SUBBANDS];
 
     /**
-     * Synthesizes a granule's 576 samples from its 18 instants of 32 subband samples.
+     * Synthesizes 32 samples from each instant's 32 subband samples: a Layer III granule's 18 instants, or a Layer I
+     * or II frame's 12 or 36.
      */
-    void synthesize(final Imdct imdct) {
-        for (var instant = 0; instant < Spectrum.SUBBAND_LINES; instant++) {
-            pushValues(imdct, instant);
+    void synthesize(final SubbandSamples subbandSamples, final int instants) {
+        for (var instant = 0; instant < instants; instant++) {
+            pushValues(subbandSamples, instant);
             windowHistory();
             for (var sample = 0; sample < SUBBANDS; sample++) {
                 var sum = 0.0;
@@ -38,19 +42,19 @@ final class PolyphaseSynthesis {
     }
 
     /**
-     * @return the sample at the index of the granule last synthesized, from -1 to 1 at full scale
+     * @return the sample at the index of those last synthesized, from -1 to 1 at full scale
      */
     double sample(final int index) {
         return pcm[index];
     }
 
     // Shifts the history along by 64, and matrixes the instant's subband samples into its first 64 values.
-    private void pushValues(final Imdct imdct, final int instant) {
+    private void pushValues(final SubbandSamples subbandSamples, final int instant) {
         System.arraycopy(history, 0, history, VALUES, HISTORY - VALUES);
         for (var value = 0; value < VALUES; value++) {
             var sum = 0.0;
             for (var subband = 0; subband < SUBBANDS; subband++) {
-                sum += MATRIX[value][subband] * imdct.subbandSample(instant, subband);
+                sum += MATRIX[value][subband] * subbandSamples.subbandSample(instant, subband);
             }
             history[value] = sum;
         }

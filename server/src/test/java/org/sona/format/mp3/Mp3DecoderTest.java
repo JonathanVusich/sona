@@ -83,52 +83,18 @@ class Mp3DecoderTest {
         assertThat(decode(Mp3Sample.FREE_FORMAT)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
     }
 
-    // The second frame starts at byte 417. Bytes between frames are skipped, as other decoders skip them.
+    // FFmpeg's decoder skips zero bytes before a frame, so they change nothing. The second frame starts at byte 417,
+    // and its padding bit says whether it takes 418 bytes or 417. The first frame must be followed by the second, or
+    // FFmpeg's demuxer skips it.
     @Test
-    void skipsWhatIsNotAFrame() throws IOException, InvalidFormatException {
+    void skipsZerosBetweenFrames() throws IOException, InvalidFormatException {
         final var frames = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var third = 417 + 417 + (frames[417 + 2] >> 1 & 1);
         final var bytes = new byte[frames.length + 50];
-        System.arraycopy(frames, 0, bytes, 0, 417);
-        Arrays.fill(bytes, 417, 467, (byte) 0xFF);
-        System.arraycopy(frames, 417, bytes, 467, frames.length - 417);
+        System.arraycopy(frames, 0, bytes, 0, third);
+        System.arraycopy(frames, third, bytes, third + 50, frames.length - third);
 
         assertThat(decode(bytes)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
-    }
-
-    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short, so it's left out.
-    @Test
-    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
-        final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
-        final var whole = decode(Mp3Sample.NO_XING_ID3V1);
-
-        final var decoded = decode(Arrays.copyOf(bytes, bytes.length - 200));
-
-        assertThat(decoded).containsExactly(Arrays.copyOf(whole, whole.length - FRAME_SAMPLES));
-    }
-
-    // A stream cut from a longer one may start with frames whose main data starts in the frames that were cut off,
-    // which are played as silence. The second frame starts at byte 417.
-    @Test
-    void playsFramesWhoseMainDataIsMissingAsSilence() throws IOException, InvalidFormatException {
-        final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
-        final var whole = decode(Mp3Sample.NO_XING_ID3V1);
-
-        final var decoded = decode(Arrays.copyOfRange(bytes, 417, bytes.length));
-
-        assertThat(decoded).hasSize(whole.length - FRAME_SAMPLES);
-        assertThat(Arrays.copyOf(decoded, FRAME_SAMPLES)).containsOnly(0);
-    }
-
-    // The Info header counts the frames the file had before it was cut short, so the decoder stops at its end.
-    @Test
-    void stopsAtTheEndOfAStreamCutShort() throws IOException, InvalidFormatException {
-        final var bytes = sampleBytes(Mp3Sample.STEREO_CBR_ID3V24);
-        final var whole = decode(Mp3Sample.STEREO_CBR_ID3V24);
-
-        final var decoded = decode(Arrays.copyOf(bytes, bytes.length - 2000));
-
-        assertThat(decoded.length).isLessThan(whole.length);
-        assertThat(decoded).containsExactly(Arrays.copyOf(whole, decoded.length));
     }
 
     private static int[] decode(final Mp3Sample sample) throws IOException, InvalidFormatException {

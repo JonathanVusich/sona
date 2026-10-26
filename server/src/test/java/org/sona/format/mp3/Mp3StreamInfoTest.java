@@ -3,10 +3,10 @@ package org.sona.format.mp3;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.samples.Mp3Sample;
@@ -37,10 +37,13 @@ class Mp3StreamInfoTest {
         final var bytes = sampleBytes(Mp3Sample.MONO_VBR_ID3V23);
         final var streamInfo = readStreamInfo(bytes, MONO_VBR_TAG_SIZE, bytes.length - ID3V1_SIZE);
 
-        // The Xing header's frame takes 182 bytes.
+        // The Xing header's frame takes 182 bytes. Its byte count is more than a sixteenth short of the file after its
+        // header, as the file ends with an ID3v1 tag, so FFmpeg takes it for two files joined and trims no padding
+        // from its end, only the encoder's delay from its start.
         assertThat(streamInfo)
-                .isEqualTo(new Mp3StreamInfo(MONO_VBR_TAG_SIZE + 182, 22050, 1, 576, 41, true, 576, 990, 0));
-        assertThat(streamInfo.duration()).isEqualTo(Duration.ofSeconds(1));
+                .isEqualTo(new Mp3StreamInfo(
+                        MONO_VBR_TAG_SIZE + 182, bytes.length - ID3V1_SIZE, 22050, 1, 576, 41, true, 576, 0, 0));
+        assertThat(streamInfo.sampleCount()).isEqualTo(41 * 576 - 576 - 529);
     }
 
     // Without a VBR header the frames are counted, and the encoder's delay and padding are unknown, so they're counted
@@ -65,21 +68,24 @@ class Mp3StreamInfoTest {
         assertThat(streamInfo.duration()).isEqualTo(Duration.ofNanos(40 * 1152 * 1_000_000_000L / 44100));
     }
 
-    // The first frame takes 417 bytes, so the second starts there, and without its header it's skipped.
+    // The first frame takes 417 bytes, so the second starts there. Without its header, the rest of it is bytes before
+    // the third frame's, which FFmpeg drops too.
     @Test
-    void skipsWhatIsNotAFrame() throws IOException, InvalidFormatException {
+    void leavesOutFramesFfmpegDrops() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
         Arrays.fill(bytes, 417, 417 + FrameHeader.SIZE, (byte) 0);
 
         final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE);
 
-        assertThat(streamInfo.frameCount()).isEqualTo(39);
+        assertThat(streamInfo.frameCount()).isEqualTo(38);
     }
 
+    // FFmpeg's demuxer skips bytes before the first frame that's followed by another.
     @Test
     void findsFirstFrameAfterOtherBytes() throws IOException, InvalidFormatException {
         final var frames = sampleBytes(Mp3Sample.NO_XING_ID3V1);
         final var bytes = new byte[100 + frames.length];
+        Arrays.fill(bytes, 0, 100, (byte) 0x55);
         System.arraycopy(frames, 0, bytes, 100, frames.length);
 
         final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE);
@@ -88,13 +94,14 @@ class Mp3StreamInfoTest {
         assertThat(streamInfo.frameCount()).isEqualTo(40);
     }
 
+    // FFmpeg decodes a last frame the file cuts short, as if the rest of it were the bytes after it, then zeros.
     @Test
-    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
+    void countsFrameCutShort() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
 
         final var streamInfo = readStreamInfo(bytes, 0, bytes.length - ID3V1_SIZE - 200);
 
-        assertThat(streamInfo.frameCount()).isEqualTo(39);
+        assertThat(streamInfo.frameCount()).isEqualTo(40);
     }
 
     @Test
@@ -108,8 +115,7 @@ class Mp3StreamInfoTest {
 
     private static Mp3StreamInfo readStreamInfo(final byte[] bytes, final int audioStart, final int audioEnd)
             throws IOException, InvalidFormatException {
-        final var input = new ByteArrayInputStream(bytes, audioStart, bytes.length - audioStart);
-        return new Mp3Parser().readStreamInfo(input, audioStart, audioEnd);
+        return new Mp3Parser().readStreamInfo(new SeekableInMemoryByteChannel(bytes), audioStart, audioEnd);
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {

@@ -5,6 +5,7 @@ import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -18,7 +19,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipException;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
+import org.apache.commons.io.input.NullInputStream;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.format.Parser;
@@ -43,9 +46,10 @@ public final class Mp3Parser implements Parser {
     private static final int HEADER_SIZE = 10;
     private static final int FOOTER_SIZE = 10;
     private static final int FOOTER = 0x10;
-    // A frame header's sync, its first 11 bits, and its layer bits, which are 01 for Layer III.
-    private static final long SYNC_AND_LAYER = 0xFFE6_0000L;
-    private static final long SYNC_AND_LAYER_III = 0xFFE2_0000L;
+    // A frame header's sync, its first 11 bits.
+    private static final long SYNC = 0xFFE0_0000L;
+    // FFmpeg's MP3 demuxer looks this far for the first frame followed by another of its stream.
+    private static final int FIRST_FRAME_SEARCH = 64 * 1024;
 
     // Picard's TXXX descriptions, and the names it gives the same tags in Vorbis comments, so unknown tags have the
     // same names whether they were read from an MP3 or a FLAC file.
@@ -88,8 +92,8 @@ public final class Mp3Parser implements Parser {
             final var id3v2Tag = readId3v2Tag(streamAt(channel, 0));
             final var audioStart = id3v2Tag.size();
             final var audioEnd = channel.size() - id3v1Tag.size() - appendedTag.size();
-            final var streamInfo = readStreamInfo(streamAt(channel, audioStart), audioStart, audioEnd);
-            final var audio = new Mp3Decoder(this, streamInfo, audioAt(channel, streamInfo.audioStart(), audioEnd));
+            final var streamInfo = readStreamInfo(channel, audioStart, audioEnd);
+            final var audio = new Mp3Decoder(this, streamInfo, audioFrom(channel, streamInfo.audioStart()));
             final var frames = mergeFrames(List.of(appendedTag.frames(), id3v2Tag.frames(), id3v1Tag.frames()));
             return new ParsedMp3(rawMetadata(streamInfo.duration(), frames), audio);
         } catch (final EOFException cutShort) {
@@ -148,13 +152,14 @@ public final class Mp3Parser implements Parser {
     }
 
     /**
-     * @param audioStart where the first frame starts: the end of the ID3v2 tag, or 0 when the file has none
-     * @param audioEnd where the last frame ends: the start of the tags after the audio, or the end of the file
-     * @return the file's audio, as a stream that ends where it does
+     * @param audioStart where the decoder starts: the stream's first frame, or bytes before it that aren't one
+     * @return the file from there, which the decoder finds frames in, then zeros, which a frame the file cuts short is
+     *     read as ending with, as FFmpeg's buffers are padded with zeros
      */
-    private BoundedInputStream audioAt(final SeekableByteChannel channel, final long audioStart, final long audioEnd)
-            throws IOException {
-        return bounded(streamAt(channel, audioStart), audioEnd - audioStart);
+    private BoundedInputStream audioFrom(final SeekableByteChannel channel, final long audioStart) throws IOException {
+        final var file = Channels.newInputStream(channel.position(audioStart));
+        final var padded = new SequenceInputStream(file, new NullInputStream(MAX_FREE_FORMAT_LENGTH, false, false));
+        return bounded(new BufferedInputStream(padded), Long.MAX_VALUE);
     }
 
     private BoundedInputStream bounded(final InputStream input, final long length) throws IOException {
@@ -166,105 +171,152 @@ public final class Mp3Parser implements Parser {
     }
 
     /**
-     * Finds the first frame, and works out how long the stream is from the frame's VBR header, or by counting its
-     * frames when it has none. Bytes that aren't a frame of the stream, before its first frame or between two, are
-     * skipped, and a frame the audio cuts short is left out, as other decoders do. Every header is whole bytes, so the
-     * bit stream holds no bits between frames, and the stream skips what Sona doesn't read.
+     * Finds where the decoder starts, as FFmpeg's MP3 demuxer does, and works out how long the stream is from its VBR
+     * header, or by counting its frames when it has none. A Layer III frame right at the start of the audio may hold a
+     * VBR header, and is skipped when it does. Then any bytes before the first frame that's followed by another of its
+     * stream are skipped, if the frame is in the first 64 KiB. FFmpeg can't decode free format, which Sona can when the
+     * audio starts with a free-format Layer III frame.
      *
-     * @param input the file's stream, at the end of the ID3v2 tag
-     * @param audioStart where the first frame starts: the end of the ID3v2 tag, or 0 when the file has none
-     * @param audioEnd where the last frame ends: the start of the tags after the audio, or the end of the file
+     * @param audioStart where the audio starts: the end of the ID3v2 tag, or 0 when the file has none
+     * @param audioEnd where the audio ends: the start of the tags after it, or the end of the file
      */
-    Mp3StreamInfo readStreamInfo(final InputStream input, final long audioStart, final long audioEnd)
+    Mp3StreamInfo readStreamInfo(final SeekableByteChannel channel, final long audioStart, final long audioEnd)
             throws IOException, InvalidFormatException {
-        final var audio = bounded(input, audioEnd - audioStart);
-        final var bits = BitInputStream.wrap(audio, ByteOrder.BIG_ENDIAN);
-        final var header = findFirstFrame(audio, bits);
-        // The header is peeked, so the bit stream holds it.
-        final var firstFrame = audioStart + audio.getCount() - FrameHeader.SIZE;
-        final var streamBits = bits.peekBits(32) & FREE_FORMAT_STREAM_BITS;
-        readAudioFrameHeader(bits);
-        if (header.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) {
-            return readFreeFormatStream(audio, bits, header, streamBits, firstFrame, audioEnd);
-        }
-        return readFirstFrame(audio, bits, header, firstFrame);
-    }
-
-    /**
-     * Skips to the first frame. One right at the start of the audio is taken as it is, but one after other bytes must
-     * be followed by another frame of its stream, or end the audio, as bytes that aren't audio may look like a header.
-     *
-     * @return the frame's header, which the bit stream holds, peeked
-     */
-    private FrameHeader findFirstFrame(final BoundedInputStream audio, final BitInputStream bits)
-            throws IOException, InvalidFormatException {
-        try {
-            while (true) {
-                final var header = layerIIIHeader(bits.peekBits(32));
-                if (header.isPresent()
-                        && (audio.getCount() == FrameHeader.SIZE || isFollowedByFrame(audio, header.get()))) {
-                    return header.get();
-                }
-                bits.readBits(8);
-            }
-        } catch (final EOFException noFrame) {
+        final var vbrHeader = readVbrHeader(channel, audioStart, audioEnd);
+        final var afterVbrHeader = vbrHeader.map(VbrFrame::end).orElse(audioStart);
+        final var firstFrame = findFirstFrame(channel, afterVbrHeader, audioEnd);
+        // FFmpeg would only take a file for MPEG audio when it finds frames, whatever its name says.
+        if (firstFrame.isEmpty()
+                && frameHeaderAt(channel, afterVbrHeader, audioEnd).isEmpty()) {
             throw new InvalidFormatException("MP3 has no frames of audio!");
         }
+        final var start = firstFrame.orElse(afterVbrHeader);
+        final var freeFormat = readFreeFormatLength(channel, start, audioEnd);
+        final var audio = bounded(streamAt(channel, start), audioEnd - start);
+        final var bits = BitInputStream.wrap(audio, ByteOrder.BIG_ENDIAN);
+        final var first = findFrame(audio, bits, audioEnd - start, freeFormat)
+                .orElseThrow(() -> new InvalidFormatException("MP3 has no frames of audio!"));
+        final var length = trustedLength(channel, audioStart, vbrHeader);
+        final var frameCount =
+                length.frameCount() > 0 ? length.frameCount() : countFrames(audio, bits, audioEnd - start, freeFormat);
+        return new Mp3StreamInfo(
+                start,
+                audioEnd,
+                first.header().sampleRate(),
+                first.header().channelCount(),
+                first.header().samplesPerFrame(),
+                frameCount,
+                length.lameTag(),
+                length.encoderDelay(),
+                length.encoderPadding(),
+                freeFormat);
     }
 
-    // Free-format frames give no length, so the frames after them are found as the stream is read.
-    private boolean isFollowedByFrame(final BoundedInputStream audio, final FrameHeader header) throws IOException {
-        if (header.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) {
-            return true;
-        }
-        final var rest = header.frameLength() - FrameHeader.SIZE;
-        if (audio.getRemaining() == rest) {
-            return true;
-        }
-        if (audio.getRemaining() < rest + FrameHeader.SIZE) {
-            return false;
-        }
-        audio.mark(rest + FrameHeader.SIZE);
-        audio.skipNBytes(rest);
-        final var next =
-                layerIIIHeader(BitInputStream.wrap(audio, ByteOrder.BIG_ENDIAN).peekBits(32));
-        audio.reset();
-        return next.filter(nextHeader -> nextHeader.sampleRate() == header.sampleRate())
-                .isPresent();
-    }
-
-    private Mp3StreamInfo readFirstFrame(
-            final BoundedInputStream audio, final BitInputStream bits, final FrameHeader header, final long firstFrame)
+    // A VBR header's frame holds no audio, so it's skipped when its header gives the frame or byte count.
+    private Optional<VbrFrame> readVbrHeader(
+            final SeekableByteChannel channel, final long audioStart, final long audioEnd)
             throws IOException, InvalidFormatException {
-        if (audio.getRemaining() < header.frameLength() - FrameHeader.SIZE) {
-            throw new InvalidFormatException("MP3's only frame is cut short!");
+        final var header = frameHeaderAt(channel, audioStart, audioEnd)
+                .filter(found -> found.layer() == Layer.III && found.bitrate() != FrameHeader.FREE_FORMAT_BITRATE);
+        if (header.isEmpty()) {
+            return Optional.empty();
         }
-        final var frame = bounded(audio, header.frameLength() - FrameHeader.SIZE);
-        final var vbrHeader = vbrHeaderReader.readFirstFrame(header, frame);
-        frame.skipNBytes(frame.getRemaining());
-        return switch (vbrHeader) {
-            case VbrHeader length -> streamInfo(header, firstFrame + header.frameLength(), length, 0);
-            case AudioFrame _ -> streamInfo(header, firstFrame, countFrames(audio, bits, header, 0), 0);
+        final var frame = bounded(
+                streamAt(channel, audioStart + FrameHeader.SIZE), header.get().frameLength());
+        return switch (vbrHeaderReader.readFirstFrame(header.get(), frame)) {
+            case VbrHeader vbrHeader ->
+                Optional.of(new VbrFrame(vbrHeader, audioStart + header.get().frameLength()));
+            case AudioFrame _ -> Optional.empty();
         };
     }
 
-    // A free-format frame's header gives no length: the next frame's sync does, and every frame of the stream has that
-    // length but for its padding. Encoders write no VBR header in free format, so the first frame is audio.
-    private Mp3StreamInfo readFreeFormatStream(
-            final BoundedInputStream audio,
-            final BitInputStream bits,
-            final FrameHeader header,
-            final long streamBits,
-            final long audioStart,
-            final long audioEnd)
+    /**
+     * @param end where the frame holding the VBR header ends
+     */
+    private record VbrFrame(VbrHeader header, long end) {}
+
+    /**
+     * FFmpeg doesn't trust the frame count of a VBR header whose byte count is well short of the file's, as the file
+     * may be two joined, so it trims no padding from the end of one, though it still trims the encoder's delay.
+     *
+     * @return the VBR header, or one with no frame count when there's none, so the frames are counted
+     */
+    private VbrHeader trustedLength(
+            final SeekableByteChannel channel, final long audioStart, final Optional<VbrFrame> vbrFrame)
+            throws IOException {
+        if (vbrFrame.isEmpty()) {
+            return new VbrHeader(0, 0, false, 0, 0);
+        }
+        final var header = vbrFrame.get().header();
+        final var fileSize = channel.size() - audioStart - FrameHeader.SIZE;
+        final var smaller = Math.min(fileSize, header.byteCount());
+        if (header.byteCount() > 0 && fileSize > header.byteCount() && fileSize - header.byteCount() > smaller >> 4) {
+            return new VbrHeader(0, header.byteCount(), header.lameTag(), header.encoderDelay(), 0);
+        }
+        return header;
+    }
+
+    /**
+     * @return where the first frame of the first 64 KiB from the position starts that's followed by another frame of
+     *     its stream (the same version, layer and sample rate), or empty when none is
+     */
+    private Optional<Long> findFirstFrame(final SeekableByteChannel channel, final long from, final long audioEnd)
+            throws IOException {
+        final var end = Math.min(from + FIRST_FRAME_SEARCH, audioEnd);
+        for (var position = from; position < end; position++) {
+            final var header = frameHeaderAt(channel, position, audioEnd)
+                    .filter(found -> found.bitrate() != FrameHeader.FREE_FORMAT_BITRATE);
+            if (header.isPresent()) {
+                final var next = frameHeaderAt(channel, position + header.get().frameLength(), Long.MAX_VALUE);
+                if (next.filter(found -> isSameStream(header.get(), found)).isPresent()) {
+                    return Optional.of(position);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean isSameStream(final FrameHeader header, final FrameHeader next) {
+        return header.version() == next.version()
+                && header.layer() == next.layer()
+                && header.sampleRate() == next.sampleRate();
+    }
+
+    // Reads four bytes from the file wherever they are, leaving the channel where it was.
+    private Optional<FrameHeader> frameHeaderAt(
+            final SeekableByteChannel channel, final long position, final long audioEnd) throws IOException {
+        if (position + FrameHeader.SIZE > Math.min(audioEnd, channel.size())) {
+            return Optional.empty();
+        }
+        final var restore = channel.position();
+        try {
+            return validHeader(
+                    BitInputStream.wrap(Channels.newInputStream(channel.position(position)), ByteOrder.BIG_ENDIAN)
+                            .readBits(32));
+        } finally {
+            channel.position(restore);
+        }
+    }
+
+    /**
+     * @return how long each frame of a free-format stream is but for its padding, when the audio starts with a
+     *     free-format Layer III frame, otherwise 0. Its header gives no length: the next frame's sync does, and every
+     *     frame of the stream has that length but for its padding.
+     */
+    private int readFreeFormatLength(final SeekableByteChannel channel, final long start, final long audioEnd)
             throws IOException, InvalidFormatException {
-        audio.skipNBytes(header.sideInfoSize());
-        final var length =
-                findNextFrame(bits, streamBits, audioStart, audioEnd, FrameHeader.SIZE + header.sideInfoSize());
-        final var unpaddedLength = length - header.padding();
-        final var firstHeader = header.withFreeFormatLength(unpaddedLength);
-        return streamInfo(
-                firstHeader, audioStart, countFrames(audio, bits, firstHeader, unpaddedLength), unpaddedLength);
+        final var header = frameHeaderAt(channel, start, audioEnd)
+                .filter(found -> found.layer() == Layer.III && found.bitrate() == FrameHeader.FREE_FORMAT_BITRATE);
+        if (header.isEmpty()) {
+            return 0;
+        }
+        final var streamBits = BitInputStream.wrap(streamAt(channel, start), ByteOrder.BIG_ENDIAN)
+                        .readBits(32)
+                & FREE_FORMAT_STREAM_BITS;
+        final var searchStart = FrameHeader.SIZE + header.get().sideInfoSize();
+        final var bits = BitInputStream.wrap(streamAt(channel, start + searchStart), ByteOrder.BIG_ENDIAN);
+        return findNextFrame(bits, streamBits, start, audioEnd, searchStart)
+                - header.get().padding();
     }
 
     // How far after the first frame's start the next one starts, looking a byte at a time from the given distance. A
@@ -289,66 +341,70 @@ public final class Mp3Parser implements Parser {
                 "Free-format MP3 frame at byte %d has no next frame to give its length!".formatted(audioStart));
     }
 
-    /**
-     * @param freeFormatLength how many bytes each frame of a free-format stream takes but for its padding, otherwise 0
-     */
-    private Mp3StreamInfo streamInfo(
-            final FrameHeader firstHeader, final long audioStart, final VbrHeader length, final int freeFormatLength) {
-        return new Mp3StreamInfo(
-                audioStart,
-                firstHeader.sampleRate(),
-                firstHeader.channelCount(),
-                firstHeader.version().getSamplesPerFrame(),
-                length.frameCount(),
-                length.lameTag(),
-                length.encoderDelay(),
-                length.encoderPadding(),
-                freeFormatLength);
-    }
-
-    // The encoder's delay and padding are unknown without a VBR header, so they're counted as audio.
-    private VbrHeader countFrames(
-            final BoundedInputStream audio,
-            final BitInputStream bits,
-            final FrameHeader firstHeader,
-            final int unpaddedLength)
+    // The frames the decoder decodes: those found as FFmpeg's parser finds them, but for those it drops.
+    private long countFrames(
+            final BoundedInputStream audio, final BitInputStream bits, final long audioLength, final int unpaddedLength)
             throws IOException, InvalidFormatException {
-        var frameCount = 1L;
-        while (skipToFrame(audio, bits, firstHeader.sampleRate(), unpaddedLength)) {
-            final var header = withLength(readAudioFrameHeader(bits), unpaddedLength);
-            audio.skipNBytes(header.frameLength() - FrameHeader.SIZE);
-            frameCount++;
+        var frameCount = 0L;
+        for (var found = findFrame(audio, bits, audioLength, unpaddedLength);
+                found.isPresent();
+                found = findFrame(audio, bits, audioLength, unpaddedLength)) {
+            bits.readBits(32);
+            skipAudio(audio, found.get().header().frameLength() - FrameHeader.SIZE);
+            if (!found.get().afterOtherBytes()) {
+                frameCount++;
+            }
         }
-        return new VbrHeader(frameCount, false, 0, 0);
+        return frameCount;
+    }
+
+    // The last frame may run past the audio.
+    private void skipAudio(final BoundedInputStream audio, final long count) throws IOException {
+        IOUtils.skip(audio, count);
     }
 
     /**
-     * Skips any bytes before the next frame of the stream, as decoders skip what isn't a frame between frames: one at
-     * the stream's sample rate, which only frames of its MPEG version have, and in free format only if it is.
+     * Finds the next frame as FFmpeg's parser splits the audio into frames: the first four bytes from where the last
+     * frame ended that make a valid header, of any layer, version or sample rate, but not free format, whose header
+     * gives no length. FFmpeg's decoder skips zero bytes before a frame's header, but drops a frame after any other
+     * byte, so the frame says whether there's one. Free format is only found in a free-format stream, which FFmpeg
+     * can't decode.
      *
-     * @param audio the file's audio, which ends where it does, and which the bit stream reads
+     * @param audio the audio from where the decoder started, which the bit stream reads
+     * @param audioLength how far from there the audio ends, so where no frame starts
      * @param unpaddedLength how many bytes each frame of a free-format stream takes but for its padding, otherwise 0
-     * @return whether a whole frame starts where the bit stream is left, which it doesn't once the audio ends
+     * @return the frame, whose header the bit stream holds, peeked, or empty once the audio ends
      */
-    boolean skipToFrame(
-            final BoundedInputStream audio, final BitInputStream bits, final int sampleRate, final int unpaddedLength)
+    Optional<FoundFrame> findFrame(
+            final BoundedInputStream audio, final BitInputStream bits, final long audioLength, final int unpaddedLength)
             throws IOException {
+        var afterOtherBytes = false;
         try {
             while (true) {
-                final var header = layerIIIHeader(bits.peekBits(32))
-                        .filter(found -> found.sampleRate() == sampleRate)
+                final var word = bits.peekBits(32);
+                // The header is peeked, so the audio is past it.
+                if (audio.getCount() - FrameHeader.SIZE >= audioLength) {
+                    return Optional.empty();
+                }
+                final var header = validHeader(word)
                         .filter(found -> (found.bitrate() == FrameHeader.FREE_FORMAT_BITRATE) == (unpaddedLength > 0));
                 if (header.isPresent()) {
-                    // The header is peeked, so the audio is past it.
-                    return audio.getRemaining()
-                            >= withLength(header.get(), unpaddedLength).frameLength() - FrameHeader.SIZE;
+                    return Optional.of(new FoundFrame(withLength(header.get(), unpaddedLength), afterOtherBytes));
                 }
+                afterOtherBytes |= word >>> 24 != 0;
                 bits.readBits(8);
             }
         } catch (final EOFException end) {
-            return false;
+            return Optional.empty();
         }
     }
+
+    /**
+     * A frame {@link #findFrame} found.
+     *
+     * @param afterOtherBytes whether bytes other than 0 came before it, so FFmpeg's decoder drops it
+     */
+    record FoundFrame(FrameHeader header, boolean afterOtherBytes) {}
 
     /**
      * @param unpaddedLength how many bytes each frame of the stream takes but for its padding, which only a free-format
@@ -362,16 +418,15 @@ public final class Mp3Parser implements Parser {
     }
 
     /**
-     * Reads a frame's header, which must be a Layer III frame's.
+     * Reads a frame's header.
      */
     FrameHeader readAudioFrameHeader(final BitInputStream bits) throws IOException, InvalidFormatException {
         return frameHeader(bits.readBits(32));
     }
 
-    // Bytes that aren't a frame rarely start with a frame sync and Layer III's layer bits, so the other fields are only
-    // read when they do.
-    private Optional<FrameHeader> layerIIIHeader(final long header) {
-        if ((header & SYNC_AND_LAYER) != SYNC_AND_LAYER_III) {
+    // Bytes that aren't a frame rarely start with a frame sync, so the other fields are only read when they do.
+    private Optional<FrameHeader> validHeader(final long header) {
+        if ((header & SYNC) != SYNC) {
             return Optional.empty();
         }
         try {
@@ -383,19 +438,23 @@ public final class Mp3Parser implements Parser {
 
     // The header's 32 bits: the sync (11), version (2), layer (2), protection bit, bitrate index (4), sample rate index
     // (2), padding bit, the encoder's own private bit, channel mode (2) and mode extension (2), then the copyright,
-    // original and emphasis fields.
+    // original and emphasis fields. Only Layer III may be in free format, as FFmpeg finds no free-format frames at all.
     private FrameHeader frameHeader(final long header) throws InvalidFormatException {
-        if ((header & SYNC_AND_LAYER) != SYNC_AND_LAYER_III) {
-            throw new InvalidFormatException("MP3 frame doesn't start with a Layer III frame sync!");
+        if ((header & SYNC) != SYNC) {
+            throw new InvalidFormatException("MPEG audio frame doesn't start with a frame sync!");
         }
         final var version = MpegVersion.fromBits(field(header, 19, 2));
+        final var layer = Layer.fromBits(field(header, 17, 2));
         final var protection = Protection.fromBit(field(header, 16, 1));
-        final var bitrate = version.bitrate(field(header, 12, 4));
+        final var bitrate = version.bitrate(layer, field(header, 12, 4));
+        if (bitrate == FrameHeader.FREE_FORMAT_BITRATE && layer != Layer.III) {
+            throw new InvalidFormatException("Free-format Layer I and II frames can't be decoded!");
+        }
         final var sampleRate = version.sampleRate(field(header, 10, 2));
         final var padding = field(header, 9, 1);
         final var channelMode = ChannelMode.values()[field(header, 6, 2)];
         final var modeExtension = field(header, 4, 2);
-        return new FrameHeader(version, protection, bitrate, sampleRate, padding, channelMode, modeExtension);
+        return new FrameHeader(version, layer, protection, bitrate, sampleRate, padding, channelMode, modeExtension);
     }
 
     private static int field(final long header, final int shift, final int size) {

@@ -8,7 +8,7 @@ import java.util.Arrays;
  * block. A long block is one 36-point transform, and a short block three 12-point ones that overlap within it. The
  * decoder keeps one per channel, as each granule overlaps the one before.
  */
-final class Imdct {
+final class Imdct implements SubbandSamples {
 
     private static final int SUBBANDS = Spectrum.SUBBANDS;
     private static final int LINES = Spectrum.SUBBAND_LINES;
@@ -51,7 +51,8 @@ final class Imdct {
      * @param instant from 0 to 17
      * @return the subband's sample at the instant, from the granule last transformed
      */
-    double subbandSample(final int instant, final int subband) {
+    @Override
+    public double subbandSample(final int instant, final int subband) {
         return subbandSamples[instant * SUBBANDS + subband];
     }
 

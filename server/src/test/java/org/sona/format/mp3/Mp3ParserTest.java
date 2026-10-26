@@ -171,15 +171,15 @@ class Mp3ParserTest {
                 .isInstanceOf(InvalidFormatException.class);
     }
 
-    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short, so it's left out.
+    // Cutting off the ID3v1 tag and some of the last frame leaves that frame short, which FFmpeg still decodes.
     @Test
-    void leavesOutFrameCutShort() throws IOException, InvalidFormatException {
+    void countsFrameCutShort() throws IOException, InvalidFormatException {
         final var bytes = sampleBytes(Mp3Sample.NO_XING_ID3V1);
         final var cut = Arrays.copyOf(bytes, bytes.length - 200);
 
         final var parsed = new Mp3Parser().parse(new SeekableInMemoryByteChannel(cut));
 
-        assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(39);
+        assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(40);
     }
 
     @Test
