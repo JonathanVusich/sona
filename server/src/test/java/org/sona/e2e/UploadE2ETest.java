@@ -20,9 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sona.auth.TestUsers;
 import org.sona.controller.ApiRoutes;
-import org.sona.db.IngestGroupDao;
-import org.sona.db.PasswordDao;
-import org.sona.db.TrackToIngestDao;
+import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
 import org.sona.engine.IngestWorker;
 import org.sona.metadata.RawMetadata;
@@ -48,16 +46,10 @@ class UploadE2ETest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     @Autowired
-    TrackToIngestDao trackToIngestDao;
-
-    @Autowired
-    IngestGroupDao ingestGroupDao;
+    IngestDao ingestDao;
 
     @Autowired
     IngestWorker worker;
@@ -69,7 +61,7 @@ class UploadE2ETest {
 
     @BeforeEach
     void setUp() {
-        root = new TestUsers(userDao, passwordDao, encoder).createUser("root", UserRole.ADMIN);
+        root = new TestUsers(userDao, encoder).createUser("root", UserRole.ADMIN);
     }
 
     @Test
@@ -294,8 +286,8 @@ class UploadE2ETest {
 
     // The group of the first file uploaded, with its ID, which the frontend made up, left out.
     private IngestGroup storedGroup() {
-        final var ingest = trackToIngestDao.loadOldestPending().orElseThrow();
-        final var group = ingestGroupDao.loadById(ingest.groupIngestId()).orElseThrow();
+        final var ingest = ingestDao.loadOldestPending().orElseThrow();
+        final var group = ingestDao.loadGroupById(ingest.groupIngestId()).orElseThrow();
         return new IngestGroup(null, group.kind(), group.name(), group.userId());
     }
 

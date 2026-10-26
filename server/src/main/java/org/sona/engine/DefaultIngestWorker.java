@@ -2,7 +2,7 @@ package org.sona.engine;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.sona.db.TrackToIngestDao;
+import org.sona.db.IngestDao;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 public final class DefaultIngestWorker implements IngestWorker {
 
     private final IngestionEngine engine;
-    private final TrackToIngestDao trackToIngestDao;
+    private final IngestDao ingestDao;
     private final IngestProgressPublisher progressPublisher;
 
     @Scheduled(cron = "${sona.ingest-worker.cron}")
@@ -37,10 +37,10 @@ public final class DefaultIngestWorker implements IngestWorker {
     }
 
     private void processEachPending() throws InterruptedException {
-        var next = trackToIngestDao.loadOldestPending().orElse(null);
+        var next = ingestDao.loadOldestPending().orElse(null);
         while (next != null) {
             processIngest(next);
-            next = trackToIngestDao.loadOldestPending().orElse(null);
+            next = ingestDao.loadOldestPending().orElse(null);
         }
     }
 
@@ -53,8 +53,8 @@ public final class DefaultIngestWorker implements IngestWorker {
             log.warn("Ingesting {} ({}) failed", ingest.trackIngestId(), ingest.originalFileName(), e);
             // The engine marks the failures it expects. Any other leaves the ingest pending, so it would be taken again
             // straight away.
-            if (trackToIngestDao.loadById(ingest.trackIngestId()).state() == IngestState.PENDING) {
-                trackToIngestDao.updateState(ingest.trackIngestId(), IngestState.FAILED);
+            if (ingestDao.loadTrackIngestById(ingest.trackIngestId()).state() == IngestState.PENDING) {
+                ingestDao.updateState(ingest.trackIngestId(), IngestState.FAILED);
                 progressPublisher.publish(ingest, IngestState.FAILED);
             }
         }

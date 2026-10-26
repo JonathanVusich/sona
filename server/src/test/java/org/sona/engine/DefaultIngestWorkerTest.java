@@ -10,10 +10,9 @@ import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
-import org.sona.db.IngestGroupDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
@@ -43,13 +42,10 @@ class DefaultIngestWorkerTest {
     Library library;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
+    IngestDao ingestDao;
 
     @Autowired
     UserDao userDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
 
     @Autowired
     TrackDao trackDao;
@@ -117,12 +113,12 @@ class DefaultIngestWorkerTest {
         userDao.insert(uploader);
         final var group =
                 new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
     }
 
     private IngestState reloadState(final TrackToIngest ingest) {
-        return trackToIngestDao.loadById(ingest.trackIngestId()).state();
+        return ingestDao.loadTrackIngestById(ingest.trackIngestId()).state();
     }
 
     private static RawMetadata whisperMetadata() {

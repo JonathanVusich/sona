@@ -32,11 +32,10 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.ArtistDao;
-import org.sona.db.IngestGroupDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.flac.FlacWriter;
@@ -75,13 +74,10 @@ class DefaultIngestionEngineTest {
     private LibraryProperties libraryProperties;
 
     @Autowired
-    private IngestGroupDao ingestGroupDao;
+    private IngestDao ingestDao;
 
     @Autowired
     private UserDao userDao;
-
-    @Autowired
-    private TrackToIngestDao trackToIngestDao;
 
     @Autowired
     private TrackDao trackDao;
@@ -345,9 +341,9 @@ class DefaultIngestionEngineTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.ogg", IngestState.PENDING);
-        trackToIngestDao.insert(ingest);
+        ingestDao.insertTrackIngest(ingest);
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
                 .isInstanceOf(InvalidFormatException.class)
@@ -374,12 +370,12 @@ class DefaultIngestionEngineTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         return library.storeIngestTrack(group, fileName, new ByteArrayInputStream(flac));
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {
-        return trackToIngestDao.loadById(ingest.trackIngestId());
+        return ingestDao.loadTrackIngestById(ingest.trackIngestId());
     }
 
     /**

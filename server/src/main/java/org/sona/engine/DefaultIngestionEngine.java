@@ -14,10 +14,10 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.db.ArtistDao;
+import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
-import org.sona.db.TrackToIngestDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.fingerprint.Fingerprint;
 import org.sona.format.Format;
@@ -53,7 +53,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
     private final Library library;
     private final MetadataResolver resolver;
-    private final TrackToIngestDao trackToIngestDao;
+    private final IngestDao ingestDao;
     private final IngestProgressPublisher progressPublisher;
     private final ArtistDao artistDao;
     private final ReleaseGroupDao releaseGroupDao;
@@ -172,7 +172,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     private void markState(final TrackToIngest trackToIngest, final IngestState state) {
-        trackToIngestDao.updateState(trackToIngest.trackIngestId(), state);
+        ingestDao.updateState(trackToIngest.trackIngestId(), state);
         progressPublisher.publish(trackToIngest, state);
     }
 

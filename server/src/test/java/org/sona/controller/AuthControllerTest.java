@@ -14,7 +14,6 @@ import org.sona.auth.TestUsers;
 import org.sona.controller.response.CurrentUserResponse;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
@@ -33,9 +32,6 @@ class AuthControllerTest {
     UserDao userDao;
 
     @Autowired
-    PasswordDao passwordDao;
-
-    @Autowired
     PasswordEncoder encoder;
 
     @Value("${local.server.port}")
@@ -47,7 +43,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        users = new TestUsers(userDao, passwordDao, encoder);
+        users = new TestUsers(userDao, encoder);
     }
 
     @Test

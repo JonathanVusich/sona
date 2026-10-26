@@ -18,8 +18,7 @@ import org.sona.auth.TestTokens;
 import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
-import org.sona.db.IngestGroupDao;
-import org.sona.db.TrackToIngestDao;
+import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
@@ -41,13 +40,10 @@ class IngestControllerTest {
     JwtEncoder encoder;
 
     @Autowired
-    IngestGroupDao ingestGroupDao;
+    IngestDao ingestDao;
 
     @Autowired
     UserDao userDao;
-
-    @Autowired
-    TrackToIngestDao trackToIngestDao;
 
     @Autowired
     Library library;
@@ -82,7 +78,7 @@ class IngestControllerTest {
 
         assertThat(created.kind()).isEqualTo(IngestGroupKind.ALBUM);
         assertThat(created.name()).isEqualTo("Parachutes");
-        assertThat(ingestGroupDao.loadById(created.groupIngestId()))
+        assertThat(ingestDao.loadGroupById(created.groupIngestId()))
                 .contains(
                         new IngestGroup(created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes", admin.userId()));
     }
@@ -132,7 +128,7 @@ class IngestControllerTest {
         assertThat(response.groupIngestId()).isEqualTo(group.ingestGroupId());
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
         assertThat(response.state()).isEqualTo(IngestState.PENDING);
-        final var ingest = trackToIngestDao.loadById(response.trackIngestId());
+        final var ingest = ingestDao.loadTrackIngestById(response.trackIngestId());
         assertThat(ingest.state()).isEqualTo(IngestState.PENDING);
         try (final var stored = library.readIngestTrack(ingest)) {
             assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(flac);
@@ -252,7 +248,7 @@ class IngestControllerTest {
     private IngestGroup storeGroup() {
         final var group =
                 new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", admin.userId());
-        ingestGroupDao.insert(group);
+        ingestDao.insertGroup(group);
         return group;
     }
 }

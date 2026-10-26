@@ -3,7 +3,6 @@ package org.sona.auth;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -30,7 +29,6 @@ import org.springframework.stereotype.Component;
 public class DevUserRunner implements ApplicationRunner {
 
     private final UserDao userDao;
-    private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
 
     @Override
@@ -41,6 +39,6 @@ public class DevUserRunner implements ApplicationRunner {
 
     private void resetUser(final String name, final UserRole role) {
         final var user = userDao.upsert(new Users(uuidv7(), UserType.LOCAL, name, role, AccountState.ACTIVE));
-        passwordDao.upsert(new Password(user.userId(), encoder.encode(name), PasswordState.VALID));
+        userDao.upsertPassword(new Password(user.userId(), encoder.encode(name), PasswordState.VALID));
     }
 }

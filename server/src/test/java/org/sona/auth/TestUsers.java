@@ -3,7 +3,6 @@ package org.sona.auth;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import lombok.RequiredArgsConstructor;
-import org.sona.db.PasswordDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -20,7 +19,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public final class TestUsers {
 
     private final UserDao userDao;
-    private final PasswordDao passwordDao;
     private final PasswordEncoder encoder;
 
     public Users createUser(final String username, final UserRole role) {
@@ -39,7 +37,7 @@ public final class TestUsers {
             final String username, final UserRole role, final AccountState state, final PasswordState passwordState) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, role, state);
         userDao.insert(user);
-        passwordDao.upsert(new Password(user.userId(), encoder.encode(username), passwordState));
+        userDao.upsertPassword(new Password(user.userId(), encoder.encode(username), passwordState));
         return user;
     }
 }

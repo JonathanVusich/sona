@@ -21,7 +21,6 @@ import org.sona.config.FakeOidcProvider;
 import org.sona.controller.ApiClient;
 import org.sona.controller.ApiRoutes;
 import org.sona.controller.response.CurrentUserResponse;
-import org.sona.db.OidcIdentityDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
@@ -48,9 +47,6 @@ class OidcSignInTest {
 
     @Autowired
     UserDao userDao;
-
-    @Autowired
-    OidcIdentityDao oidcIdentityDao;
 
     @Autowired
     DSLContext dsl;
@@ -176,7 +172,7 @@ class OidcSignInTest {
         final var me = currentUser(providerSession("alice-id", List.of()).accessToken());
         assertThat(me.username()).isEqualTo("alice");
         assertThat(userDao.loadById(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
-        assertThat(oidcIdentityDao.loadByUserId(userId("alice-id")))
+        assertThat(userDao.loadOidcIdentity(userId("alice-id")))
                 .contains(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id"));
     }
 
@@ -319,7 +315,7 @@ class OidcSignInTest {
     private void existingUser(final String subject, final String username) {
         final var userId = userId(subject);
         userDao.insert(new Users(userId, UserType.OIDC, username, UserRole.USER, AccountState.ACTIVE));
-        oidcIdentityDao.insert(new OidcIdentity(userId, provider.issuer(), subject));
+        userDao.insertOidcIdentity(new OidcIdentity(userId, provider.issuer(), subject));
     }
 
     /**
