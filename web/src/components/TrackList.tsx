@@ -1,9 +1,8 @@
 import { A } from "@solidjs/router";
-import { For, Show, type JSX } from "solid-js";
-import type { MediumResponse, TrackResponse } from "../api/responses";
+import { createSignal, For, Show, type JSX } from "solid-js";
+import type { MediumResponse, PlaylistTrackResponse, TrackResponse } from "../api/responses";
 import { formatTime, joinDetails } from "../format";
 import { current, Playback, playback } from "../player";
-import { removeFromPlaylist, type PlaylistTrack } from "../playlists";
 import { AppRoutes, routeTo } from "../routes";
 import { PlayIcon } from "./Icons";
 import Menu, { MenuKind } from "./Menu";
@@ -50,7 +49,7 @@ function tracksBefore(media: MediumResponse[], mediumIndex: number): number {
 }
 
 // One release's tracks, numbered by their position on their medium. A row names its artist only when it isn't the
-// release's own (artistId), as on a compilation. Playlists are still mocked, so these tracks can't go on them.
+// release's own (artistId), as on a compilation.
 export function ReleaseTrackList(props: {
   tracks: TrackResponse[];
   artistId: string;
@@ -68,12 +67,29 @@ export function ReleaseTrackList(props: {
 }
 
 // A playlist's tracks, numbered in the playlist's order, each naming and linking its artist and release, and offering
-// to remove it from the playlist.
+// to remove it from the playlist. Dragging a track onto another moves it to that track's place: onMove gets the track
+// and its new position on the playlist, from 1.
 export function PlaylistTrackList(props: {
-  tracks: PlaylistTrack[];
-  playlistId: string;
+  tracks: PlaylistTrackResponse[];
   onPlay: (index: number) => void;
+  onRemove: (track: PlaylistTrackResponse) => void;
+  onMove: (track: PlaylistTrackResponse, position: number) => void;
 }) {
+  // The track being dragged, and the one it's over, while a drag is under way: null otherwise.
+  const [dragged, setDragged] = createSignal<PlaylistTrackResponse | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<PlaylistTrackResponse | null>(null);
+  const endDrag = () => {
+    setDragged(null);
+    setDropTarget(null);
+  };
+  const drop = (position: number) => {
+    const moved = dragged();
+    endDrag();
+    if (moved !== null) {
+      props.onMove(moved, position);
+    }
+  };
+
   return (
     <ol class="tracklist with-context">
       <For each={props.tracks}>
@@ -81,8 +97,13 @@ export function PlaylistTrackList(props: {
           <PlaylistTrackRow
             track={track}
             number={index() + 1}
-            playlistId={props.playlistId}
+            drop={rowDrop(track, dragged(), dropTarget())}
             onPlay={() => props.onPlay(index())}
+            onRemove={() => props.onRemove(track)}
+            onDragStart={() => setDragged(track)}
+            onDragOver={() => setDropTarget(track)}
+            onDrop={() => drop(index() + 1)}
+            onDragEnd={endDrag}
           />
         )}
       </For>
@@ -102,16 +123,70 @@ function ReleaseTrackRow(props: { track: TrackResponse; artistId: string; onPlay
       </span>
       <TrackDuration track={props.track} />
       <Menu kind={MenuKind.TRACK} label={`More for ${props.track.name}`}>
+        <AddToPlaylistItems trackIds={[props.track.trackId]} />
+        <hr class="menu-divider" />
         <ArtistMenuItem track={props.track} />
       </Menu>
     </TrackRow>
   );
 }
 
-function PlaylistTrackRow(props: { track: PlaylistTrack; number: number; playlistId: string; onPlay: () => void }) {
+// Whether a playlist's row is where a dragged track would land.
+const RowDrop = {
+  NONE: "none",
+  TARGET: "target",
+} as const;
+
+type RowDrop = (typeof RowDrop)[keyof typeof RowDrop];
+
+function rowDrop(
+  track: PlaylistTrackResponse,
+  dragged: PlaylistTrackResponse | null,
+  dropTarget: PlaylistTrackResponse | null,
+): RowDrop {
+  if (dragged === null || dragged === track || dropTarget !== track) {
+    return RowDrop.NONE;
+  }
+  return RowDrop.TARGET;
+}
+
+function PlaylistTrackRow(props: {
+  track: PlaylistTrackResponse;
+  number: number;
+  drop: RowDrop;
+  onPlay: () => void;
+  onRemove: () => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
+}) {
   const releasePath = () => routeTo(AppRoutes.RELEASE, props.track.release.releaseId);
+  const dragStart = (event: DragEvent) => {
+    // Firefox only starts a drag that carries data.
+    event.dataTransfer?.setData("text/plain", props.track.trackId);
+    props.onDragStart();
+  };
+  // A row only takes a drop once its dragover is cancelled.
+  const dragOver = (event: DragEvent) => {
+    event.preventDefault();
+    props.onDragOver();
+  };
+  const drop = (event: DragEvent) => {
+    event.preventDefault();
+    props.onDrop();
+  };
   return (
-    <TrackRow track={props.track} onPlay={props.onPlay}>
+    <li
+      class="track-row"
+      classList={{ current: current()?.trackId === props.track.trackId, "drop-target": props.drop === RowDrop.TARGET }}
+      draggable="true"
+      onClick={(event) => playOnRowClick(event, props.onPlay)}
+      onDragStart={dragStart}
+      onDragOver={dragOver}
+      onDrop={drop}
+      onDragEnd={() => props.onDragEnd()}
+    >
       <TrackPlayButton track={props.track} number={props.number} onPlay={props.onPlay} />
       <span class="track-main">
         <span class="track-title">{props.track.name}</span>
@@ -122,38 +197,37 @@ function PlaylistTrackRow(props: { track: PlaylistTrack; number: number; playlis
       </span>
       <TrackDuration track={props.track} />
       <Menu kind={MenuKind.TRACK} label={`More for ${props.track.name}`}>
-        <AddToPlaylistItems trackIds={() => [props.track.trackId]} />
-        <hr class="menu-divider" />
         <ArtistMenuItem track={props.track} />
         <A href={releasePath()} class="menu-item" role="menuitem">
           Go to release
         </A>
         <hr class="menu-divider" />
-        <button
-          class="menu-item danger"
-          role="menuitem"
-          onClick={() => removeFromPlaylist(props.playlistId, props.track.trackId)}
-        >
+        <button class="menu-item danger" role="menuitem" onClick={() => props.onRemove()}>
           Remove from this playlist
         </button>
       </Menu>
-    </TrackRow>
+    </li>
   );
 }
 
 // A track's row, which plays it on click and is marked while it's the player's.
 function TrackRow(props: { track: TrackResponse; onPlay: () => void; children: JSX.Element }) {
-  // Links and buttons inside the row do their own thing.
-  const onRowClick = (event: MouseEvent) => {
-    if (!(event.target instanceof Element && event.target.closest("a, button, .menu"))) {
-      props.onPlay();
-    }
-  };
   return (
-    <li class="track-row" classList={{ current: current()?.trackId === props.track.trackId }} onClick={onRowClick}>
+    <li
+      class="track-row"
+      classList={{ current: current()?.trackId === props.track.trackId }}
+      onClick={(event) => playOnRowClick(event, props.onPlay)}
+    >
       {props.children}
     </li>
   );
+}
+
+// Links and buttons inside a row do their own thing; a click anywhere else in it plays the track.
+function playOnRowClick(event: MouseEvent, onPlay: () => void) {
+  if (!(event.target instanceof Element && event.target.closest("a, button, .menu"))) {
+    onPlay();
+  }
 }
 
 // The track's number, or bars while it plays, which turns into a play button on hover.

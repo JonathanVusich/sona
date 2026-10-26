@@ -13,6 +13,11 @@ export const ApiRoutes = {
   TRACK_STREAM_TOKEN: "/stream-token",
   // Takes the track's stream token as the access_token parameter.
   TRACK_STREAM: "/stream",
+  // Followed by a playlist's ID, and then by the paths below for its tracks.
+  PLAYLISTS: "/api/playlists",
+  // Followed by a track's ID, and then by PLAYLIST_TRACK_POSITION to move it.
+  PLAYLIST_TRACKS: "/tracks",
+  PLAYLIST_TRACK_POSITION: "/position",
   INGEST_GROUPS: "/api/ingest-groups",
   // STOMP over WebSocket.
   SOCKET: "/api/socket",

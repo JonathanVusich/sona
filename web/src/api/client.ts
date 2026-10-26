@@ -1,18 +1,26 @@
 import axios, { type AxiosProgressEvent, type AxiosRequestConfig, type AxiosResponse } from "axios";
 import {
   PagePosition,
+  type AddTracksRequest,
   type ChangePasswordRequest,
+  type CreatePlaylistRequest,
   type IngestGroupRequest,
   type LoginRequest,
+  type MoveTrackRequest,
   type PageRequest,
+  type PlaylistDetailsRequest,
 } from "./requests";
 import type {
+  AddedTracksResponse,
   ArtistDetailsResponse,
+  CreatedPlaylistResponse,
   ArtistPageResponse,
   CurrentUserResponse,
   ErrorCode,
   ErrorResponse,
   IngestGroupResponse,
+  PlaylistResponse,
+  PlaylistsResponse,
   ReleaseGroupPageResponse,
   ReleaseGroupResponse,
   ReleaseResponse,
@@ -45,12 +53,21 @@ export type ApiResult<T> =
 const HttpMethod = {
   GET: "GET",
   POST: "POST",
+  PUT: "PUT",
+  DELETE: "DELETE",
 } as const;
 
 type HttpMethod = (typeof HttpMethod)[keyof typeof HttpMethod];
 
 // What a request sends as JSON.
-type RequestBody = LoginRequest | ChangePasswordRequest | IngestGroupRequest;
+type RequestBody =
+  | LoginRequest
+  | ChangePasswordRequest
+  | IngestGroupRequest
+  | CreatePlaylistRequest
+  | PlaylistDetailsRequest
+  | AddTracksRequest
+  | MoveTrackRequest;
 
 const JSON_CONTENT = { "Content-Type": "application/json" };
 // Sona reads an uploaded file as the raw request body; a form type would have it read the file as form fields.
@@ -132,6 +149,80 @@ function trackPath(trackId: string): string {
 }
 
 /**
+ * @returns the current user's playlists, by name
+ */
+export async function fetchPlaylists(accessToken: string): Promise<ApiResult<PlaylistsResponse>> {
+  return sendForJson(ApiRoutes.PLAYLISTS, getAsUser(accessToken));
+}
+
+export async function fetchPlaylist(accessToken: string, playlistId: string): Promise<ApiResult<PlaylistResponse>> {
+  return sendForJson(playlistPath(playlistId), getAsUser(accessToken));
+}
+
+export async function createPlaylist(
+  accessToken: string,
+  request: CreatePlaylistRequest,
+): Promise<ApiResult<CreatedPlaylistResponse>> {
+  return sendForJson(ApiRoutes.PLAYLISTS, postJsonAsUser(accessToken, request));
+}
+
+export async function updatePlaylist(
+  accessToken: string,
+  playlistId: string,
+  request: PlaylistDetailsRequest,
+): Promise<ApiResult<void>> {
+  return sendForNothing(playlistPath(playlistId), putJsonAsUser(accessToken, request));
+}
+
+/**
+ * Deletes the playlist. Its tracks stay in the library.
+ */
+export async function deletePlaylist(accessToken: string, playlistId: string): Promise<ApiResult<void>> {
+  return sendForNothing(playlistPath(playlistId), deleteAsUser(accessToken));
+}
+
+/**
+ * Adds tracks to the end of the playlist, skipping those already on it.
+ */
+export async function addPlaylistTracks(
+  accessToken: string,
+  playlistId: string,
+  request: AddTracksRequest,
+): Promise<ApiResult<AddedTracksResponse>> {
+  const path = `${playlistPath(playlistId)}${ApiRoutes.PLAYLIST_TRACKS}`;
+  return sendForJson(path, postJsonAsUser(accessToken, request));
+}
+
+export async function removePlaylistTrack(
+  accessToken: string,
+  playlistId: string,
+  trackId: string,
+): Promise<ApiResult<void>> {
+  return sendForNothing(playlistTrackPath(playlistId, trackId), deleteAsUser(accessToken));
+}
+
+/**
+ * Moves a track to another place on the playlist; the tracks it passes move along by one.
+ */
+export async function movePlaylistTrack(
+  accessToken: string,
+  playlistId: string,
+  trackId: string,
+  request: MoveTrackRequest,
+): Promise<ApiResult<void>> {
+  const path = `${playlistTrackPath(playlistId, trackId)}${ApiRoutes.PLAYLIST_TRACK_POSITION}`;
+  return sendForNothing(path, putJsonAsUser(accessToken, request));
+}
+
+function playlistPath(playlistId: string): string {
+  return `${ApiRoutes.PLAYLISTS}/${encodeURIComponent(playlistId)}`;
+}
+
+function playlistTrackPath(playlistId: string, trackId: string): string {
+  return `${playlistPath(playlistId)}${ApiRoutes.PLAYLIST_TRACKS}/${encodeURIComponent(trackId)}`;
+}
+
+/**
  * Creates an ingest group, under an ID Sona gives it.
  */
 export async function createIngestGroup(
@@ -183,6 +274,14 @@ function getAsUser(accessToken: string): AxiosRequestConfig {
 
 function postJsonAsUser(accessToken: string, body: RequestBody): AxiosRequestConfig {
   return { method: HttpMethod.POST, headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT }, data: body };
+}
+
+function putJsonAsUser(accessToken: string, body: RequestBody): AxiosRequestConfig {
+  return { method: HttpMethod.PUT, headers: { ...authorizationHeader(accessToken), ...JSON_CONTENT }, data: body };
+}
+
+function deleteAsUser(accessToken: string): AxiosRequestConfig {
+  return { method: HttpMethod.DELETE, headers: authorizationHeader(accessToken) };
 }
 
 function postFileAsUser(accessToken: string, file: File, onProgress: (sent: number) => void): AxiosRequestConfig {

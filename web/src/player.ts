@@ -1,7 +1,13 @@
 import { createSignal } from "solid-js";
 import * as api from "./api/client";
 import { ResultKind } from "./api/client";
-import type { MediumResponse, ReleaseGroupResponse, ReleaseResponse, TrackResponse } from "./api/responses";
+import type {
+  MediumResponse,
+  ReleaseGroupResponse,
+  ReleaseResponse,
+  TrackReleaseResponse,
+  TrackResponse,
+} from "./api/responses";
 import {
   clearAudio,
   hasStream,
@@ -22,7 +28,7 @@ import { toast } from "./components/Toast";
 
 /** A track the player can queue: one from Sona, with the release it's on, which the player links to. */
 export interface QueuedTrack extends TrackResponse {
-  release: { releaseId: string; name: string };
+  release: TrackReleaseResponse;
 }
 
 /**

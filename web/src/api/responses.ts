@@ -82,6 +82,7 @@ export const ErrorCode = {
   INGEST_GROUP_NOT_FOUND: 304,
   FILE_TOO_LARGE: 305,
   TRACK_NOT_FOUND: 306,
+  PLAYLIST_NOT_FOUND: 307,
 
   INVALID_PARAMETER: 400,
   UNSUPPORTED_CONTENT_TYPE: 401,
@@ -272,4 +273,48 @@ export interface TrackIngestResponse {
   /** The file's name where it was uploaded from. */
   originalFileName: string;
   state: IngestState;
+}
+
+/** The release a track is on, as lists of tracks from many releases name and link it. */
+export interface TrackReleaseResponse {
+  releaseId: string;
+  name: string;
+}
+
+/** A playlist as the list of the user's playlists shows it. */
+export interface PlaylistSummaryResponse {
+  playlistId: string;
+  name: string;
+  trackCount: number;
+  /** The names of the release groups its first tracks are from, up to four, for its cover. */
+  coverNames: string[];
+}
+
+export interface PlaylistsResponse {
+  /** Every playlist the user has, by name. */
+  playlists: PlaylistSummaryResponse[];
+}
+
+/** A track on a playlist, with the release it's on. Its position is on its medium, not on the playlist. */
+export interface PlaylistTrackResponse extends TrackResponse {
+  release: TrackReleaseResponse;
+}
+
+/** Everything the playlist page shows. */
+export interface PlaylistResponse {
+  playlistId: string;
+  name: string;
+  /** Null when the user gave it none. */
+  description: string | null;
+  /** Every track on the playlist, in the user's order. */
+  tracks: PlaylistTrackResponse[];
+}
+
+export interface CreatedPlaylistResponse {
+  playlistId: string;
+}
+
+export interface AddedTracksResponse {
+  /** How many of the tracks were added; those already on the playlist aren't. */
+  added: number;
 }
