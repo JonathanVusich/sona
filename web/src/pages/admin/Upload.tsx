@@ -96,7 +96,7 @@ function UploadSelection() {
           <button onClick={() => filesInput?.click()}>Choose files</button>
           <button onClick={() => folderInput?.click()}>Choose folder</button>
         </div>
-        <input ref={filesInput} type="file" accept="audio/*,.flac" multiple hidden onChange={onPick} />
+        <input ref={filesInput} type="file" accept=".flac,.mp3,.mp2,.mp1" multiple hidden onChange={onPick} />
         <input
           ref={(el) => {
             folderInput = el;
