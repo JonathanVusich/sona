@@ -8,6 +8,7 @@ import {
   type LoginRequest,
   type MoveTrackRequest,
   type PageRequest,
+  type PlayRequest,
   type PlaylistDetailsRequest,
 } from "./requests";
 import type {
@@ -19,6 +20,7 @@ import type {
   ErrorCode,
   ErrorResponse,
   IngestGroupResponse,
+  PlayPageResponse,
   PlaylistResponse,
   PlaylistsResponse,
   ReleaseGroupPageResponse,
@@ -67,7 +69,8 @@ type RequestBody =
   | CreatePlaylistRequest
   | PlaylistDetailsRequest
   | AddTracksRequest
-  | MoveTrackRequest;
+  | MoveTrackRequest
+  | PlayRequest;
 
 const JSON_CONTENT = { "Content-Type": "application/json" };
 // Sona reads an uploaded file as the raw request body; a form type would have it read the file as form fields.
@@ -212,6 +215,20 @@ export async function movePlaylistTrack(
 ): Promise<ApiResult<void>> {
   const path = `${playlistTrackPath(playlistId, trackId)}${ApiRoutes.PLAYLIST_TRACK_POSITION}`;
   return sendForNothing(path, putJsonAsUser(accessToken, request));
+}
+
+/**
+ * Records that the user played the track just now.
+ */
+export async function recordPlay(accessToken: string, request: PlayRequest): Promise<ApiResult<void>> {
+  return sendForNothing(ApiRoutes.PLAYS, postJsonAsUser(accessToken, request));
+}
+
+/**
+ * @returns a page of the user's plays, latest first
+ */
+export async function fetchPlays(accessToken: string, page: PageRequest): Promise<ApiResult<PlayPageResponse>> {
+  return sendForJson(`${ApiRoutes.PLAYS}${pageQuery(page)}`, getAsUser(accessToken));
 }
 
 function playlistPath(playlistId: string): string {

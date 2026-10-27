@@ -310,6 +310,24 @@ export interface PlaylistResponse {
   tracks: PlaylistTrackResponse[];
 }
 
+/** A track in the play history, with the release it's on. */
+export interface PlayedTrackResponse extends TrackResponse {
+  release: TrackReleaseResponse;
+}
+
+/** One time the user played a track. */
+export interface PlayResponse {
+  playId: string;
+  track: PlayedTrackResponse;
+}
+
+/** One page of the user's plays, latest first, a track played again listed again. */
+export interface PlayPageResponse {
+  plays: PlayResponse[];
+  /** What to load the next page after, or null on the last page. */
+  next: string | null;
+}
+
 export interface CreatedPlaylistResponse {
   playlistId: string;
 }

@@ -454,11 +454,6 @@ export const groupsByArtist = (include: (group: ReleaseGroup) => boolean) =>
         (groupYear(a.id) ?? 0) - (groupYear(b.id) ?? 0),
     );
 
-export const recentlyPlayed = () =>
-  groups()
-    .filter((group) => group.lastPlayedAt !== null)
-    .sort((a, b) => b.lastPlayedAt! - a.lastPlayedAt!);
-
 export const recentlyAdded = () => [...groups()].sort((a, b) => b.addedAt - a.addedAt);
 
 export const notPlayedYet = () => groups().filter((group) => group.lastPlayedAt === null);

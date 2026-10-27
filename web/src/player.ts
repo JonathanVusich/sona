@@ -91,6 +91,11 @@ const Advance = {
 
 type Advance = (typeof Advance)[keyof typeof Advance];
 
+// A track counts as played once half of it has played, or this many seconds if that comes first (Last.fm's rule).
+const PLAY_COUNTS_AFTER = 240;
+// The audio element reports its position a few times a second, so a bigger step is the user seeking, not playing.
+const LONGEST_PLAYED_STEP = 2;
+
 const [queue, setQueue] = createSignal<QueuedTrack[]>([]);
 // Play order as indexes into the queue; shuffled when shuffle is on.
 const [order, setOrder] = createSignal<number[]>([]);
@@ -102,6 +107,11 @@ const [volume, setVolumeLevel] = createSignal(0.8);
 const [sound, setSound] = createSignal<Sound>(Sound.ON);
 const [shuffleMode, setShuffleMode] = createSignal<ShuffleMode>(ShuffleMode.OFF);
 const [repeat, setRepeat] = createSignal<RepeatMode>(RepeatMode.OFF);
+
+// How much of the current track has played since it started, and whether that has been reported as a play.
+let playedSeconds = 0;
+let lastPosition = 0;
+let playReported = false;
 
 export { playback, position, volume, sound, shuffleMode, repeat };
 
@@ -295,6 +305,7 @@ export function stop() {
 }
 
 async function startTrack() {
+  resetPlayed();
   setPosition(0);
   setPlayback(Playback.PLAYING);
   const track = current();
@@ -339,8 +350,32 @@ function followStart(outcome: StartOutcome) {
 }
 
 function restartTrack() {
+  // Playing it again is another play.
+  resetPlayed();
   setPosition(0);
   seekAudio(0);
+}
+
+function resetPlayed() {
+  playedSeconds = 0;
+  lastPosition = 0;
+  playReported = false;
+}
+
+async function followProgress(seconds: number) {
+  setPosition(seconds);
+  const step = seconds - lastPosition;
+  lastPosition = seconds;
+  if (step > 0 && step <= LONGEST_PLAYED_STEP) {
+    playedSeconds += step;
+  }
+  const track = current();
+  if (track === null || playReported || playedSeconds < Math.min(track.duration / 2, PLAY_COUNTS_AFTER)) {
+    return;
+  }
+  playReported = true;
+  // A play that can't be recorded is lost quietly: the user is listening, and the next track's play is unaffected.
+  await sendAsCurrentUser((accessToken) => api.recordPlay(accessToken, { trackId: track.trackId }));
 }
 
 function failPlayback(track: QueuedTrack) {
@@ -384,7 +419,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 setAudioVolume(audibleVolume());
-onAudioProgress(setPosition);
+onAudioProgress(followProgress);
 onAudioEnded(() => advance(Advance.ENDED));
 onAudioError(() => {
   const track = current();

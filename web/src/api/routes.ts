@@ -18,6 +18,7 @@ export const ApiRoutes = {
   // Followed by a track's ID, and then by PLAYLIST_TRACK_POSITION to move it.
   PLAYLIST_TRACKS: "/tracks",
   PLAYLIST_TRACK_POSITION: "/position",
+  PLAYS: "/api/plays",
   INGEST_GROUPS: "/api/ingest-groups",
   // STOMP over WebSocket.
   SOCKET: "/api/socket",
