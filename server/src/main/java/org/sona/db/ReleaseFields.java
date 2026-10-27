@@ -2,7 +2,6 @@ package org.sona.db;
 
 import static org.jooq.impl.DSL.multiset;
 import static org.jooq.impl.DSL.select;
-import static org.jooq.impl.DSL.selectFrom;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.LABEL;
 import static org.sona.model.Tables.MEDIUM;
@@ -12,17 +11,10 @@ import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.jooq.Field;
-import org.sona.mappers.ArtistMapper;
-import org.sona.mappers.LabelMapper;
-import org.sona.mappers.MediumMapper;
-import org.sona.mappers.MediumWithTracksMapper;
-import org.sona.mappers.TrackMapper;
-import org.sona.mappers.TrackWithArtistMapper;
+import org.jooq.Record1;
+import org.jooq.Records;
 import org.sona.model.enums.IngestState;
-import org.sona.model.tables.pojos.Label;
-import org.sona.model.tables.pojos.Medium;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,38 +22,32 @@ import org.springframework.stereotype.Component;
  * group page.
  */
 @Component
-@RequiredArgsConstructor
 public final class ReleaseFields {
-
-    private final ArtistMapper artistMapper;
-    private final LabelMapper labelMapper;
-    private final MediumMapper mediumMapper;
-    private final TrackMapper trackMapper;
-    private final MediumWithTracksMapper mediumWithTracksMapper;
-    private final TrackWithArtistMapper trackWithArtistMapper;
 
     /**
      * @param releaseId the release's ID, as a field of the query the labels are read in
      * @return the release's labels by name
      */
-    public Field<List<Label>> releaseLabels(final Field<UUID> releaseId) {
+    public Field<List<LabelSummary>> releaseLabels(final Field<UUID> releaseId) {
         final var releaseLabelIds =
                 select(RELEASE_LABEL.LABEL_ID).from(RELEASE_LABEL).where(RELEASE_LABEL.RELEASE_ID.eq(releaseId));
-        return multiset(selectFrom(LABEL)
+        return multiset(select(LABEL.LABEL_ID, LABEL.NAME)
+                        .from(LABEL)
                         .where(LABEL.LABEL_ID.in(releaseLabelIds))
                         .orderBy(LABEL.NAME))
-                .convertFrom(labels -> labels.map(labelMapper::fromRecord));
+                .convertFrom(labels -> labels.map(Records.mapping(LabelSummary::new)));
     }
 
     /**
      * @param releaseId the release's ID, as a field of the query the media are read in
-     * @return the release's media in order
+     * @return each of the release's media's formats in order, null for a medium whose format MusicBrainz doesn't know
      */
-    public Field<List<Medium>> releaseMedia(final Field<UUID> releaseId) {
-        return multiset(selectFrom(MEDIUM)
+    public Field<List<String>> releaseFormats(final Field<UUID> releaseId) {
+        return multiset(select(MEDIUM.FORMAT)
+                        .from(MEDIUM)
                         .where(MEDIUM.RELEASE_ID.eq(releaseId))
                         .orderBy(MEDIUM.POSITION))
-                .convertFrom(media -> media.map(mediumMapper::fromRecord));
+                .convertFrom(formats -> formats.map(Record1::value1));
     }
 
     /**
@@ -70,12 +56,11 @@ public final class ReleaseFields {
      * when only one disc of a release was uploaded
      */
     public Field<List<MediumWithTracks>> releaseMediaWithTracks(final Field<UUID> releaseId) {
-        return multiset(select(MEDIUM.convertFrom(mediumMapper::fromRecord), tracks())
+        return multiset(select(MEDIUM.POSITION, MEDIUM.FORMAT, tracks())
                         .from(MEDIUM)
                         .where(MEDIUM.RELEASE_ID.eq(releaseId))
                         .orderBy(MEDIUM.POSITION))
-                .convertFrom(media ->
-                        media.map(medium -> mediumWithTracksMapper.fromPojos(medium.value1(), medium.value2())));
+                .convertFrom(media -> media.map(Records.mapping(MediumWithTracks::new)));
     }
 
     /**
@@ -86,8 +71,12 @@ public final class ReleaseFields {
         // Aliased apart from the release's artist, which the outer query joins as ARTIST.
         final var trackArtist = ARTIST.as("track_artist");
         return multiset(select(
-                                TRACK.convertFrom(trackMapper::fromRecord),
-                                trackArtist.convertFrom(artistMapper::fromRecord))
+                                TRACK.TRACK_ID,
+                                TRACK.NAME,
+                                TRACK.DURATION,
+                                TRACK.POSITION,
+                                trackArtist.ARTIST_ID,
+                                trackArtist.NAME)
                         .from(TRACK)
                         .join(trackArtist)
                         .on(trackArtist.ARTIST_ID.eq(TRACK.ARTIST_ID))
@@ -96,7 +85,6 @@ public final class ReleaseFields {
                         .where(TRACK.MEDIUM_ID.eq(MEDIUM.MEDIUM_ID))
                         .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
                         .orderBy(TRACK.POSITION))
-                .convertFrom(
-                        tracks -> tracks.map(track -> trackWithArtistMapper.fromPojos(track.value1(), track.value2())));
+                .convertFrom(tracks -> tracks.map(Records.mapping(TrackWithArtist::new)));
     }
 }

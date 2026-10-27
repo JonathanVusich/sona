@@ -60,7 +60,6 @@ public class ReleaseGroupController {
             // The response marks the last page with a null next.
             return new ReleaseGroupPageResponse(releaseGroups, null);
         }
-        return new ReleaseGroupPageResponse(
-                releaseGroups, page.getLast().releaseGroup().releaseGroupId());
+        return new ReleaseGroupPageResponse(releaseGroups, page.getLast().releaseGroupId());
     }
 }
