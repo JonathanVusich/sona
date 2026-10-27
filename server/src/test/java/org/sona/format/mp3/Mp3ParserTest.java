@@ -138,6 +138,17 @@ class Mp3ParserTest {
         assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(5);
     }
 
+    // FFmpeg reads the tags a file starts with one after another, each updating the last.
+    @Test
+    void readsEveryTagBeforeAudio() throws IOException, InvalidFormatException {
+        final var parsed = parseMp3(Mp3Sample.TWO_ID3V2_TAGS);
+        final var metadata = parsed.metadata();
+
+        assertThat(metadata.findValues(Tag.TRACK_TITLE)).containsExactly(new TagValue.Str("Politik"));
+        assertThat(metadata.findValues(Tag.COMPOSER)).containsExactly(new TagValue.Str("Guy Berryman"));
+        assertThat(parsed.audio().streamInfo().frameCount()).isEqualTo(5);
+    }
+
     // Without a VBR header the frames are counted up to the ID3v1 tag.
     @Test
     void countsFramesUpToId3v1Tag() throws IOException, InvalidFormatException {

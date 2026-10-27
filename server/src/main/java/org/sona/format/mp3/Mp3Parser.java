@@ -21,7 +21,7 @@ import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipException;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
-import org.apache.commons.io.input.NullInputStream;
+import org.apache.commons.io.input.InfiniteCircularInputStream;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.format.Parser;
@@ -50,6 +50,8 @@ public final class Mp3Parser implements Parser {
     private static final long SYNC = 0xFFE0_0000L;
     // FFmpeg's MP3 demuxer looks this far for the first frame followed by another of its stream.
     private static final int FIRST_FRAME_SEARCH = 64 * 1024;
+    // How much of a file FFmpeg reads to find its streams.
+    private static final int PROBE_SIZE = 5_000_000;
 
     // Picard's TXXX descriptions, and the names it gives the same tags in Vorbis comments, so unknown tags have the
     // same names whether they were read from an MP3 or a FLAC file.
@@ -89,16 +91,49 @@ public final class Mp3Parser implements Parser {
         try {
             final var id3v1Tag = readId3v1Tag(channel);
             final var appendedTag = readAppendedTag(channel, channel.size() - id3v1Tag.size());
-            final var id3v2Tag = readId3v2Tag(streamAt(channel, 0));
-            final var audioStart = id3v2Tag.size();
+            final var leadingTags = readLeadingTags(channel);
+            final var audioStart =
+                    leadingTags.stream().mapToLong(Id3v2Tag::size).sum();
             final var audioEnd = channel.size() - id3v1Tag.size() - appendedTag.size();
             final var streamInfo = readStreamInfo(channel, audioStart, audioEnd);
             final var audio = new Mp3Decoder(this, streamInfo, audioFrom(channel, streamInfo.audioStart()));
-            final var frames = mergeFrames(List.of(appendedTag.frames(), id3v2Tag.frames(), id3v1Tag.frames()));
+            final var frames = mergeFrames(framesByPrecedence(appendedTag, leadingTags, id3v1Tag));
             return new ParsedMp3(rawMetadata(streamInfo.duration(), frames), audio);
         } catch (final EOFException cutShort) {
             throw new InvalidFormatException("MP3 is cut short!");
         }
+    }
+
+    /**
+     * Reads the ID3v2 tags a file starts with. FFmpeg reads them one after another, each updating the last, as some
+     * encoders write a second tag after the first.
+     *
+     * @return the tags in file order, none when the file starts with none
+     */
+    private List<Id3v2Tag> readLeadingTags(final SeekableByteChannel channel)
+            throws IOException, InvalidFormatException {
+        final var tags = new ArrayList<Id3v2Tag>();
+        var position = 0L;
+        for (var tag = readId3v2Tag(streamAt(channel, position));
+                tag.size() > 0;
+                tag = readId3v2Tag(streamAt(channel, position))) {
+            tags.add(tag);
+            position += tag.size();
+        }
+        return List.copyOf(tags);
+    }
+
+    // The appended tag updates the tags before the audio, the last of which updates the one before it, and ID3v1 only
+    // fills in what they lack.
+    private List<List<? extends Id3Frame>> framesByPrecedence(
+            final Id3v2Tag appendedTag, final List<Id3v2Tag> leadingTags, final Id3v1Tag id3v1Tag) {
+        final var tags = new ArrayList<List<? extends Id3Frame>>();
+        tags.add(appendedTag.frames());
+        for (final var tag : leadingTags.reversed()) {
+            tags.add(tag.frames());
+        }
+        tags.add(id3v1Tag.frames());
+        return List.copyOf(tags);
     }
 
     // A file shorter than the tag can't end with one.
@@ -158,7 +193,9 @@ public final class Mp3Parser implements Parser {
      */
     private BoundedInputStream audioFrom(final SeekableByteChannel channel, final long audioStart) throws IOException {
         final var file = Channels.newInputStream(channel.position(audioStart));
-        final var padded = new SequenceInputStream(file, new NullInputStream(MAX_FREE_FORMAT_LENGTH, false, false));
+        // NullInputStream leaves the bytes a bulk read fills untouched, which are the buffer's stale ones, not zeros.
+        final var zeros = bounded(new InfiniteCircularInputStream(new byte[] {0}), MAX_FREE_FORMAT_LENGTH);
+        final var padded = new SequenceInputStream(file, zeros);
         return bounded(new BufferedInputStream(padded), Long.MAX_VALUE);
     }
 
@@ -185,9 +222,13 @@ public final class Mp3Parser implements Parser {
         final var vbrHeader = readVbrHeader(channel, audioStart, audioEnd);
         final var afterVbrHeader = vbrHeader.map(VbrFrame::end).orElse(audioStart);
         final var firstFrame = findFirstFrame(channel, afterVbrHeader, audioEnd);
-        // FFmpeg would only take a file for MPEG audio when it finds frames, whatever its name says.
+        // FFmpeg would only take a file for MPEG audio when it finds frames, whatever its name says: within its probe
+        // size, though not skipping the bytes before a frame that is further in than the first 64 KiB, so the decoder
+        // looks for that frame from the start of the audio, and FFmpeg's decoder drops it.
         if (firstFrame.isEmpty()
-                && frameHeaderAt(channel, afterVbrHeader, audioEnd).isEmpty()) {
+                && frameHeaderAt(channel, afterVbrHeader, audioEnd).isEmpty()
+                && findFrameWithin(channel, afterVbrHeader, audioEnd, PROBE_SIZE)
+                        .isEmpty()) {
             throw new InvalidFormatException("MP3 has no frames of audio!");
         }
         final var start = firstFrame.orElse(afterVbrHeader);
@@ -262,7 +303,14 @@ public final class Mp3Parser implements Parser {
      */
     private Optional<Long> findFirstFrame(final SeekableByteChannel channel, final long from, final long audioEnd)
             throws IOException {
-        final var end = Math.min(from + FIRST_FRAME_SEARCH, audioEnd);
+        return findFrameWithin(channel, from, audioEnd, FIRST_FRAME_SEARCH);
+    }
+
+    // The same, in that many bytes from the position.
+    private Optional<Long> findFrameWithin(
+            final SeekableByteChannel channel, final long from, final long audioEnd, final long window)
+            throws IOException {
+        final var end = Math.min(from + window, audioEnd);
         for (var position = from; position < end; position++) {
             final var header = frameHeaderAt(channel, position, audioEnd)
                     .filter(found -> found.bitrate() != FrameHeader.FREE_FORMAT_BITRATE);

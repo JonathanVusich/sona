@@ -100,7 +100,17 @@ public enum Mp3Sample {
     // NO_XING_ID3V1 without its last 200 bytes: its ID3v1 tag and the end of its last frame.
     CUT_IN_LAST_FRAME("cut_in_last_frame.mp3"),
     // STEREO_CBR_ID3V24 without its last 2000 bytes, so its Info header counts frames it doesn't have.
-    CUT_SHORT_OF_INFO_HEADER("cut_short_of_info_header.mp3");
+    CUT_SHORT_OF_INFO_HEADER("cut_short_of_info_header.mp3"),
+    // NO_XING_ID3V1 cut in its last frame, 20 bytes in, which is inside its side information. FFmpeg decodes the frame
+    // with the side information it has, then zeros.
+    CUT_IN_LAST_FRAME_SIDE_INFO("cut_in_last_frame_side_info.mp3"),
+    // Pink and white noise in stereo that FFmpeg 4.2 encoded with LAME at 256 kbit/s, which fills the frames with big
+    // values, without a VBR header, cut in its last frame 150 and 300 bytes in. FFmpeg stops decoding values where the
+    // frame's data ends, whereas the zeros after it would decode as more.
+    NOISE_CUT_IN_LAST_FRAME_150("noise_cut_in_last_frame_150.mp3"),
+    NOISE_CUT_IN_LAST_FRAME_300("noise_cut_in_last_frame_300.mp3"),
+    // An ID3v2.4 tag, with a title, an artist and a composer, followed by ID3V22 with its own tag, and its frames.
+    TWO_ID3V2_TAGS("two_id3v2_tags.mp3");
 
     private final String fileName;
 

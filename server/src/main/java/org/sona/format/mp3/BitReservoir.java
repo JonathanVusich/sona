@@ -25,20 +25,25 @@ final class BitReservoir {
 
     private final byte[] bytes = new byte[2 * BACKSTEP + MAX_MAIN_DATA_SIZE + PADDING];
     private int size;
+    // How many bytes at the end of the last frame's main data the file didn't have, which are zeros.
+    private int missingBytes;
 
     /**
      * Reads a frame's main data from the stream into the reservoir. The frame's granules start the side information's
      * main_data_begin bytes before the frame's own main data, which must be read before the next frame's main data is.
      *
      * @param input the frame's stream, at its main data
+     * @param presentBytes how many bytes of the frame the file has, fewer than its length when it cuts the frame short
      * @return the frame, whose granules may start before the reservoir's first byte, when the stream was cut from a
      *     longer one
      */
-    Mp3Frame readMainData(final InputStream input, final FrameHeader header, final SideInfo sideInfo)
+    Mp3Frame readMainData(
+            final InputStream input, final FrameHeader header, final SideInfo sideInfo, final int presentBytes)
             throws IOException {
         final var granulesStart = size - sideInfo.mainDataBegin();
         IOUtils.readFully(input, bytes, size, header.mainDataSize());
         size += header.mainDataSize();
+        missingBytes = Math.min(header.frameLength() - presentBytes, header.mainDataSize());
         Arrays.fill(bytes, size, size + PADDING, (byte) 0);
         return new Mp3Frame(header, sideInfo, granulesStart);
     }
@@ -82,6 +87,18 @@ final class BitReservoir {
     private void keepLast(final int count) {
         System.arraycopy(bytes, size - count, bytes, 0, count);
         size = count;
+    }
+
+    /**
+     * @param bitOffset how many bits after the frame's granules start to read from
+     * @return how many bits the file has from there to the end of the frame's main data
+     */
+    int presentBitsAt(final Mp3Frame frame, final int bitOffset) {
+        final var position = frame.granulesStart() * Byte.SIZE + bitOffset;
+        if (position < (size - frame.header().mainDataSize()) * Byte.SIZE) {
+            return Integer.MAX_VALUE;
+        }
+        return (size - missingBytes) * Byte.SIZE - position;
     }
 
     /**

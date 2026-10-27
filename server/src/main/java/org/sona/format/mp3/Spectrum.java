@@ -35,20 +35,30 @@ final class Spectrum {
     /**
      * Reads the granule's values for the channel, which follow its scale factors, until its part2_3_length is used up,
      * as FFmpeg reads them: a pair of big values is read whole if it starts before the channel's bits run out, the
-     * lines after the last one read are 0, and count1's last quadruple is left out if it runs past them.
+     * lines after the last one read are 0, and count1's last quadruple is left out if it runs past them. FFmpeg also
+     * stops where the frame's data ends, which a frame the file cuts short does before its part2_3_length.
+     *
+     * @param presentBits how many bits the file has for the channel, from where its scale factors start
      */
     void read(
             final BitInputStream bits,
             final FrameHeader header,
             final GranuleChannel granuleChannel,
-            final ScaleFactors scaleFactors)
+            final ScaleFactors scaleFactors,
+            final int presentBits)
             throws IOException {
         Arrays.fill(lines, 0);
         final var part3Length = granuleChannel.part23Length() - scaleFactors.part2Length();
+        final var presentPart3Length = Math.min(part3Length, presentBits - scaleFactors.part2Length());
         computeScales(header, granuleChannel, scaleFactors);
         final var bigValuesEnd = Math.min(2 * granuleChannel.bigValues(), LINES);
-        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd, part3Length);
-        nonZeroEnd = readCount1(bits, granuleChannel.count1Code(), bigValuesEnd, part3Length - bigValueBits);
+        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd, presentPart3Length);
+        nonZeroEnd = readCount1(
+                bits,
+                granuleChannel.count1Code(),
+                bigValuesEnd,
+                part3Length - bigValueBits,
+                presentPart3Length - bigValueBits);
     }
 
     /**
@@ -290,15 +300,22 @@ final class Spectrum {
     }
 
     // Count1 values come four at a time, each 0 or 1 with a sign bit for each 1, until the channel's bits run out. Some
-    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread.
-    private int readCount1(final BitInputStream bits, final HuffmanCode code, final int start, final int available)
+    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread. FFmpeg notices
+    // that only when it goes on to another quadruple, so a quadruple after which no other fits in the granule is kept.
+    private int readCount1(
+            final BitInputStream bits,
+            final HuffmanCode code,
+            final int start,
+            final int available,
+            final int presentAvailable)
             throws IOException {
         var line = start;
         var left = available;
-        while (line + QUAD <= LINES && left > 0) {
+        var presentLeft = presentAvailable;
+        while (line + QUAD <= LINES && left > 0 && presentLeft > 0) {
             final var quad = code.peekValue(bits);
             final var quadBits = code.codeLength(quad) + Integer.bitCount(quad);
-            if (quadBits > left) {
+            if (quadBits > left && line + 2 * QUAD <= LINES) {
                 break;
             }
             code.readValue(bits);
@@ -306,6 +323,7 @@ final class Spectrum {
                 lines[line + value] = readCount1Value(bits, quad >> (QUAD - 1 - value) & 1, line + value);
             }
             left -= quadBits;
+            presentLeft -= quadBits;
             line += QUAD;
         }
         return line;

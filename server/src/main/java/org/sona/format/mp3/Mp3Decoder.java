@@ -175,7 +175,8 @@ public final class Mp3Decoder implements PcmAudio {
             framePosition += header.samplesPerFrame();
             final var frameStart = input.getCount() - FrameHeader.SIZE;
             bits.readBits(32);
-            final var decoded = !found.get().afterOtherBytes() && decodeFrame(header);
+            final var presentBytes = (int) Math.min(header.frameLength(), audioLength - frameStart);
+            final var decoded = !found.get().afterOtherBytes() && decodeFrame(header, presentBytes);
             skipToEnd(frameStart + header.frameLength());
             if (decoded) {
                 final var pcmFrame = trim(header, position);
@@ -240,7 +241,8 @@ public final class Mp3Decoder implements PcmAudio {
      * @return whether it was decoded: FFmpeg drops a Layer III frame whose side information has more big values than a
      *     granule's lines, or switches windows to a normal block
      */
-    private boolean decodeFrame(final FrameHeader header) throws IOException, InvalidFormatException {
+    private boolean decodeFrame(final FrameHeader header, final int presentBytes)
+            throws IOException, InvalidFormatException {
         // The CRC isn't checked: a frame that fails it is still decoded, as other decoders do.
         IOUtils.skip(input, header.protection().crcSize());
         return switch (header.layer()) {
@@ -254,7 +256,7 @@ public final class Mp3Decoder implements PcmAudio {
                 synthesizeSubbands(header, LAYER_II_INSTANTS);
                 yield true;
             }
-            case III -> decodeLayerIII(header);
+            case III -> decodeLayerIII(header, presentBytes);
         };
     }
 
@@ -266,7 +268,7 @@ public final class Mp3Decoder implements PcmAudio {
     }
 
     // A frame whose side information FFmpeg rejects leaves its main data alone in the reservoir.
-    private boolean decodeLayerIII(final FrameHeader header) throws IOException {
+    private boolean decodeLayerIII(final FrameHeader header, final int presentBytes) throws IOException {
         final var sideInfoStart = input.getCount();
         final SideInfo sideInfo;
         try {
@@ -277,7 +279,7 @@ public final class Mp3Decoder implements PcmAudio {
             reservoir.restart(input, header);
             return false;
         }
-        final var frame = reservoir.readMainData(input, header, sideInfo);
+        final var frame = reservoir.readMainData(input, header, sideInfo, presentBytes);
         reservoir.keepAfterGranules(frame, decodeGranules(frame));
         return true;
     }
@@ -321,7 +323,8 @@ public final class Mp3Decoder implements PcmAudio {
         final var channelBits = reservoir.bitsAt(frame, offset);
         final var granuleChannel = frame.sideInfo().granules().get(granule).get(channel);
         final var channelFactors = readScaleFactors(channelBits, frame.header(), granuleChannel, granule, channel);
-        spectra[channel].read(channelBits, frame.header(), granuleChannel, channelFactors);
+        final var presentBits = reservoir.presentBitsAt(frame, offset);
+        spectra[channel].read(channelBits, frame.header(), granuleChannel, channelFactors, presentBits);
     }
 
     private void synthesizeGranule(final FrameHeader header, final Windowing windowing, final int channel) {

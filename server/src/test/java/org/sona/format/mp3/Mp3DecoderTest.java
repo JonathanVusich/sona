@@ -30,7 +30,7 @@ class Mp3DecoderTest {
     @ParameterizedTest
     @EnumSource(
             value = Mp3Sample.class,
-            names = {"CUT_SHORT_OF_INFO_HEADER"},
+            names = {"CUT_SHORT_OF_INFO_HEADER", "TWO_ID3V2_TAGS"},
             mode = EnumSource.Mode.EXCLUDE)
     void decodesEveryFrame(final Mp3Sample sample) throws IOException, InvalidFormatException {
         try (final var channel = sample.channel()) {
@@ -79,6 +79,9 @@ class Mp3DecoderTest {
                 "JUNK_BETWEEN_FRAMES",
                 "CUT_AT_SECOND_FRAME",
                 "CUT_IN_LAST_FRAME",
+                "CUT_IN_LAST_FRAME_SIDE_INFO",
+                "NOISE_CUT_IN_LAST_FRAME_150",
+                "NOISE_CUT_IN_LAST_FRAME_300",
                 "CUT_SHORT_OF_INFO_HEADER"
             })
     void decodesAsReferenceDecoderDoes(final Mp3Sample sample) throws IOException, InvalidFormatException {
@@ -111,6 +114,26 @@ class Mp3DecoderTest {
         System.arraycopy(frames, third, bytes, third + 50, frames.length - third);
 
         assertThat(decode(bytes)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
+    }
+
+    // FFmpeg reads every ID3v2 tag a file starts with, so the audio starts after the last.
+    @Test
+    void decodesAfterEveryId3v2Tag() throws IOException, InvalidFormatException {
+        assertThat(decode(Mp3Sample.TWO_ID3V2_TAGS)).containsExactly(decode(Mp3Sample.ID3V22));
+    }
+
+    // FFmpeg's parser finds the first frame wherever it is, but drops it, as it follows bytes that aren't a frame.
+    @Test
+    void findsFirstFrameFarFromStart() throws IOException, InvalidFormatException {
+        final var frames = sampleBytes(Mp3Sample.NO_XING_ID3V1);
+        final var farBytes = new byte[100_000 + frames.length];
+        Arrays.fill(farBytes, 0, 100_000, (byte) 0xA5);
+        System.arraycopy(frames, 0, farBytes, 100_000, frames.length);
+
+        final var decoded = decode(farBytes);
+        final var expected = decode(Mp3Sample.NO_XING_ID3V1);
+
+        assertThat(decoded.length).isEqualTo(expected.length - FRAME_SAMPLES);
     }
 
     private static int[] decode(final Mp3Sample sample) throws IOException, InvalidFormatException {
