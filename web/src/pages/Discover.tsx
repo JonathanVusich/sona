@@ -6,10 +6,9 @@ import ListMessage from "../components/ListMessage";
 import { PageBody, PageHead } from "../components/PageLayout";
 import Section, { PageHeader } from "../components/Section";
 import { PlayedTrackList } from "../components/TrackList";
-import { notPlayedYet, recentlyAdded, summaryResponse } from "../library";
+import { recentlyAdded, summaryResponse } from "../library";
 import { createPagedList } from "../paging";
 import { playListedTrack } from "../player";
-import { Show } from "solid-js";
 
 // Recently played comes last, as its list of tracks goes on as long as the user scrolls.
 export default function Discover() {
@@ -27,14 +26,6 @@ export default function Discover() {
       <PageBody>
         <Section title="Recently added">
           <ReleaseGroupGrid groups={recentlyAdded().slice(0, 12).map(summaryResponse)} layout={CardLayout.ROW} />
-        </Section>
-        <Section title="Not played yet">
-          <Show
-            when={notPlayedYet().length > 0}
-            fallback={<p class="empty">You've played everything in the library.</p>}
-          >
-            <ReleaseGroupGrid groups={notPlayedYet().map(summaryResponse)} layout={CardLayout.ROW} />
-          </Show>
         </Section>
         <Section title="Recently played">
           <PlayedTrackList tracks={tracks()} onPlay={(index) => playListedTrack(tracks(), index)} />

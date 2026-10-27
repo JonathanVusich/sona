@@ -7,7 +7,6 @@ than guessed from related rows. When you close a gap, remove it from here.
 
 | Gap | Until it's stored |
 |---|---|
-| **Not-played-yet list.** Sona records each user's plays, but no endpoint serves what they haven't played. | The Discover page's not-played-yet section stays filled from the mocked library. |
 | **Every credited artist.** Only the first artist of a recording's, release's or release group's credit is kept, so "feat." and "&" credits are lost. | Each track, release and release group has one artist. |
 
 ## Pages
