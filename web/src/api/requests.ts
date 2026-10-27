@@ -56,6 +56,11 @@ export interface AddTracksRequest {
   trackIds: string[];
 }
 
+/** A track the user has played. */
+export interface PlayRequest {
+  trackId: string;
+}
+
 export interface MoveTrackRequest {
   /** Where the track goes on the playlist, from 1. */
   position: number;

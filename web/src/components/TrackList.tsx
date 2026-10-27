@@ -1,6 +1,6 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, Show, type JSX } from "solid-js";
-import type { MediumResponse, PlaylistTrackResponse, TrackResponse } from "../api/responses";
+import type { MediumResponse, PlayedTrackResponse, PlaylistTrackResponse, TrackResponse } from "../api/responses";
 import { formatTime, joinDetails } from "../format";
 import { current, Playback, playback } from "../player";
 import { AppRoutes, routeTo } from "../routes";
@@ -108,6 +108,43 @@ export function PlaylistTrackList(props: {
         )}
       </For>
     </ol>
+  );
+}
+
+// The tracks the user played, latest first, each naming and linking its artist and release. A track played again is
+// listed again, so rows are told apart by their place in the list.
+export function PlayedTrackList(props: { tracks: PlayedTrackResponse[]; onPlay: (index: number) => void }) {
+  return (
+    <ol class="tracklist with-context">
+      <For each={props.tracks}>
+        {(track, index) => <PlayedTrackRow track={track} number={index() + 1} onPlay={() => props.onPlay(index())} />}
+      </For>
+    </ol>
+  );
+}
+
+function PlayedTrackRow(props: { track: PlayedTrackResponse; number: number; onPlay: () => void }) {
+  const releasePath = () => routeTo(AppRoutes.RELEASE, props.track.release.releaseId);
+  return (
+    <TrackRow track={props.track} onPlay={props.onPlay}>
+      <TrackPlayButton track={props.track} number={props.number} onPlay={props.onPlay} />
+      <span class="track-main">
+        <span class="track-title">{props.track.name}</span>
+        <ArtistLink track={props.track} />
+      </span>
+      <span class="track-release">
+        <A href={releasePath()}>{props.track.release.name}</A>
+      </span>
+      <TrackDuration track={props.track} />
+      <Menu kind={MenuKind.TRACK} label={`More for ${props.track.name}`}>
+        <AddToPlaylistItems trackIds={[props.track.trackId]} />
+        <hr class="menu-divider" />
+        <ArtistMenuItem track={props.track} />
+        <A href={releasePath()} class="menu-item" role="menuitem">
+          Go to release
+        </A>
+      </Menu>
+    </TrackRow>
   );
 }
 
