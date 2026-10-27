@@ -64,6 +64,11 @@ public final class ApiRoutes {
      */
     public static final String PLAYLIST_TRACK_POSITION = PLAYLIST_TRACK + "/position";
 
+    /**
+     * The signed-in user's own play history.
+     */
+    public static final String PLAYS = API + "/plays";
+
     public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**
      * Under the ID Sona gave the group when the uploader created it.
