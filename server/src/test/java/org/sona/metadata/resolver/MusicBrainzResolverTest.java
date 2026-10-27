@@ -28,6 +28,7 @@ import org.sona.exception.InvalidFormatException;
 import org.sona.fingerprint.Fingerprint;
 import org.sona.format.flac.FlacParser;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.IngestState;
@@ -52,8 +53,7 @@ class MusicBrainzResolverTest {
 
     @Test
     void resolveTaggedTrack() throws IOException, InterruptedException, InvalidFormatException {
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         // AcoustID knows no recording with this fingerprint (the stub in src/test/resources/wiremock/mappings).
         final var resolved =
@@ -73,8 +73,7 @@ class MusicBrainzResolverTest {
     void resolveTheRecordingAFingerprintMatchesCloselyWhateverTheTagsSay()
             throws IOException, InterruptedException, InvalidFormatException {
         stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         final var resolved =
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
@@ -98,8 +97,7 @@ class MusicBrainzResolverTest {
                 {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
                     "recordings": [{"id": "41498c37-0a69-47a8-98d7-bdfab161559e"}]}], "status": "ok"}
                 """));
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         final var resolved =
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
@@ -118,8 +116,7 @@ class MusicBrainzResolverTest {
                 {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
                     "recordings": [{"id": "cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"}]}], "status": "ok"}
                 """));
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         final var resolved =
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
@@ -180,11 +177,19 @@ class MusicBrainzResolverTest {
         return new Fingerprint(new FlacParser().parse(flac).audio());
     }
 
-    private static RawMetadata newMetadata(final String title, final String artist) {
-        final var metadata = new RawMetadata(Duration.ofSeconds(10));
+    private static RawMetadata numberedMetadata(final String title, final String artist) {
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
-        return metadata;
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        return metadata.build();
+    }
+
+    private static RawMetadata newMetadata(final String title, final String artist) {
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
+        return metadata.build();
     }
 
     private static MusicBrainzClient newClient(final String url) {

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.Blob;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 
@@ -18,14 +19,15 @@ class FlacWriterTest {
 
     @Test
     void writtenMetadataParsesBackUnchanged() throws IOException, InvalidFormatException {
-        final var metadata = new RawMetadata(Duration.ofSeconds(57, 160_000_000));
-        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("Canyon"));
-        metadata.addTag(Tag.ALBUM_ARTIST, new TagValue.Str("Philip Glass"));
-        metadata.addTag(Tag.ALBUM_ARTIST, new TagValue.Str("Paul Barnes"));
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(8));
-        metadata.addTag(Tag.RELEASE_YEAR, new TagValue.Int(2002));
-        metadata.addUnknownTag("musicbrainz_trackid", "1b3c1a6e-5d2b-4d0e-9a52-6ad0a6a0e1f2");
+        final var builder = new RawMetadataBuilder(Duration.ofSeconds(57, 160_000_000));
+        builder.addTag(Tag.TRACK_TITLE, new TagValue.Str("Canyon"));
+        builder.addTag(Tag.ALBUM_ARTIST, new TagValue.Str("Philip Glass"));
+        builder.addTag(Tag.ALBUM_ARTIST, new TagValue.Str("Paul Barnes"));
+        builder.addTag(Tag.TRACK_NUMBER, new TagValue.Int(8));
+        builder.addTag(Tag.RELEASE_YEAR, new TagValue.Int(2002));
+        builder.addUnknownTag("musicbrainz_trackid", "1b3c1a6e-5d2b-4d0e-9a52-6ad0a6a0e1f2");
 
+        final var metadata = builder.build();
         final var parsed = new FlacParser()
                 .parse(new SeekableInMemoryByteChannel(writeFlac(metadata)))
                 .metadata();
@@ -40,8 +42,9 @@ class FlacWriterTest {
 
     @Test
     void rejectBinaryTags() {
-        final var metadata = new RawMetadata(Duration.ofSeconds(1));
-        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Binary(Blob.copyOf(new byte[] {1})));
+        final var builder = new RawMetadataBuilder(Duration.ofSeconds(1));
+        builder.addTag(Tag.TRACK_TITLE, new TagValue.Binary(Blob.copyOf(new byte[] {1})));
+        final var metadata = builder.build();
 
         assertThatThrownBy(() -> writeFlac(metadata)).isInstanceOf(IllegalArgumentException.class);
     }

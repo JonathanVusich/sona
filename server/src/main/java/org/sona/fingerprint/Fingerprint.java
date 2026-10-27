@@ -8,7 +8,8 @@ import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.List;
 import org.sona.exception.InvalidFormatException;
-import org.sona.format.PcmAudio;
+import org.sona.format.FloatPcmAudio;
+import org.sona.format.IntPcmAudio;
 
 /**
  * The Chromaprint fingerprint of the first two minutes of a file's audio, which AcoustID identifies recordings by. It
@@ -55,11 +56,24 @@ public final class Fingerprint {
      * @throws IOException when the audio can't be read, or ends before a frame does
      * @throws InvalidFormatException when the audio is corrupt
      */
-    public Fingerprint(final PcmAudio<?> audio) throws IOException, InvalidFormatException {
-        final var signal = new Signal(audio);
+    public Fingerprint(final IntPcmAudio audio) throws IOException, InvalidFormatException {
+        this.subFingerprints = subFingerprints(new Signal(audio));
+    }
+
+    /**
+     * Decodes only as much of the audio as it needs.
+     *
+     * @throws IOException when the audio can't be read, or ends before a frame does
+     * @throws InvalidFormatException when the audio is corrupt
+     */
+    public Fingerprint(final FloatPcmAudio audio) throws IOException, InvalidFormatException {
+        this.subFingerprints = subFingerprints(new Signal(audio));
+    }
+
+    private static int[] subFingerprints(final Signal signal) {
         final var chroma = new ChromaImage(signal);
         final var image = new IntegralImage(chroma);
-        this.subFingerprints = subFingerprints(image);
+        return subFingerprints(image);
     }
 
     /**

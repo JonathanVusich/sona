@@ -1,11 +1,9 @@
 package org.sona.fingerprint;
 
 import java.util.Arrays;
-import java.util.Iterator;
+import org.sona.format.FloatPcmAudio;
 import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
-import org.sona.format.IntPcmFrame;
-import org.sona.format.PcmFrame;
 
 /**
  * Brings audio a decoder made in floating point to Chromaprint's 16-bit mono samples at 11025 Hz, as {@code fpcalc}
@@ -27,11 +25,17 @@ final class FloatSignalReader {
     }
 
     /**
-     * @param first the first frame
-     * @param rest the frames after it
      * @return at most {@code maxSamples} samples
      */
-    int[] read(final FloatPcmFrame first, final Iterator<? extends PcmFrame> rest) {
+    int[] read(final FloatPcmAudio audio) {
+        final var rest = audio.iterator();
+        if (!rest.hasNext()) {
+            return new int[0];
+        }
+        final var first = rest.next();
+        if (first.continuity() == FrameContinuity.AFTER_DECODING_ERROR) {
+            return new int[0];
+        }
         var stretch = new Stretch(first.sampleRate(), first.channelCount());
         var finished = new float[0][];
         var finishedCount = 0;
@@ -47,7 +51,7 @@ final class FloatSignalReader {
             if (finishedCount + stretch.outputEstimate() >= maxSamples + MARGIN || !rest.hasNext()) {
                 break;
             }
-            frame = floatFrame(rest.next());
+            frame = rest.next();
             if (frame.continuity() == FrameContinuity.AFTER_DECODING_ERROR) {
                 break;
             }
@@ -55,13 +59,6 @@ final class FloatSignalReader {
         finished = Arrays.copyOf(finished, finished.length + 1);
         finished[finished.length - 1] = stretch.resampled();
         return toSixteenBits(finished);
-    }
-
-    private static FloatPcmFrame floatFrame(final PcmFrame frame) {
-        return switch (frame) {
-            case FloatPcmFrame floats -> floats;
-            case IntPcmFrame _ -> throw new IllegalStateException("A stream of float frames gave an integer one");
-        };
     }
 
     private int[] toSixteenBits(final float[][] stretches) {

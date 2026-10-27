@@ -41,6 +41,7 @@ import org.sona.exception.InvalidFormatException;
 import org.sona.format.flac.FlacWriter;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.AccountState;
@@ -376,16 +377,18 @@ class DefaultIngestionEngineTest {
     }
 
     private static RawMetadata whisperMetadata() {
-        final var metadata = newMetadata("A Whisper", "Coldplay");
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        return metadata;
+        return metadata.build();
     }
 
     private static RawMetadata newMetadata(final String title, final String artist) {
-        final var metadata = new RawMetadata(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
-        return metadata;
+        return metadata.build();
     }
 
     private TrackToIngest storeIngest(final byte[] flac, final String fileName)

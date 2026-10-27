@@ -19,8 +19,11 @@ import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.fingerprint.Fingerprint;
+import org.sona.format.FloatPcmAudio;
 import org.sona.format.Format;
+import org.sona.format.IntPcmAudio;
 import org.sona.format.Parser;
+import org.sona.format.PcmAudio;
 import org.sona.format.flac.FlacParser;
 import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
@@ -119,8 +122,15 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             throws IOException, InvalidFormatException {
         try (final var channel = library.readIngestTrack(trackToIngest)) {
             final var parsed = parser.parse(channel);
-            return new ParsedTrack(parsed.metadata(), new Fingerprint(parsed.audio()));
+            return new ParsedTrack(parsed.metadata(), fingerprint(parsed.audio()));
         }
+    }
+
+    private static Fingerprint fingerprint(final PcmAudio audio) throws IOException, InvalidFormatException {
+        return switch (audio) {
+            case IntPcmAudio ints -> new Fingerprint(ints);
+            case FloatPcmAudio floats -> new Fingerprint(floats);
+        };
     }
 
     private record ParsedTrack(RawMetadata metadata, Fingerprint fingerprint) {}

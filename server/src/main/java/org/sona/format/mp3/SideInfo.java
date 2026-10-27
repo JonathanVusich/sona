@@ -10,4 +10,9 @@ import java.util.List;
  * @param mainDataBegin how many bytes before the frame's own main data its first granule starts, in earlier frames'
  * @param granules each granule's channels
  */
-record SideInfo(int mainDataBegin, List<List<GranuleChannel>> granules) {}
+record SideInfo(int mainDataBegin, List<List<GranuleChannel>> granules) {
+
+    SideInfo {
+        granules = granules.stream().map(List::copyOf).toList();
+    }
+}

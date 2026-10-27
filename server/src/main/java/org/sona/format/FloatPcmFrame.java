@@ -37,7 +37,9 @@ public final class FloatPcmFrame implements PcmFrame {
         return sampleRate;
     }
 
-    @Override
+    /**
+     * @return whether the decoder dropped a frame it couldn't decode before this one
+     */
     public FrameContinuity continuity() {
         return continuity;
     }

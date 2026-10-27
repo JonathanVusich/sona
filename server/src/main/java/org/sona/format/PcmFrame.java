@@ -12,11 +12,6 @@ public sealed interface PcmFrame permits IntPcmFrame, FloatPcmFrame {
      */
     int sampleRate();
 
-    /**
-     * @return whether the decoder dropped a frame it couldn't decode before this one
-     */
-    FrameContinuity continuity();
-
     int channelCount();
 
     /**

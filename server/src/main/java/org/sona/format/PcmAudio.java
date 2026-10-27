@@ -1,9 +1,10 @@
 package org.sona.format;
 
 /**
- * Decoded audio, read a frame at a time as it's iterated, all of one kind of {@link PcmFrame}.
+ * Decoded audio, read a frame at a time as it's iterated, all of one kind: {@link IntPcmAudio} gives integers and
+ * {@link FloatPcmAudio} floating-point numbers.
  */
-public interface PcmAudio<F extends PcmFrame> extends Iterable<F> {
+public sealed interface PcmAudio permits IntPcmAudio, FloatPcmAudio {
 
     /**
      * @return samples per second, per channel

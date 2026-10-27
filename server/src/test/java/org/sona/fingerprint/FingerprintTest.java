@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.sona.exception.InvalidFormatException;
+import org.sona.format.IntPcmAudio;
 import org.sona.format.IntPcmFrame;
-import org.sona.format.PcmAudio;
 
 /**
  * Compares fingerprints with those {@code fpcalc} (Chromaprint 1.5.1) computed from the same audio, which the
@@ -84,8 +84,7 @@ class FingerprintTest {
      * Chords of three notes that change every 0.4 seconds, picked by a linear congruential generator: the audio
      * {@code gen.py} wrote for {@code fpcalc}, generated the same way.
      */
-    private record ChordAudio(int sampleRate, int channels, int bitsPerSample, int seconds)
-            implements PcmAudio<IntPcmFrame> {
+    private record ChordAudio(int sampleRate, int channels, int bitsPerSample, int seconds) implements IntPcmAudio {
 
         @Override
         public Iterator<IntPcmFrame> iterator() {
@@ -107,7 +106,7 @@ class FingerprintTest {
 
     // Chords as in ChordAudio under noise that is a hash of each sample's position, so the audio can be made again
     // anywhere and {@code fpcalc} can be given it.
-    record NoiseAudio(int sampleRate, int channels, int seconds) implements PcmAudio<IntPcmFrame> {
+    record NoiseAudio(int sampleRate, int channels, int seconds) implements IntPcmAudio {
 
         @Override
         public int bitsPerSample() {
@@ -140,7 +139,7 @@ class FingerprintTest {
         }
     }
 
-    private record SilentAudio(int sampleRate, int channels, int seconds) implements PcmAudio<IntPcmFrame> {
+    private record SilentAudio(int sampleRate, int channels, int seconds) implements IntPcmAudio {
 
         @Override
         public int bitsPerSample() {

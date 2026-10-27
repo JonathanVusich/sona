@@ -13,9 +13,9 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
+import org.sona.format.FloatPcmAudio;
 import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
-import org.sona.format.PcmAudio;
 
 /**
  * The audio of an MP3, which {@link Mp3Parser#parse} opens in its {@link ParsedMp3}, decoded a frame at a time as it's
@@ -37,7 +37,7 @@ import org.sona.format.PcmAudio;
  * section 2.4.3.2). Both versions code them in the same order, which is then laid out by band. A mixed block's lowest
  * bands are long: 8 in MPEG-1, and 6 in MPEG-2, and its short bands start at band 3.
  */
-public final class Mp3Decoder implements PcmAudio<FloatPcmFrame> {
+public final class Mp3Decoder implements FloatPcmAudio {
 
     private static final int BITS_PER_SAMPLE = 16;
     private static final int MAX_CHANNELS = 2;

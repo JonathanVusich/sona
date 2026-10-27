@@ -11,4 +11,9 @@ import java.util.List;
  *     intensity stereo's right channel
  * @param slens how many bits each of the four partitions' scale factors take
  */
-record LsfLengths(int table, List<Integer> slens) {}
+record LsfLengths(int table, List<Integer> slens) {
+
+    LsfLengths {
+        slens = List.copyOf(slens);
+    }
+}

@@ -9,4 +9,9 @@ public record CueSheet(
         long leadInSamples,
         CueSheetMedium medium,
         List<CueSheetTrack> tracks)
-        implements Block {}
+        implements Block {
+
+    public CueSheet {
+        tracks = List.copyOf(tracks);
+    }
+}

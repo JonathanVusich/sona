@@ -31,6 +31,7 @@ import org.sona.format.mp3.Id3Frame.TextFrame;
 import org.sona.format.mp3.Id3Frame.UniqueFileId;
 import org.sona.format.mp3.Id3Frame.UserTextFrame;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 
 /**
  * Reads an MP3 straight from the file's stream through bit streams: its ID3v2 tag at its start, in version 2.3 or 2.4
@@ -701,7 +702,7 @@ public final class Mp3Parser implements Parser {
     }
 
     private RawMetadata rawMetadata(final Duration duration, final List<Id3Frame> frames) {
-        final var rawMetadata = new RawMetadata(duration);
+        final var rawMetadata = new RawMetadataBuilder(duration);
         for (final var frame : frames) {
             final var id3Tag = id3Tag(frame);
             final var values = frameValues(frame);
@@ -713,7 +714,7 @@ public final class Mp3Parser implements Parser {
                 }
             }
         }
-        return rawMetadata;
+        return rawMetadata.build();
     }
 
     // Null for a frame that holds none of Sona's tags.

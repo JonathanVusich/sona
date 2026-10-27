@@ -12,12 +12,22 @@ sealed interface Id3Frame permits Id3Frame.TextFrame, Id3Frame.UserTextFrame, Id
      *
      * @param values more than one only where ID3v2.4 separates them with NULs
      */
-    record TextFrame(String frameId, List<String> values) implements Id3Frame {}
+    record TextFrame(String frameId, List<String> values) implements Id3Frame {
+
+        public TextFrame {
+            values = List.copyOf(values);
+        }
+    }
 
     /**
      * A TXXX frame: text that the tagger names itself, as Picard does MusicBrainz IDs.
      */
-    record UserTextFrame(String description, List<String> values) implements Id3Frame {}
+    record UserTextFrame(String description, List<String> values) implements Id3Frame {
+
+        public UserTextFrame {
+            values = List.copyOf(values);
+        }
+    }
 
     /**
      * A UFID frame: an ID the owner gave the file, as MusicBrainz does recordings.

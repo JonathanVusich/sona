@@ -26,11 +26,6 @@ public final class IntPcmFrame implements PcmFrame {
     }
 
     @Override
-    public FrameContinuity continuity() {
-        return FrameContinuity.CONTINUOUS;
-    }
-
-    @Override
     public int channelCount() {
         return samples.length;
     }

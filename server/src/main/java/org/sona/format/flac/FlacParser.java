@@ -19,6 +19,7 @@ import org.sona.format.Format;
 import org.sona.format.MD5Checksum;
 import org.sona.format.Parser;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 
 public final class FlacParser implements Parser {
 
@@ -46,7 +47,7 @@ public final class FlacParser implements Parser {
     private static RawMetadata rawMetadata(final FlacMetadata flacMetadata, final StreamInfo streamInfo) {
         final var comments = flacMetadata.vorbisComments();
 
-        final var rawMetadata = new RawMetadata(streamInfo.duration());
+        final var rawMetadata = new RawMetadataBuilder(streamInfo.duration());
 
         for (final var comment : comments) {
             for (final var field : comment.fields()) {
@@ -61,7 +62,7 @@ public final class FlacParser implements Parser {
             }
         }
 
-        return rawMetadata;
+        return rawMetadata.build();
     }
 
     FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {

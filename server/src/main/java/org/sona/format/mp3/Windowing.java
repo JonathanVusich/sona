@@ -60,6 +60,10 @@ sealed interface Windowing permits Windowing.Normal, Windowing.Switched {
     record Switched(BlockType blockType, boolean mixedBlock, int table0, int table1, List<Integer> subblockGains)
             implements Windowing {
 
+        public Switched {
+            subblockGains = List.copyOf(subblockGains);
+        }
+
         @Override
         public BlockLayout layout() {
             if (blockType != BlockType.SHORT) {

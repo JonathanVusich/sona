@@ -9,8 +9,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
+import org.sona.format.IntPcmAudio;
 import org.sona.format.IntPcmFrame;
-import org.sona.format.PcmAudio;
 
 /**
  * Decodes the audio frames of a FLAC stream to PCM samples (RFC 9639 section 9), a frame at a time as it's iterated,
@@ -20,7 +20,7 @@ import org.sona.format.PcmAudio;
  * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, with an {@link EOFException}
  * when it ends before a frame does, and {@link UncheckedInvalidFormatException} when a frame is corrupt.
  */
-public final class FlacDecoder implements PcmAudio<IntPcmFrame> {
+public final class FlacDecoder implements IntPcmAudio {
 
     private static final int SYNC_CODE = 0b11111111111110;
 
