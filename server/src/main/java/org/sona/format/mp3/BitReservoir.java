@@ -57,7 +57,7 @@ final class BitReservoir {
     void restart(final InputStream input, final FrameHeader header) throws IOException {
         IOUtils.readFully(input, bytes, 0, header.mainDataSize());
         size = header.mainDataSize();
-        keepLast(BACKSTEP);
+        keepLast(Math.min(BACKSTEP, size));
     }
 
     /**

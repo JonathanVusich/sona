@@ -40,8 +40,8 @@ public final class Mp3Decoder implements PcmAudio {
     private static final int BITS_PER_SAMPLE = 16;
     private static final int MAX_CHANNELS = 2;
     private static final int MAX_SAMPLES_PER_FRAME = 1152;
-    private static final double FULL_SCALE = 32768;
-    // A Layer I frame has 12 instants of subband samples, and a Layer II frame 36.
+    private static final double FULL_SCALE =
+            32768; // A Layer I frame has 12 instants of subband samples, and a Layer II frame 36.
     private static final int LAYER_I_INSTANTS = 12;
     private static final int LAYER_II_INSTANTS = 36;
     // A granule has 576 values, so at most 288 pairs.
