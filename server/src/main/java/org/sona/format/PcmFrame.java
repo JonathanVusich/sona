@@ -7,16 +7,33 @@ package org.sona.format;
 public final class PcmFrame {
 
     private final int[][] samples;
+    private int sampleRate;
     private int start;
     private int end;
 
     /**
      * @param samples one array per channel, all the same length, which the frame takes ownership of; the frame holds
      *     all of them until {@link #setRange} says otherwise
+     * @param sampleRate samples per second, per channel, which a stream may change between frames
      */
-    public PcmFrame(final int[][] samples) {
+    public PcmFrame(final int[][] samples, final int sampleRate) {
         this.samples = samples;
+        this.sampleRate = sampleRate;
         this.end = samples[0].length;
+    }
+
+    /**
+     * Gives the frame the rate of the frame a decoder decoded into it.
+     */
+    public void setSampleRate(final int sampleRate) {
+        this.sampleRate = sampleRate;
+    }
+
+    /**
+     * @return samples per second, per channel
+     */
+    public int sampleRate() {
+        return sampleRate;
     }
 
     /**

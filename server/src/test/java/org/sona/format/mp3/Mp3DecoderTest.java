@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.TreeSet;
 import java.util.stream.IntStream;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,25 @@ class Mp3DecoderTest {
         System.arraycopy(frames, third, bytes, third + 50, frames.length - third);
 
         assertThat(decode(bytes)).containsExactly(decode(Mp3Sample.NO_XING_ID3V1));
+    }
+
+    // Each frame is given with its own sample rate, as a stream of two joined files may change it.
+    @Test
+    void givesEachFrameItsOwnSampleRate() throws IOException, InvalidFormatException {
+        final var first = sampleBytes(Mp3Sample.HE_32KHZ);
+        final var second = sampleBytes(Mp3Sample.HE_48KHZ);
+        final var joined = new byte[first.length + second.length];
+        System.arraycopy(first, 0, joined, 0, first.length);
+        System.arraycopy(second, 0, joined, first.length, second.length);
+
+        try (final var channel = new SeekableInMemoryByteChannel(joined)) {
+            final var rates = new TreeSet<Integer>();
+            for (final PcmFrame frame : new Mp3Parser().parse(channel).audio()) {
+                rates.add(frame.sampleRate());
+            }
+
+            assertThat(rates).containsExactly(32000, 48000);
+        }
     }
 
     // FFmpeg reads every ID3v2 tag a file starts with, so the audio starts after the last.

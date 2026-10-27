@@ -1,10 +1,13 @@
 package org.sona.fingerprint;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -61,6 +64,16 @@ class FingerprintTest {
         assertThat(fingerprint.compressed()).isEqualTo("AQAAAA");
     }
 
+    // Chromaprint resamples from each frame's rate, so 5 seconds at 22050 Hz then 5 at 44100 Hz make 10 seconds.
+    @Test
+    void resamplesFromEachFramesRateWhenItChanges() throws IOException, InvalidFormatException {
+        final var audio = new RateChangingAudio(new SilentAudio(22050, 1, 5), new SilentAudio(44100, 1, 5));
+
+        final var signal = new Signal(audio);
+
+        assertThat(signal.sampleCount()).isCloseTo(10 * Signal.SAMPLE_RATE, within(100));
+    }
+
     private static String reference(final String name) throws IOException {
         try (final var inputStream = FingerprintTest.class.getResourceAsStream(name + ".txt")) {
             return new String(inputStream.readAllBytes(), StandardCharsets.US_ASCII);
@@ -75,7 +88,7 @@ class FingerprintTest {
 
         @Override
         public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, this::sample);
         }
 
         private int sample(final int index, final int channel) {
@@ -91,6 +104,28 @@ class FingerprintTest {
         }
     }
 
+    // Audio whose sample rate changes where the first ends, as a stream of two joined files may.
+    private record RateChangingAudio(SilentAudio first, SilentAudio second) implements PcmAudio {
+
+        @Override
+        public int sampleRate() {
+            return first.sampleRate();
+        }
+
+        @Override
+        public int bitsPerSample() {
+            return 16;
+        }
+
+        @Override
+        public Iterator<PcmFrame> iterator() {
+            return Stream.concat(
+                            StreamSupport.stream(first.spliterator(), false),
+                            StreamSupport.stream(second.spliterator(), false))
+                    .iterator();
+        }
+    }
+
     private record SilentAudio(int sampleRate, int channels, int seconds) implements PcmAudio {
 
         @Override
@@ -100,7 +135,7 @@ class FingerprintTest {
 
         @Override
         public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, (_, _) -> 0);
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, (_, _) -> 0);
         }
     }
 
@@ -113,12 +148,14 @@ class FingerprintTest {
 
         private static final int FRAME_SIZE = 4096;
 
+        private final int sampleRate;
         private final int sampleCount;
         private final int channels;
         private final SampleSource source;
         private int next;
 
-        FrameIterator(final int sampleCount, final int channels, final SampleSource source) {
+        FrameIterator(final int sampleRate, final int sampleCount, final int channels, final SampleSource source) {
+            this.sampleRate = sampleRate;
             this.sampleCount = sampleCount;
             this.channels = channels;
             this.source = source;
@@ -137,7 +174,7 @@ class FingerprintTest {
                     samples[channel][i] = source.sample(next, channel);
                 }
             }
-            return new PcmFrame(samples);
+            return new PcmFrame(samples, sampleRate);
         }
     }
 }

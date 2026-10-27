@@ -55,7 +55,7 @@ public final class Resampler {
             output[i] = nextOutputSample();
         }
         dropUsedInput();
-        return new PcmFrame(new int[][] {output});
+        return new PcmFrame(new int[][] {output}, outputRate);
     }
 
     private double[][] filterTable() {

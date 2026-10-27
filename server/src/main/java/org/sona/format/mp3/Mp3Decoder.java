@@ -84,8 +84,8 @@ public final class Mp3Decoder implements PcmAudio {
     private final PolyphaseSynthesis[] syntheses = {new PolyphaseSynthesis(), new PolyphaseSynthesis()};
     private final int[][] samples = new int[MAX_CHANNELS][MAX_SAMPLES_PER_FRAME];
     // A stream may change between mono and stereo from frame to frame, and each frame is given with its own channels.
-    private final PcmFrame monoFrame = new PcmFrame(new int[][] {samples[0]});
-    private final PcmFrame stereoFrame = new PcmFrame(samples);
+    private final PcmFrame monoFrame;
+    private final PcmFrame stereoFrame;
     private boolean iterated;
     // Decoded samples still to skip from the start, as FFmpeg skips them from what it decodes.
     private long leadingSamples;
@@ -102,6 +102,8 @@ public final class Mp3Decoder implements PcmAudio {
         this.input = input;
         this.bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
         this.leadingSamples = streamInfo.leadingSamples();
+        this.monoFrame = new PcmFrame(new int[][] {samples[0]}, streamInfo.sampleRate());
+        this.stereoFrame = new PcmFrame(samples, streamInfo.sampleRate());
     }
 
     public Mp3StreamInfo streamInfo() {
@@ -223,6 +225,7 @@ public final class Mp3Decoder implements PcmAudio {
             case STEREO, JOINT_STEREO, DUAL_CHANNEL -> stereoFrame;
         };
         pcmFrame.setRange(start, end);
+        pcmFrame.setSampleRate(header.sampleRate());
         return pcmFrame;
     }
 

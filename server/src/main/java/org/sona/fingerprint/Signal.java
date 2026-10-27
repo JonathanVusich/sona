@@ -45,10 +45,16 @@ public final class Signal {
     }
 
     private static int[] readSamples(final PcmAudio audio) {
-        final var resampler = new Resampler(audio.sampleRate(), SAMPLE_RATE);
+        var resampler = new Resampler(audio.sampleRate(), SAMPLE_RATE);
+        var inputRate = audio.sampleRate();
         final var samples = new int[MAX_SAMPLES];
         var length = 0;
         for (final var frame : audio) {
+            // As Chromaprint does, a stream that changes its sample rate is resampled from the new rate from there on.
+            if (frame.sampleRate() != inputRate) {
+                inputRate = frame.sampleRate();
+                resampler = new Resampler(inputRate, SAMPLE_RATE);
+            }
             final var resampled = resampler.resampleFrame(downmix(frame, audio.bitsPerSample()));
             final var copied = Math.min(resampled.sampleCount(), MAX_SAMPLES - length);
             for (var i = 0; i < copied; i++) {
@@ -72,7 +78,7 @@ public final class Signal {
             }
             mono[i] = (int) (sum / frame.channelCount());
         }
-        return new PcmFrame(new int[][] {mono});
+        return new PcmFrame(new int[][] {mono}, frame.sampleRate());
     }
 
     private static int toSixteenBits(final int sample, final int bitsPerSample) {
