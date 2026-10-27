@@ -2,7 +2,9 @@ package org.sona.fingerprint;
 
 import java.util.Arrays;
 import java.util.Iterator;
+import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
+import org.sona.format.IntPcmFrame;
 import org.sona.format.PcmFrame;
 
 /**
@@ -25,11 +27,11 @@ final class FloatSignalReader {
     }
 
     /**
-     * @param first the first frame, which the decoder may rewrite when the next is read
+     * @param first the first frame
      * @param rest the frames after it
      * @return at most {@code maxSamples} samples
      */
-    int[] read(final PcmFrame first, final Iterator<PcmFrame> rest) {
+    int[] read(final FloatPcmFrame first, final Iterator<? extends PcmFrame> rest) {
         var stretch = new Stretch(first.sampleRate(), first.channelCount());
         var finished = new float[0][];
         var finishedCount = 0;
@@ -45,7 +47,7 @@ final class FloatSignalReader {
             if (finishedCount + stretch.outputEstimate() >= maxSamples + MARGIN || !rest.hasNext()) {
                 break;
             }
-            frame = rest.next();
+            frame = floatFrame(rest.next());
             if (frame.continuity() == FrameContinuity.AFTER_DECODING_ERROR) {
                 break;
             }
@@ -53,6 +55,13 @@ final class FloatSignalReader {
         finished = Arrays.copyOf(finished, finished.length + 1);
         finished[finished.length - 1] = stretch.resampled();
         return toSixteenBits(finished);
+    }
+
+    private static FloatPcmFrame floatFrame(final PcmFrame frame) {
+        return switch (frame) {
+            case FloatPcmFrame floats -> floats;
+            case IntPcmFrame _ -> throw new IllegalStateException("A stream of float frames gave an integer one");
+        };
     }
 
     private int[] toSixteenBits(final float[][] stretches) {
@@ -99,7 +108,7 @@ final class FloatSignalReader {
             return (long) length * SAMPLE_RATE / sampleRate;
         }
 
-        void add(final PcmFrame frame) {
+        void add(final FloatPcmFrame frame) {
             if (length + frame.sampleCount() > channels[0].length) {
                 final var size = Math.max(channels[0].length * 2, length + frame.sampleCount());
                 for (var channel = 0; channel < channelCount; channel++) {
@@ -108,7 +117,7 @@ final class FloatSignalReader {
             }
             for (var channel = 0; channel < channelCount; channel++) {
                 for (var index = 0; index < frame.sampleCount(); index++) {
-                    channels[channel][length + index] = frame.channelExactSample(channel, index);
+                    channels[channel][length + index] = frame.channelSample(channel, index);
                 }
             }
             length += frame.sampleCount();

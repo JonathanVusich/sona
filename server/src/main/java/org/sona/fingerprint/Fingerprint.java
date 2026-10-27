@@ -55,7 +55,7 @@ public final class Fingerprint {
      * @throws IOException when the audio can't be read, or ends before a frame does
      * @throws InvalidFormatException when the audio is corrupt
      */
-    public Fingerprint(final PcmAudio audio) throws IOException, InvalidFormatException {
+    public Fingerprint(final PcmAudio<?> audio) throws IOException, InvalidFormatException {
         final var signal = new Signal(audio);
         final var chroma = new ChromaImage(signal);
         final var image = new IntegralImage(chroma);

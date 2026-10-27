@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -12,16 +13,16 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
+import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
 import org.sona.format.PcmAudio;
-import org.sona.format.PcmFrame;
 
 /**
  * The audio of an MP3, which {@link Mp3Parser#parse} opens in its {@link ParsedMp3}, decoded a frame at a time as it's
- * iterated, to 16 bits, as MPEG audio has no bit depth of its own. It decodes as FFmpeg does, as AcoustID's fpcalc
+ * iterated, to floating point, as MPEG audio has no bit depth of its own. It decodes as FFmpeg does, as AcoustID's fpcalc
  * decodes with it: the frames FFmpeg's parser finds, in Layers I, II and III, with each frame's own channels, as a
  * stream may change between mono and stereo, and FFmpeg's trimming of the encoder's delay and padding a LAME tag gives.
- * Every frame is decoded into the same {@link PcmFrame}, which holds its samples until the next is read.
+ * Every frame is a {@link FloatPcmFrame} of its own.
  *
  * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, and
  * {@link UncheckedInvalidFormatException} when a frame's header can't be read.
@@ -36,12 +37,11 @@ import org.sona.format.PcmFrame;
  * section 2.4.3.2). Both versions code them in the same order, which is then laid out by band. A mixed block's lowest
  * bands are long: 8 in MPEG-1, and 6 in MPEG-2, and its short bands start at band 3.
  */
-public final class Mp3Decoder implements PcmAudio {
+public final class Mp3Decoder implements PcmAudio<FloatPcmFrame> {
 
     private static final int BITS_PER_SAMPLE = 16;
     private static final int MAX_CHANNELS = 2;
     private static final int MAX_SAMPLES_PER_FRAME = 1152;
-    private static final double FULL_SCALE = 32768;
     // A Layer I frame has 12 instants of subband samples, and a Layer II frame 36.
     private static final int LAYER_I_INSTANTS = 12;
     private static final int LAYER_II_INSTANTS = 36;
@@ -83,12 +83,8 @@ public final class Mp3Decoder implements PcmAudio {
     private final Imdct[] imdcts = {new Imdct(), new Imdct()};
     private final SubbandReader subbandReader = new SubbandReader();
     private final PolyphaseSynthesis[] syntheses = {new PolyphaseSynthesis(), new PolyphaseSynthesis()};
-    private final int[][] samples = new int[MAX_CHANNELS][MAX_SAMPLES_PER_FRAME];
-    // The samples before they were rounded, as FFmpeg makes them in floating point.
-    private final float[][] exactSamples = new float[MAX_CHANNELS][MAX_SAMPLES_PER_FRAME];
-    // A stream may change between mono and stereo from frame to frame, and each frame is given with its own channels.
-    private final PcmFrame monoFrame;
-    private final PcmFrame stereoFrame;
+    // The samples as FFmpeg makes them in floating point, which a frame copies from.
+    private final float[][] samples = new float[MAX_CHANNELS][MAX_SAMPLES_PER_FRAME];
     private boolean iterated;
     // Set once FFmpeg would have returned an error for a frame it dropped, which stops fpcalc reading.
     private FrameContinuity continuity = FrameContinuity.CONTINUOUS;
@@ -107,9 +103,6 @@ public final class Mp3Decoder implements PcmAudio {
         this.input = input;
         this.bits = BitInputStream.wrap(input, ByteOrder.BIG_ENDIAN);
         this.leadingSamples = streamInfo.leadingSamples();
-        this.monoFrame =
-                new PcmFrame(new int[][] {samples[0]}, new float[][] {exactSamples[0]}, streamInfo.sampleRate());
-        this.stereoFrame = new PcmFrame(samples, exactSamples, streamInfo.sampleRate());
     }
 
     public Mp3StreamInfo streamInfo() {
@@ -130,7 +123,7 @@ public final class Mp3Decoder implements PcmAudio {
      * @throws IllegalStateException when called a second time
      */
     @Override
-    public Iterator<PcmFrame> iterator() {
+    public Iterator<FloatPcmFrame> iterator() {
         if (iterated) {
             throw new IllegalStateException("MP3 decoder can only be iterated once!");
         }
@@ -139,9 +132,9 @@ public final class Mp3Decoder implements PcmAudio {
     }
 
     // Whether there's a next frame is only known once it's decoded, as FFmpeg may drop or trim a frame whole.
-    private final class FrameIterator implements Iterator<PcmFrame> {
+    private final class FrameIterator implements Iterator<FloatPcmFrame> {
 
-        private PcmFrame next;
+        private FloatPcmFrame next;
         private boolean ended;
 
         @Override
@@ -160,7 +153,7 @@ public final class Mp3Decoder implements PcmAudio {
         }
 
         @Override
-        public PcmFrame next() {
+        public FloatPcmFrame next() {
             if (!hasNext()) {
                 throw new NoSuchElementException("MP3 stream has no more frames!");
             }
@@ -173,7 +166,7 @@ public final class Mp3Decoder implements PcmAudio {
     /**
      * @return the next frame with samples to give, or null once the audio has none
      */
-    private PcmFrame decodeNextGivenFrame() throws IOException, InvalidFormatException {
+    private FloatPcmFrame decodeNextGivenFrame() throws IOException, InvalidFormatException {
         final var audioLength = streamInfo.audioEnd() - streamInfo.audioStart();
         for (var found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength());
                 found.isPresent();
@@ -213,7 +206,7 @@ public final class Mp3Decoder implements PcmAudio {
      * @param position where the frame's samples start, counting every frame found before it
      * @return the frame with the samples it gives, or null when it gives none
      */
-    private PcmFrame trim(final FrameHeader header, final long position) {
+    private FloatPcmFrame trim(final FrameHeader header, final long position) {
         final var frameSamples = header.samplesPerFrame();
         if (leadingSamples >= frameSamples) {
             leadingSamples -= frameSamples;
@@ -229,14 +222,8 @@ public final class Mp3Decoder implements PcmAudio {
             }
             end -= padding;
         }
-        final var pcmFrame = switch (header.channelMode()) {
-            case MONO -> monoFrame;
-            case STEREO, JOINT_STEREO, DUAL_CHANNEL -> stereoFrame;
-        };
-        pcmFrame.setRange(start, end);
-        pcmFrame.setSampleRate(header.sampleRate());
-        pcmFrame.setContinuity(continuity);
-        return pcmFrame;
+        final var channelSamples = Arrays.copyOf(samples, header.channelCount());
+        return new FloatPcmFrame(channelSamples, start, end, header.sampleRate(), continuity);
     }
 
     // How many samples at the end of the frame are the encoder's padding.
@@ -348,14 +335,10 @@ public final class Mp3Decoder implements PcmAudio {
         syntheses[channel].synthesize(imdcts[channel], Spectrum.SUBBAND_LINES);
     }
 
-    // Rounded to the nearest 16-bit value, half to even, and clipped to the 16-bit range.
     private void toSamples(final int channel, final int first, final int count) {
         final var synthesis = syntheses[channel];
         for (var sample = 0; sample < count; sample++) {
-            final var exact = synthesis.sample(sample);
-            final var value = Math.rint(exact * FULL_SCALE);
-            samples[channel][first + sample] = (int) Math.clamp(value, Short.MIN_VALUE, Short.MAX_VALUE);
-            exactSamples[channel][first + sample] = exact;
+            samples[channel][first + sample] = synthesis.sample(sample);
         }
     }
 

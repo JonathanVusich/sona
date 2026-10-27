@@ -139,7 +139,7 @@ class Mp3DecoderTest {
 
         try (final var channel = new SeekableInMemoryByteChannel(joined)) {
             final var rates = new TreeSet<Integer>();
-            for (final PcmFrame frame : new Mp3Parser().parse(channel).audio()) {
+            for (final var frame : new Mp3Parser().parse(channel).audio()) {
                 rates.add(frame.sampleRate());
             }
 
@@ -175,15 +175,20 @@ class Mp3DecoderTest {
     private static int[] decode(final byte[] bytes) throws IOException, InvalidFormatException {
         try (final var channel = new SeekableInMemoryByteChannel(bytes)) {
             final var samples = IntStream.builder();
-            for (final PcmFrame frame : new Mp3Parser().parse(channel).audio()) {
+            for (final var frame : new Mp3Parser().parse(channel).audio()) {
                 for (var index = 0; index < frame.sampleCount(); index++) {
                     for (var frameChannel = 0; frameChannel < frame.channelCount(); frameChannel++) {
-                        samples.add(frame.channelSample(frameChannel, index));
+                        samples.add(sixteenBits(frame.channelSample(frameChannel, index)));
                     }
                 }
             }
             return samples.build().toArray();
         }
+    }
+
+    // As FFmpeg rounds a float sample to 16 bits: to the nearest, half to even, and clipped.
+    private static int sixteenBits(final float sample) {
+        return (int) Math.clamp(Math.rint(sample * 32768.0), Short.MIN_VALUE, Short.MAX_VALUE);
     }
 
     private static byte[] sampleBytes(final Mp3Sample sample) throws IOException {

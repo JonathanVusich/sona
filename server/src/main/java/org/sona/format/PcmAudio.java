@@ -1,9 +1,9 @@
 package org.sona.format;
 
 /**
- * Decoded audio, read a {@link PcmFrame} at a time as it's iterated.
+ * Decoded audio, read a frame at a time as it's iterated, all of one kind of {@link PcmFrame}.
  */
-public interface PcmAudio extends Iterable<PcmFrame> {
+public interface PcmAudio<F extends PcmFrame> extends Iterable<F> {
 
     /**
      * @return samples per second, per channel

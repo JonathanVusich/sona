@@ -6,7 +6,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
+import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
+import org.sona.format.IntPcmFrame;
 import org.sona.format.PcmAudio;
 import org.sona.format.PcmFrame;
 
@@ -34,7 +36,7 @@ public final class Signal {
      * @throws IOException when the audio can't be read, or ends before a frame does
      * @throws InvalidFormatException when the audio is corrupt
      */
-    public Signal(final PcmAudio audio) throws IOException, InvalidFormatException {
+    public Signal(final PcmAudio<?> audio) throws IOException, InvalidFormatException {
         try {
             this.samples = readSamples(audio);
         } catch (UncheckedIOException e) {
@@ -52,7 +54,7 @@ public final class Signal {
         return samples[index];
     }
 
-    private static int[] readSamples(final PcmAudio audio) {
+    private static int[] readSamples(final PcmAudio<?> audio) {
         final var frames = audio.iterator();
         if (!frames.hasNext()) {
             return new int[0];
@@ -61,17 +63,24 @@ public final class Signal {
         if (first.continuity() == FrameContinuity.AFTER_DECODING_ERROR) {
             return new int[0];
         }
-        if (first.hasExactSamples()) {
-            return new FloatSignalReader(MAX_SAMPLES).read(first, frames);
-        }
-        return readSamples(audio, new FramesFrom(first, frames));
+        return switch (first) {
+            case FloatPcmFrame floats -> new FloatSignalReader(MAX_SAMPLES).read(floats, frames);
+            case IntPcmFrame ints -> readSamples(audio, new FramesFrom(ints, frames));
+        };
+    }
+
+    private static IntPcmFrame intFrame(final PcmFrame frame) {
+        return switch (frame) {
+            case IntPcmFrame ints -> ints;
+            case FloatPcmFrame _ -> throw new IllegalStateException("A stream of integer frames gave a float one");
+        };
     }
 
     // The frames from one already taken, then those the iterator has left.
-    private record FramesFrom(PcmFrame first, Iterator<PcmFrame> rest) implements Iterable<PcmFrame> {
+    private record FramesFrom(IntPcmFrame first, Iterator<? extends PcmFrame> rest) implements Iterable<IntPcmFrame> {
 
         @Override
-        public Iterator<PcmFrame> iterator() {
+        public Iterator<IntPcmFrame> iterator() {
             return new Iterator<>() {
                 private boolean firstTaken;
 
@@ -81,18 +90,18 @@ public final class Signal {
                 }
 
                 @Override
-                public PcmFrame next() {
+                public IntPcmFrame next() {
                     if (!firstTaken) {
                         firstTaken = true;
                         return first;
                     }
-                    return rest.next();
+                    return intFrame(rest.next());
                 }
             };
         }
     }
 
-    private static int[] readSamples(final PcmAudio audio, final Iterable<PcmFrame> frames) {
+    private static int[] readSamples(final PcmAudio<?> audio, final Iterable<IntPcmFrame> frames) {
         final var inputRate = audio.sampleRate();
         if (inputRate == SAMPLE_RATE) {
             final var channels = readChannels(audio, frames, MAX_SAMPLES, Mixing.AFTER);
@@ -119,13 +128,13 @@ public final class Signal {
      * channel, to hold two minutes of it in memory rather than of every channel.
      */
     private static Channels readChannels(
-            final PcmAudio audio, final Iterable<PcmFrame> frames, final int capacity, final Mixing mixing) {
+            final PcmAudio<?> audio, final Iterable<IntPcmFrame> frames, final int capacity, final Mixing mixing) {
         final var bitsPerSample = audio.bitsPerSample();
         var samples = new float[0][];
         var mixed = false;
         var length = 0;
         var ended = true;
-        for (final PcmFrame frame : frames) {
+        for (final IntPcmFrame frame : frames) {
             mixed = mixing == Mixing.BEFORE_RESAMPLING && !resamplesFirst(frame.channelCount(), audio.sampleRate());
             final var copied = Math.min(frame.sampleCount(), capacity - length);
             samples = grown(samples, readCount(frame, mixed), length + copied, capacity);
@@ -139,7 +148,7 @@ public final class Signal {
         return new Channels(samples, length, ended, mixed);
     }
 
-    private static int readCount(final PcmFrame frame, final boolean mixed) {
+    private static int readCount(final IntPcmFrame frame, final boolean mixed) {
         if (mixed) {
             return 1;
         }
@@ -147,7 +156,7 @@ public final class Signal {
     }
 
     private static void copyFrame(
-            final PcmFrame frame,
+            final IntPcmFrame frame,
             final int bitsPerSample,
             final boolean mixed,
             final float[][] samples,
@@ -189,7 +198,7 @@ public final class Signal {
 
     // Stereo is libswresample's two halves. Other layouts aren't ported, so they're averaged.
     // TODO: mix more than two channels as libswresample does for their layout.
-    private static float mix(final PcmFrame frame, final int index, final int bitsPerSample) {
+    private static float mix(final IntPcmFrame frame, final int index, final int bitsPerSample) {
         if (frame.channelCount() == 1) {
             return toFloat(frame.channelSample(0, index), bitsPerSample);
         }
