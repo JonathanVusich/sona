@@ -1,6 +1,9 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.coalesce;
+import static org.jooq.impl.DSL.field;
 import static org.jooq.impl.DSL.function;
+import static org.jooq.impl.DSL.inline;
 import static org.jooq.impl.DSL.multiset;
 import static org.jooq.impl.DSL.orderBy;
 import static org.jooq.impl.DSL.rand;
@@ -30,6 +33,7 @@ import org.jooq.Record10;
 import org.jooq.Record2;
 import org.jooq.Records;
 import org.jooq.Select;
+import org.jooq.SelectConditionStep;
 import org.jooq.SelectOnConditionStep;
 import org.jooq.Table;
 import org.sona.exception.PlaylistNotFoundException;
@@ -55,6 +59,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class QueueDao {
 
+    /**
+     * Added to the play order of the shuffled entries that wrap round to before the anchor, so that a play order grows
+     * along the whole queue however it is shuffled.
+     */
+    private static final int WRAPPED_ORDER = 1 << 30;
+
+    /**
+     * The play order is the second column of an entry's select.
+     */
+    private static final int PLAY_ORDER_COLUMN = 2;
+
     private final DSLContext dsl;
     private final QueueMapper queueMapper;
 
@@ -71,15 +86,33 @@ public class QueueDao {
     }
 
     /**
+     * The queue plays in the order it was queued in, or when it is shuffled from its anchor to its last entry in
+     * shuffle order and then from its first to the entry before the anchor. A statement reads whichever applies: the
+     * other branches find nothing, and each branch is a range of an index.
+     *
      * @param playOrder the play order of the entry before the page, 0 for the first page
      * @param size      how many entries at most
      * @return the entries that play after it, in play order
      */
     public List<QueueEntry> loadEntriesAfter(final UUID userId, final int playOrder, final int size) {
-        return selectEntries()
-                .where(QUEUE_TRACK.USER_ID.eq(userId))
-                .and(QUEUE_TRACK.PLAY_ORDER.gt(playOrder))
-                .orderBy(QUEUE_TRACK.PLAY_ORDER)
+        final var anchor = loadShuffleAnchor(userId);
+        final var queued = selectPageEntries(userId, ShuffleMode.OFF, QUEUE_TRACK.POSITION)
+                .and(QUEUE_TRACK.POSITION.gt(playOrder))
+                .orderBy(QUEUE_TRACK.POSITION)
+                .limit(size);
+        final var shuffled = selectPageEntries(userId, ShuffleMode.ON, QUEUE_TRACK.SHUFFLE_ORDER)
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.ge(anchor))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.gt(playOrder))
+                .orderBy(QUEUE_TRACK.SHUFFLE_ORDER)
+                .limit(size);
+        final var wrapped = selectPageEntries(userId, ShuffleMode.ON, QUEUE_TRACK.SHUFFLE_ORDER.plus(WRAPPED_ORDER))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.lt(anchor))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.gt(playOrder - WRAPPED_ORDER))
+                .orderBy(QUEUE_TRACK.SHUFFLE_ORDER)
+                .limit(size);
+        return queued.unionAll(shuffled)
+                .unionAll(wrapped)
+                .orderBy(inline(PLAY_ORDER_COLUMN))
                 .limit(size)
                 .fetch(Records.mapping(QueueEntry::new));
     }
@@ -90,10 +123,24 @@ public class QueueDao {
      * @return the entries that play before it, the nearest first
      */
     public List<QueueEntry> loadEntriesBefore(final UUID userId, final int playOrder, final int size) {
-        return selectEntries()
-                .where(QUEUE_TRACK.USER_ID.eq(userId))
-                .and(QUEUE_TRACK.PLAY_ORDER.lt(playOrder))
-                .orderBy(QUEUE_TRACK.PLAY_ORDER.desc())
+        final var anchor = loadShuffleAnchor(userId);
+        final var queued = selectPageEntries(userId, ShuffleMode.OFF, QUEUE_TRACK.POSITION)
+                .and(QUEUE_TRACK.POSITION.lt(playOrder))
+                .orderBy(QUEUE_TRACK.POSITION.desc())
+                .limit(size);
+        final var shuffled = selectPageEntries(userId, ShuffleMode.ON, QUEUE_TRACK.SHUFFLE_ORDER)
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.ge(anchor))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.lt(playOrder))
+                .orderBy(QUEUE_TRACK.SHUFFLE_ORDER.desc())
+                .limit(size);
+        final var wrapped = selectPageEntries(userId, ShuffleMode.ON, QUEUE_TRACK.SHUFFLE_ORDER.plus(WRAPPED_ORDER))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.lt(anchor))
+                .and(QUEUE_TRACK.SHUFFLE_ORDER.lt(playOrder - WRAPPED_ORDER))
+                .orderBy(QUEUE_TRACK.SHUFFLE_ORDER.desc())
+                .limit(size);
+        return queued.unionAll(shuffled)
+                .unionAll(wrapped)
+                .orderBy(inline(PLAY_ORDER_COLUMN).desc())
                 .limit(size)
                 .fetch(Records.mapping(QueueEntry::new));
     }
@@ -189,17 +236,15 @@ public class QueueDao {
     }
 
     /**
-     * Turning shuffle on puts the entries after the current one in a random order, and leaves the ones before it
-     * where they are. Turning it off puts them all back in the order they were queued in.
+     * Turning shuffle on starts the shuffled order from the current entry, and turning it off goes back to the order
+     * the entries were queued in. Both orders are kept with the entries, so no entry changes.
      */
     public void updateModes(final UUID userId, final ShuffleMode shuffle, final RepeatMode repeat) {
-        final var queue = lockQueue(userId);
-        if (shuffle != queue.shuffle()) {
-            reorderEntries(userId, queue, shuffle);
-        }
+        lockQueue(userId);
         dsl.update(QUEUE)
                 .set(QUEUE.SHUFFLE, shuffle)
                 .set(QUEUE.REPEAT, repeat)
+                .set(QUEUE.SHUFFLE_ANCHOR, shuffleAnchor(shuffle))
                 .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
                 .where(QUEUE.USER_ID.eq(userId))
                 .execute();
@@ -212,6 +257,7 @@ public class QueueDao {
         dsl.update(QUEUE)
                 .setNull(QUEUE.CURRENT_ENTRY_ID)
                 .set(QUEUE.POSITION_SECONDS, 0)
+                .set(QUEUE.SHUFFLE_ANCHOR, 1)
                 .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
                 .where(QUEUE.USER_ID.eq(userId))
                 .execute();
@@ -220,12 +266,14 @@ public class QueueDao {
 
     /**
      * The entries' columns and joins, for the caller to filter and order.
+     *
+     * @param playOrder where each entry plays
      */
     private SelectOnConditionStep<Record10<UUID, Integer, UUID, String, Integer, Integer, UUID, String, UUID, String>>
-            selectEntries() {
+            selectEntries(final Field<Integer> playOrder) {
         return dsl.select(
                         QUEUE_TRACK.QUEUE_TRACK_ID,
-                        QUEUE_TRACK.PLAY_ORDER,
+                        playOrder,
                         TRACK.TRACK_ID,
                         TRACK.NAME,
                         TRACK.DURATION,
@@ -246,10 +294,54 @@ public class QueueDao {
     }
 
     /**
+     * The entries of the user's queue if it is in the shuffle mode, for the caller to filter and order. The mode is
+     * read once for the statement rather than joined, so a branch for the other mode is dropped without reading any
+     * entry.
+     */
+    private SelectConditionStep<Record10<UUID, Integer, UUID, String, Integer, Integer, UUID, String, UUID, String>>
+            selectPageEntries(final UUID userId, final ShuffleMode shuffle, final Field<Integer> playOrder) {
+        final var queueShuffle = field(select(QUEUE.SHUFFLE).from(QUEUE).where(QUEUE.USER_ID.eq(userId)));
+        return selectEntries(playOrder).where(QUEUE_TRACK.USER_ID.eq(userId)).and(queueShuffle.eq(shuffle));
+    }
+
+    /**
+     * @return the queue's shuffle anchor, read once for the statement
+     */
+    private static Field<Integer> loadShuffleAnchor(final UUID userId) {
+        return field(select(QUEUE.SHUFFLE_ANCHOR).from(QUEUE).where(QUEUE.USER_ID.eq(userId)));
+    }
+
+    /**
+     * @return where an entry plays: its position as queued, or when the queue is shuffled its shuffle order, with the
+     * entries before the anchor moved past the end
+     */
+    private static Field<Integer> playOrder() {
+        return when(QUEUE.SHUFFLE.eq(ShuffleMode.OFF), QUEUE_TRACK.POSITION)
+                .when(QUEUE_TRACK.SHUFFLE_ORDER.ge(QUEUE.SHUFFLE_ANCHOR), QUEUE_TRACK.SHUFFLE_ORDER)
+                .otherwise(QUEUE_TRACK.SHUFFLE_ORDER.plus(WRAPPED_ORDER));
+    }
+
+    /**
+     * @return the anchor the queue has once it is set to the mode: turning shuffle on anchors it at the current entry
+     */
+    private static Field<Integer> shuffleAnchor(final ShuffleMode shuffle) {
+        return switch (shuffle) {
+            case OFF -> QUEUE.SHUFFLE_ANCHOR;
+            case ON -> {
+                final var current = field(select(QUEUE_TRACK.SHUFFLE_ORDER)
+                        .from(QUEUE_TRACK)
+                        .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(QUEUE.CURRENT_ENTRY_ID)));
+                yield when(QUEUE.SHUFFLE.eq(ShuffleMode.OFF), coalesce(current, QUEUE.SHUFFLE_ANCHOR))
+                        .otherwise(QUEUE.SHUFFLE_ANCHOR);
+            }
+        };
+    }
+
+    /**
      * @return the current entry, null when the queue has none
      */
     private Field<QueueEntry> currentEntry() {
-        return multiset(selectEntries().where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(QUEUE.CURRENT_ENTRY_ID)))
+        return multiset(selectEntries(playOrder()).where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(QUEUE.CURRENT_ENTRY_ID)))
                 .convertFrom(entries -> entries.map(Records.mapping(QueueEntry::new)).stream()
                         .findFirst()
                         .orElse(null));
@@ -271,19 +363,19 @@ public class QueueDao {
      */
     private QueueDetails replaceFrom(
             final UUID userId, final Select<Record2<UUID, Integer>> tracks, final int startIndex) {
-        final var queue = lockQueue(userId);
+        lockQueue(userId);
         dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
-        insertEntries(userId, tracks.asTable("source", "track_id", "position"), queue.shuffle(), startIndex);
+        insertEntries(userId, tracks.asTable("source", "track_id", "position"), startIndex);
         final var startEntryId = loadEntryId(userId, startIndex);
         updateCurrentEntry(userId, startEntryId);
+        dsl.update(QUEUE)
+                .set(QUEUE.SHUFFLE_ANCHOR, 1)
+                .where(QUEUE.USER_ID.eq(userId))
+                .execute();
         return loadDetails(userId);
     }
 
-    private void insertEntries(
-            final UUID userId,
-            final Table<Record2<UUID, Integer>> tracks,
-            final ShuffleMode shuffle,
-            final int startIndex) {
+    private void insertEntries(final UUID userId, final Table<Record2<UUID, Integer>> tracks, final int startIndex) {
         final var trackId = tracks.field("track_id", UUID.class);
         final var position = tracks.field("position", Integer.class);
         dsl.insertInto(
@@ -292,13 +384,13 @@ public class QueueDao {
                         QUEUE_TRACK.USER_ID,
                         QUEUE_TRACK.TRACK_ID,
                         QUEUE_TRACK.POSITION,
-                        QUEUE_TRACK.PLAY_ORDER)
+                        QUEUE_TRACK.SHUFFLE_ORDER)
                 .select(select(
                                 function("uuidv7", UUID.class),
                                 val(userId),
                                 trackId,
                                 position,
-                                playOrder(shuffle, position, startIndex))
+                                shuffleOrder(position, startIndex))
                         .from(tracks))
                 .execute();
     }
@@ -316,56 +408,10 @@ public class QueueDao {
     }
 
     /**
-     * @return the order entries play in: as queued, or with the start first and the rest in a random order
+     * @return a random order of the entries, with the start first so that shuffling a queue plays it first
      */
-    private static Field<Integer> playOrder(
-            final ShuffleMode shuffle, final Field<Integer> position, final int startIndex) {
-        return switch (shuffle) {
-            case OFF -> position;
-            case ON ->
-                rowNumber().over(orderBy(when(position.eq(startIndex + 1), 0).otherwise(1), rand()));
-        };
-    }
-
-    private void reorderEntries(final UUID userId, final Queue queue, final ShuffleMode shuffle) {
-        switch (shuffle) {
-            case ON -> shuffleAfterCurrent(userId, queue);
-            case OFF ->
-                dsl.update(QUEUE_TRACK)
-                        .set(QUEUE_TRACK.PLAY_ORDER, QUEUE_TRACK.POSITION)
-                        .where(QUEUE_TRACK.USER_ID.eq(userId))
-                        .execute();
-        }
-    }
-
-    private void shuffleAfterCurrent(final UUID userId, final Queue queue) {
-        final var played = loadCurrentPlayOrder(queue);
-        final var shuffled = select(
-                        QUEUE_TRACK.QUEUE_TRACK_ID,
-                        val(played).plus(rowNumber().over(orderBy(rand()))).as("new_order"))
-                .from(QUEUE_TRACK)
-                .where(QUEUE_TRACK.USER_ID.eq(userId))
-                .and(QUEUE_TRACK.PLAY_ORDER.gt(played))
-                .asTable("shuffled");
-        dsl.update(QUEUE_TRACK)
-                .set(QUEUE_TRACK.PLAY_ORDER, shuffled.field("new_order", Integer.class))
-                .from(shuffled)
-                .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(shuffled.field(QUEUE_TRACK.QUEUE_TRACK_ID)))
-                .execute();
-    }
-
-    /**
-     * @return where the current entry plays, 0 when the queue has none, so that every entry counts as still to play
-     */
-    private int loadCurrentPlayOrder(final Queue queue) {
-        if (queue.currentEntryId() == null) {
-            return 0;
-        }
-        return dsl.select(QUEUE_TRACK.PLAY_ORDER)
-                .from(QUEUE_TRACK)
-                .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(queue.currentEntryId()))
-                .fetchOptional(QUEUE_TRACK.PLAY_ORDER)
-                .orElse(0);
+    private static Field<Integer> shuffleOrder(final Field<Integer> position, final int startIndex) {
+        return rowNumber().over(orderBy(when(position.eq(startIndex + 1), 0).otherwise(1), rand()));
     }
 
     private void requireInLibrary(final List<UUID> trackIds) {

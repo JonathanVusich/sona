@@ -55,8 +55,8 @@ public class QueueController {
     /**
      * The entries that play after the cursor, in play order.
      *
-     * @param after the {@code next} of the page before, or the current entry's {@code playOrder} less one to start at
-     *              it; 0, the default, is the first page
+     * @param after the {@code next} of the page before, or the current entry's {@code playOrder} to start after it; 0,
+     *              the default, is the first page
      * @param limit how many entries a page holds, up to {@value MAX_LIMIT}
      */
     @GetMapping(ApiRoutes.QUEUE_ENTRIES)

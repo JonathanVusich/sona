@@ -7,9 +7,10 @@ create table if not exists queue_track (
     -- The order the user queued the tracks in, from 1.
     -- Checked at commit, so entries can pass through each other's positions in one statement.
     position integer not null,
-    -- The order the tracks play in, from 1. The same as position unless the queue is shuffled.
-    play_order integer not null,
+    -- Where the entry falls when the queue is shuffled, from 1: a random order made when the queue is filled, so
+    -- turning shuffle on or off changes no entry.
+    shuffle_order integer not null,
 
     constraint queue_track_position_key unique (user_id, position) deferrable initially deferred,
-    constraint queue_track_play_order_key unique (user_id, play_order) deferrable initially deferred
+    constraint queue_track_shuffle_order_key unique (user_id, shuffle_order) deferrable initially deferred
 );

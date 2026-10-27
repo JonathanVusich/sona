@@ -223,14 +223,13 @@ class QueueControllerTest {
     }
 
     @Test
-    void aPageCanStartAtTheCurrentEntry() {
+    void aPageCanStartAfterTheCurrentEntry() {
         final var queue = replaceQueue(alice, List.of(0, 1, 2, 3), 2);
-        final var after = queue.currentEntry().playOrder() - 1;
+        final var after = queue.currentEntry().playOrder();
 
         final var page = loadEntryPage(alice, ApiRoutes.QUEUE_ENTRIES + "?after=" + after);
 
-        assertThat(page.entries().getFirst()).isEqualTo(queue.currentEntry());
-        assertThat(page.entries()).hasSize(2);
+        assertThat(page.entries()).extracting(entry -> entry.track().trackId()).isEqualTo(trackIds(List.of(3)));
     }
 
     @Test
@@ -390,23 +389,71 @@ class QueueControllerTest {
     }
 
     @Test
-    void turningShuffleOnReordersOnlyTheEntriesAfterTheCurrentOneAndTurningItOffRestoresTheirOrder() {
+    void turningShuffleOnPlaysTheCurrentEntryFirstAndEveryOtherOnceAndTurningItOffRestoresTheQueuedOrder() {
         final var queue = replaceQueue(alice, List.of(0, 1, 2, 3, 4, 5), 2);
         final var entryIds = entryIds(loadEntries(alice));
 
         updateModes(alice, ShuffleMode.ON, RepeatMode.OFF);
         final var shuffled = loadQueue(alice);
-        final var shuffledIds = entryIds(loadEntries(alice));
+        final var shuffledEntries = loadEntries(alice);
 
         assertThat(shuffled.shuffle()).isEqualTo(ShuffleMode.ON);
-        assertThat(shuffledIds.subList(0, 3)).isEqualTo(entryIds.subList(0, 3));
-        assertThat(shuffledIds.subList(3, 6)).containsExactlyInAnyOrderElementsOf(entryIds.subList(3, 6));
         assertThat(shuffled.currentEntry().entryId())
                 .isEqualTo(queue.currentEntry().entryId());
-        assertThat(loadEntries(alice)).extracting(QueueEntryResponse::playOrder).containsExactly(1, 2, 3, 4, 5, 6);
+        assertThat(shuffledEntries.getFirst().entryId())
+                .isEqualTo(queue.currentEntry().entryId());
+        assertThat(entryIds(shuffledEntries)).containsExactlyInAnyOrderElementsOf(entryIds);
+        assertThat(shuffledEntries).extracting(QueueEntryResponse::playOrder).isSorted();
 
         updateModes(alice, ShuffleMode.OFF, RepeatMode.OFF);
         assertThat(entryIds(loadEntries(alice))).isEqualTo(entryIds);
+    }
+
+    @Test
+    void turningShuffleOnPartWayStartsAtTheCurrentEntryAndWrapsRoundToTheOnesBeforeIt() {
+        replaceQueue(alice, List.of(0, 1, 2, 3, 4, 5), 0);
+        final var entryIds = entryIds(loadEntries(alice));
+        moveTo(alice, entryIds.get(4));
+
+        updateModes(alice, ShuffleMode.ON, RepeatMode.OFF);
+        final var shuffled = loadEntries(alice);
+
+        assertThat(shuffled.getFirst().entryId()).isEqualTo(entryIds.get(4));
+        assertThat(entryIds(shuffled)).containsExactlyInAnyOrderElementsOf(entryIds);
+        assertThat(shuffled).extracting(QueueEntryResponse::playOrder).isSorted();
+        final var earlier = loadEntryPage(
+                alice,
+                ApiRoutes.QUEUE_EARLIER_ENTRIES + "?before="
+                        + shuffled.getFirst().playOrder());
+        assertThat(earlier.entries()).isEmpty();
+    }
+
+    @Test
+    void entriesBeforeAShuffledEntryAreThoseThatPlayBeforeIt() {
+        replaceQueue(alice, List.of(0, 1, 2, 3, 4, 5), 3);
+        moveTo(alice, entryIds(loadEntries(alice)).get(1));
+        updateModes(alice, ShuffleMode.ON, RepeatMode.OFF);
+        final var shuffled = loadEntries(alice);
+        final var last = shuffled.getLast();
+
+        final var earlier =
+                loadEntryPage(alice, ApiRoutes.QUEUE_EARLIER_ENTRIES + "?limit=100&before=" + last.playOrder());
+
+        assertThat(entryIds(earlier.entries())).isEqualTo(entryIds(shuffled.subList(0, shuffled.size() - 1)));
+    }
+
+    @Test
+    void changingOnlyTheRepeatModeOfAShuffledQueueKeepsItsOrder() {
+        replaceQueue(alice, List.of(0, 1, 2, 3, 4, 5), 0);
+        updateModes(alice, ShuffleMode.ON, RepeatMode.OFF);
+        final var shuffled = loadEntries(alice);
+        moveTo(alice, shuffled.get(3).entryId());
+        final var version = loadQueue(alice).version();
+
+        updateModes(alice, ShuffleMode.ON, RepeatMode.ALL);
+
+        assertThat(loadEntries(alice)).isEqualTo(shuffled);
+        assertThat(loadQueue(alice).version()).isGreaterThan(version);
     }
 
     @Test
@@ -515,6 +562,12 @@ class QueueControllerTest {
                 .expectBody(QueueResponse.class)
                 .returnResult()
                 .getResponseBody();
+    }
+
+    private void moveTo(final String accessToken, final UUID entryId) {
+        api.putJson(accessToken, ApiRoutes.QUEUE_CURRENT, new CurrentEntryRequest(entryId))
+                .expectStatus()
+                .isNoContent();
     }
 
     private void updatePosition(final String accessToken, final UUID entryId, final int seconds) {
