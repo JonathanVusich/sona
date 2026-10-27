@@ -116,9 +116,9 @@ public final class FlacParser implements Parser {
     }
 
     private Application readApplication(final DataInputStream inputStream, final BlockHeader header)
-            throws IOException {
+            throws IOException, InvalidFormatException {
         final var applicationId = inputStream.readInt();
-        final var data = inputStream.readNBytes(header.size() - 4);
+        final var data = readBytes(inputStream, header.size() - 4, header);
         return new Application(header, applicationId, data);
     }
 
@@ -139,20 +139,27 @@ public final class FlacParser implements Parser {
     }
 
     private VorbisComment readVorbisComment(final DataInputStream inputStream, final BlockHeader header)
-            throws IOException {
+            throws IOException, InvalidFormatException {
         // Little endian u32
         final var length = Integer.reverseBytes(inputStream.readInt());
-        final var vendor = readUtf8(inputStream, length);
+        final var vendor = readUtf8(inputStream, length, header);
 
         final var numberOfFields = Integer.reverseBytes(inputStream.readInt());
+        // Each field starts with its 4-byte length, so more fields than that can't fit in the block.
+        if (numberOfFields < 0 || numberOfFields > header.size() / 4) {
+            throw new InvalidFormatException("Incorrect number of Vorbis comment fields: " + numberOfFields);
+        }
 
         final var fields = new ArrayList<Field>(numberOfFields);
         for (int i = 0; i < numberOfFields; i++) {
             // Little endian
             final var fieldLength = Integer.reverseBytes(inputStream.readInt());
-            final var fieldContent = readUtf8(inputStream, fieldLength);
+            final var fieldContent = readUtf8(inputStream, fieldLength, header);
 
             final var fieldEndIdx = fieldContent.indexOf("=");
+            if (fieldEndIdx < 0) {
+                throw new InvalidFormatException("Vorbis comment field without a '=': " + fieldContent);
+            }
             final var name = fieldContent.substring(0, fieldEndIdx);
             final var content = fieldContent.substring(fieldEndIdx + 1);
 
@@ -212,9 +219,9 @@ public final class FlacParser implements Parser {
         // Unlike Vorbis comment lengths, picture lengths are big endian.
         final var pictureType = getPictureType(inputStream.readInt());
         final var mediaTypeLength = inputStream.readInt();
-        final var mediaType = new String(inputStream.readNBytes(mediaTypeLength), StandardCharsets.US_ASCII);
+        final var mediaType = new String(readBytes(inputStream, mediaTypeLength, header), StandardCharsets.US_ASCII);
         final var descriptionLength = inputStream.readInt();
-        final var description = readUtf8(inputStream, descriptionLength);
+        final var description = readUtf8(inputStream, descriptionLength, header);
 
         final var width = inputStream.readInt();
         final var height = inputStream.readInt();
@@ -222,7 +229,7 @@ public final class FlacParser implements Parser {
         final var numberOfColors = inputStream.readInt();
 
         final var dataLength = inputStream.readInt();
-        final var data = inputStream.readNBytes(dataLength);
+        final var data = readBytes(inputStream, dataLength, header);
 
         return new Picture(
                 header, pictureType, mediaType, description, width, height, colorDepth, numberOfColors, data);
@@ -242,8 +249,17 @@ public final class FlacParser implements Parser {
         };
     }
 
-    private String readUtf8(final DataInputStream inputStream, final int length) throws IOException {
-        return new String(inputStream.readNBytes(length), StandardCharsets.UTF_8);
+    private String readUtf8(final DataInputStream inputStream, final int length, final BlockHeader header)
+            throws IOException, InvalidFormatException {
+        return new String(readBytes(inputStream, length, header), StandardCharsets.UTF_8);
+    }
+
+    private byte[] readBytes(final DataInputStream inputStream, final int length, final BlockHeader header)
+            throws IOException, InvalidFormatException {
+        if (length < 0 || length > header.size()) {
+            throw new InvalidFormatException(length + " bytes in a block of " + header.size());
+        }
+        return inputStream.readNBytes(length);
     }
 
     // Fixed-size ASCII fields are padded with NUL bytes, or are all NUL when empty.

@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
@@ -83,6 +84,25 @@ class FlacDecoderTest {
         assertThatThrownBy(() -> decodeAll(decoder))
                 .isInstanceOf(UncheckedIOException.class)
                 .hasCauseInstanceOf(EOFException.class);
+    }
+
+    // STREAMINFO's sample rate, channel count and bit depth size what is fingerprinted, so a frame that disagrees with
+    // one of them is refused rather than decoded as the wrong audio.
+    @ParameterizedTest
+    @CsvSource({"18, 1", "20, 16", "21, 16"})
+    void refusesFramesThatDisagreeWithStreamInfo(final int byteIndex, final int flippedBits)
+            throws IOException, InvalidFormatException {
+        final byte[] bytes;
+        try (final var inputStream = FlacAudioSample.STEREO_16_BIT_LPC.inputStream()) {
+            bytes = inputStream.readAllBytes();
+        }
+        bytes[byteIndex] ^= (byte) flippedBits;
+        final var decoder =
+                new FlacParser().parse(new SeekableInMemoryByteChannel(bytes)).audio();
+
+        assertThatThrownBy(() -> decodeAll(decoder))
+                .isInstanceOf(UncheckedInvalidFormatException.class)
+                .hasMessageContaining("STREAMINFO");
     }
 
     // Neither encoder writes escaped residual partitions, so this frame is built by hand.

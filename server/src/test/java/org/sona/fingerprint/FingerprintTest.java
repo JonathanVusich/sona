@@ -52,6 +52,19 @@ class FingerprintTest {
         assertThat(fingerprint.compressed()).isEqualTo(reference(referenceName));
     }
 
+    // Chords under noise, which make rounding in the resampler matter, unlike the chords alone. The rates take the
+    // resampler
+    // through its filters with one phase, with 147 and with 256, with and without interpolation between phases.
+    @ParameterizedTest
+    @CsvSource({"44100, 2", "48000, 2", "32000, 2", "96000, 2", "8000, 1"})
+    void matchesFpcalcForNoise(final int sampleRate, final int channels) throws IOException, InvalidFormatException {
+        final var audio = new NoiseAudio(sampleRate, channels, 25);
+
+        final var fingerprint = new Fingerprint(audio);
+
+        assertThat(fingerprint.compressed()).isEqualTo(reference("noise_%dhz_%dch".formatted(sampleRate, channels)));
+    }
+
     @Test
     void audioShorterThanOneFrameHasAnEmptyFingerprint() throws IOException, InvalidFormatException {
         final var audio = new SilentAudio(44100, 2, 0);
@@ -88,6 +101,41 @@ class FingerprintTest {
                 total += Math.sin(2 * Math.PI * frequency * index / sampleRate + channel);
             }
             return (int) Math.round(8000 * total) << (bitsPerSample - 16);
+        }
+    }
+
+    // Chords as in ChordAudio under noise that is a hash of each sample's position, so the audio can be made again
+    // anywhere and {@code fpcalc} can be given it.
+    record NoiseAudio(int sampleRate, int channels, int seconds) implements PcmAudio {
+
+        @Override
+        public int bitsPerSample() {
+            return 16;
+        }
+
+        @Override
+        public Iterator<PcmFrame> iterator() {
+            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+        }
+
+        private int sample(final int index, final int channel) {
+            final var chord = (long) index * 5 / (2L * sampleRate);
+            final var seed = hash(chord * 3);
+            var total = 0.0;
+            for (var note = 0; note < 3; note++) {
+                final var pitch = 48 + ((seed >>> (8 * note)) & 0xFF) % 36;
+                final var frequency = 440.0 * Math.pow(2, (pitch - 69) / 12.0);
+                total += Math.sin(2 * Math.PI * frequency * index / sampleRate + channel);
+            }
+            final var noise = (int) (hash(2L * index + channel) >>> 48) - 32768;
+            return (int) Math.round(5000 * total + noise / 16.0);
+        }
+
+        private static long hash(final long value) {
+            var mixed = value * 0x9E3779B97F4A7C15L;
+            mixed = (mixed ^ (mixed >>> 30)) * 0xBF58476D1CE4E5B9L;
+            mixed = (mixed ^ (mixed >>> 27)) * 0x94D049BB133111EBL;
+            return mixed ^ (mixed >>> 31);
         }
     }
 

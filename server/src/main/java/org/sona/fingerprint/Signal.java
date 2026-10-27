@@ -9,7 +9,9 @@ import org.sona.format.PcmAudio;
 import org.sona.format.PcmFrame;
 
 /**
- * The start of a file's audio as Chromaprint reads it: 16-bit mono samples at 11025 Hz, the first two minutes at most.
+ * The start of a file's audio as {@code fpcalc} reads it: 16-bit mono samples at 11025 Hz, the first two minutes at
+ * most. It brings the audio there as FFmpeg's libswresample does for {@code fpcalc}, in single-precision floating
+ * point (see {@link Resampler}), so the samples are the ones {@code fpcalc} makes.
  */
 public final class Signal {
 
@@ -17,6 +19,10 @@ public final class Signal {
 
     private static final int MAX_SAMPLES = 120 * SAMPLE_RATE;
     private static final int BITS_PER_SAMPLE = 16;
+    private static final int WIDE_BITS_PER_SAMPLE = 32;
+    private static final int FIRST_CAPACITY = 1 << 16;
+    private static final float HALF = 0.5f;
+    private static final int RESAMPLE_FIRST_WEIGHT = 1;
 
     private final int[] samples;
 
@@ -45,40 +51,204 @@ public final class Signal {
     }
 
     private static int[] readSamples(final PcmAudio audio) {
-        final var resampler = new Resampler(audio.sampleRate(), SAMPLE_RATE);
-        final var samples = new int[MAX_SAMPLES];
+        final var inputRate = audio.sampleRate();
+        if (inputRate == SAMPLE_RATE) {
+            final var channels = readChannels(audio, MAX_SAMPLES, Mixing.AFTER);
+            return truncated(unresampledSamples(channels, audio.bitsPerSample()));
+        }
+        final var resampler = new Resampler(inputRate, SAMPLE_RATE);
+        final var channels = readChannels(audio, resampler.inputNeeded(MAX_SAMPLES), Mixing.BEFORE_RESAMPLING);
+        return truncated(resampledSamples(channels, resampler));
+    }
+
+    private static int[] truncated(final int[] samples) {
+        return Arrays.copyOf(samples, Math.min(samples.length, MAX_SAMPLES));
+    }
+
+    // Whether the channels are mixed down as they're read, which libswresample does when it resamples after mixing.
+    private enum Mixing {
+        BEFORE_RESAMPLING,
+        AFTER
+    }
+
+    /**
+     * The audio as floats between -1 and 1, one array per channel, stopping once there are samples enough. With
+     * {@code BEFORE_RESAMPLING}, a layout that libswresample mixes down before it resamples is read as one mixed
+     * channel, to hold two minutes of it in memory rather than of every channel.
+     */
+    private static Channels readChannels(final PcmAudio audio, final int capacity, final Mixing mixing) {
+        final var bitsPerSample = audio.bitsPerSample();
+        var samples = new float[0][];
+        var mixed = false;
         var length = 0;
-        for (final var frame : audio) {
-            final var resampled = resampler.resampleFrame(downmix(frame, audio.bitsPerSample()));
-            final var copied = Math.min(resampled.sampleCount(), MAX_SAMPLES - length);
-            for (var i = 0; i < copied; i++) {
-                samples[length + i] = resampled.channelSample(0, i);
-            }
+        var ended = true;
+        for (final PcmFrame frame : audio) {
+            mixed = mixing == Mixing.BEFORE_RESAMPLING && !resamplesFirst(frame.channelCount(), audio.sampleRate());
+            final var copied = Math.min(frame.sampleCount(), capacity - length);
+            samples = grown(samples, readCount(frame, mixed), length + copied, capacity);
+            copyFrame(frame, bitsPerSample, mixed, samples, length, copied);
             length += copied;
-            if (length == MAX_SAMPLES) {
+            if (length == capacity) {
+                ended = false;
                 break;
             }
         }
-        return Arrays.copyOf(samples, length);
+        return new Channels(samples, length, ended, mixed);
     }
 
-    // Brings each sample to 16 bits, as an audio library converting for Chromaprint would, then averages the channels.
-    private static PcmFrame downmix(final PcmFrame frame, final int bitsPerSample) {
-        final var mono = new int[frame.sampleCount()];
-        for (var i = 0; i < mono.length; i++) {
-            var sum = 0L;
-            for (var channel = 0; channel < frame.channelCount(); channel++) {
-                sum += toSixteenBits(frame.channelSample(channel, i), bitsPerSample);
+    private static int readCount(final PcmFrame frame, final boolean mixed) {
+        if (mixed) {
+            return 1;
+        }
+        return frame.channelCount();
+    }
+
+    private static void copyFrame(
+            final PcmFrame frame,
+            final int bitsPerSample,
+            final boolean mixed,
+            final float[][] samples,
+            final int offset,
+            final int count) {
+        for (var i = 0; i < count; i++) {
+            if (mixed) {
+                samples[0][offset + i] = mix(frame, i, bitsPerSample);
+                continue;
             }
-            mono[i] = (int) (sum / frame.channelCount());
+            for (var channel = 0; channel < samples.length; channel++) {
+                samples[channel][offset + i] = toFloat(frame.channelSample(channel, i), bitsPerSample);
+            }
         }
-        return new PcmFrame(new int[][] {mono});
     }
 
-    private static int toSixteenBits(final int sample, final int bitsPerSample) {
-        if (bitsPerSample >= BITS_PER_SAMPLE) {
-            return sample >> (bitsPerSample - BITS_PER_SAMPLE);
+    private static float[][] grown(final float[][] channels, final int count, final int needed, final int capacity) {
+        if (channels.length == 0) {
+            return new float[count][Math.min(Math.max(needed, FIRST_CAPACITY), capacity)];
         }
-        return sample << (BITS_PER_SAMPLE - bitsPerSample);
+        if (channels[0].length >= needed) {
+            return channels;
+        }
+        final var size = Math.min(Math.max(needed, 2 * channels[0].length), capacity);
+        final var larger = new float[channels.length][];
+        for (var channel = 0; channel < larger.length; channel++) {
+            larger[channel] = Arrays.copyOf(channels[channel], size);
+        }
+        return larger;
+    }
+
+    // Audio of 16 bits or less is 16-bit samples to libswresample, and any more is 32-bit ones.
+    private static float toFloat(final int sample, final int bitsPerSample) {
+        if (bitsPerSample <= BITS_PER_SAMPLE) {
+            return (sample << (BITS_PER_SAMPLE - bitsPerSample)) * (1.0f / (1 << (BITS_PER_SAMPLE - 1)));
+        }
+        return (float) (sample << (WIDE_BITS_PER_SAMPLE - bitsPerSample)) * (1.0f / (1L << (WIDE_BITS_PER_SAMPLE - 1)));
+    }
+
+    // Stereo is libswresample's two halves. Other layouts aren't ported, so they're averaged.
+    // TODO: mix more than two channels as libswresample does for their layout.
+    private static float mix(final PcmFrame frame, final int index, final int bitsPerSample) {
+        if (frame.channelCount() == 1) {
+            return toFloat(frame.channelSample(0, index), bitsPerSample);
+        }
+        if (frame.channelCount() == 2) {
+            return HALF * toFloat(frame.channelSample(0, index), bitsPerSample)
+                    + HALF * toFloat(frame.channelSample(1, index), bitsPerSample);
+        }
+        var sum = 0f;
+        for (var channel = 0; channel < frame.channelCount(); channel++) {
+            sum += toFloat(frame.channelSample(channel, index), bitsPerSample);
+        }
+        return sum / frame.channelCount();
+    }
+
+    // At the target rate libswresample only converts: 16-bit audio is mixed down in integers, and wider audio in
+    // floats.
+    private static int[] unresampledSamples(final Channels channels, final int bitsPerSample) {
+        if (bitsPerSample > BITS_PER_SAMPLE || channels.count() > 2) {
+            return toSixteenBits(mixedDown(channels.samples(), channels.length()), channels.length());
+        }
+        final var mono = new int[channels.length()];
+        for (var i = 0; i < mono.length; i++) {
+            mono[i] = integerMono(channels.samples(), i);
+        }
+        return mono;
+    }
+
+    private static int integerMono(final float[][] channels, final int index) {
+        final var first = (int) (channels[0][index] * (1 << (BITS_PER_SAMPLE - 1)));
+        if (channels.length == 1) {
+            return first;
+        }
+        final var second = (int) (channels[1][index] * (1 << (BITS_PER_SAMPLE - 1)));
+        return (first * 16384 + second * 16384 + 16384) >> 15;
+    }
+
+    private static int[] resampledSamples(final Channels channels, final Resampler resampler) {
+        if (channels.count() == 0) {
+            return new int[0];
+        }
+        if (channels.mixed()) {
+            final var resampled = resample(channels, channels.samples()[0], resampler);
+            return toSixteenBits(resampled, resampled.length);
+        }
+        final var resampled = new float[channels.count()][];
+        for (var channel = 0; channel < resampled.length; channel++) {
+            resampled[channel] = resample(channels, channels.samples()[channel], resampler);
+        }
+        return toSixteenBits(mixedDown(resampled, resampled[0].length), resampled[0].length);
+    }
+
+    private static float[] resample(final Channels channels, final float[] samples, final Resampler resampler) {
+        if (channels.ended()) {
+            return resampler.resampleEnded(samples, channels.length());
+        }
+        return resampler.resampleOpen(samples, channels.length());
+    }
+
+    // libswresample decides whether to resample before it mixes the channels down by comparing the channel counts'
+    // ratio
+    // to the rates' in a mix of integer and floating-point arithmetic, so from two channels or more to one it's always
+    // before.
+    private static boolean resamplesFirst(final int channelCount, final int inputRate) {
+        final var channelRatio = RESAMPLE_FIRST_WEIGHT * 1 / channelCount - RESAMPLE_FIRST_WEIGHT;
+        return channelRatio < SAMPLE_RATE / (float) inputRate - 1.0;
+    }
+
+    private static float[] mixedDown(final float[][] channels, final int length) {
+        if (channels.length == 1) {
+            return channels[0];
+        }
+        final var mono = new float[length];
+        for (var i = 0; i < length; i++) {
+            mono[i] = mixChannels(channels, i);
+        }
+        return mono;
+    }
+
+    private static float mixChannels(final float[][] channels, final int index) {
+        if (channels.length == 2) {
+            return HALF * channels[0][index] + HALF * channels[1][index];
+        }
+        var sum = 0f;
+        for (final var channel : channels) {
+            sum += channel[index];
+        }
+        return sum / channels.length;
+    }
+
+    private static int[] toSixteenBits(final float[] mono, final int length) {
+        final var samples = new int[length];
+        for (var i = 0; i < length; i++) {
+            final var rounded = (int) Math.rint(mono[i] * (1 << (BITS_PER_SAMPLE - 1)));
+            samples[i] = Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, rounded));
+        }
+        return samples;
+    }
+
+    private record Channels(float[][] samples, int length, boolean ended, boolean mixed) {
+
+        int count() {
+            return samples.length;
+        }
     }
 }

@@ -9,6 +9,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -125,6 +127,52 @@ class FlacParserTest {
     }
 
     @Test
+    void rejectVorbisCommentFieldWithoutEquals() {
+        final var stream = commentStream();
+        stream[indexOfTitle(stream) + "TITLE".length()] = 'x';
+
+        assertThatThrownBy(() -> parseFlac(new ByteArrayInputStream(stream)))
+                .isInstanceOf(InvalidFormatException.class);
+    }
+
+    @Test
+    void rejectVorbisCommentWithMoreFieldsThanFitInItsBlock() {
+        final var stream = commentStream();
+        final var countAt = indexOfTitle(stream) - 8;
+        Arrays.fill(stream, countAt, countAt + 3, (byte) 0xFF);
+        stream[countAt + 3] = 0x7F;
+
+        assertThatThrownBy(() -> parseFlac(new ByteArrayInputStream(stream)))
+                .isInstanceOf(InvalidFormatException.class);
+    }
+
+    @Test
+    void rejectApplicationBlockTooSmallForItsId() {
+        final var stream = streamEndingIn(0x82, (byte) 1, (byte) 2);
+
+        assertThatThrownBy(() -> parseFlac(stream)).isInstanceOf(InvalidFormatException.class);
+    }
+
+    @Test
+    void rejectPictureWithNegativeMediaTypeLength() {
+        // Picture type 3, then a media type length of -1.
+        final var stream = streamEndingIn(
+                0x86, (byte) 0, (byte) 0, (byte) 0, (byte) 3, (byte) -1, (byte) -1, (byte) -1, (byte) -1);
+
+        assertThatThrownBy(() -> parseFlac(stream)).isInstanceOf(InvalidFormatException.class);
+    }
+
+    @Test
+    void rejectVorbisCommentFieldOfNegativeLength() {
+        final var stream = commentStream();
+        final var lengthAt = indexOfTitle(stream) - 4;
+        Arrays.fill(stream, lengthAt, lengthAt + 4, (byte) 0xFF);
+
+        assertThatThrownBy(() -> parseFlac(new ByteArrayInputStream(stream)))
+                .isInstanceOf(InvalidFormatException.class);
+    }
+
+    @Test
     void writtenBlocksParseBackUnchanged() throws IOException, InvalidFormatException {
         final var blocks = new Block[] {
             streamInfo(blockHeader(BlockType.STREAM_INFO)),
@@ -218,6 +266,44 @@ class FlacParserTest {
             flacWriter.writeBlock(dataStream, block);
         }
         return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    private static byte[] commentStream() {
+        final var comment = vorbisComment(lastHeader(BlockType.VORBIS_COMMENT), new Field("TITLE", "x"));
+        try {
+            return flacStream(streamInfo(blockHeader(BlockType.STREAM_INFO)), comment)
+                    .readAllBytes();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // A STREAMINFO block followed by a last block of the given type whose contents are written by hand.
+    private static InputStream streamEndingIn(final int lastBlockHeader, final byte... contents) {
+        final var outputStream = new ByteArrayOutputStream();
+        try {
+            flacStream(streamInfo(blockHeader(BlockType.STREAM_INFO))).transferTo(outputStream);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        outputStream.write(lastBlockHeader);
+        outputStream.write(0);
+        outputStream.write(contents.length >> 8);
+        outputStream.write(contents.length);
+        outputStream.writeBytes(contents);
+        // Audio follows, so a block that reads past its declared size finds bytes there rather than the end.
+        outputStream.writeBytes(new byte[8]);
+        return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    private static int indexOfTitle(final byte[] stream) {
+        final var title = "TITLE=x".getBytes(StandardCharsets.US_ASCII);
+        for (var index = 0; index <= stream.length - title.length; index++) {
+            if (Arrays.equals(stream, index, index + title.length, title, 0, title.length)) {
+                return index;
+            }
+        }
+        throw new IllegalStateException("No TITLE field");
     }
 
     private static RawMetadata parseFlac(final FlacSample sample) throws IOException, InvalidFormatException {

@@ -1,151 +1,346 @@
 package org.sona.fingerprint;
 
 import java.util.Arrays;
-import org.sona.format.PcmFrame;
 
 /**
- * Resamples a stream of 16-bit mono audio, a frame at a time, with a windowed-sinc low-pass filter. The filter cuts off
- * a little below the Nyquist frequency of the lower rate, so nothing above it folds back into the output. It's worked
- * out ahead for {@link #PHASES} positions between two input samples, and each output sample takes the nearest.
+ * Resamples one channel of floating-point audio the way FFmpeg's libswresample does as {@code fpcalc} configures it
+ * (16 filter taps for the lower rate, 256 phases, linear interpolation between them, a cutoff at 0.8 of the lower
+ * rate's Nyquist frequency and a Kaiser window with beta 9), step for step in single precision. The filter has as many
+ * phases as the two rates need to be exact, up to 256. The samples before the start of the audio are its mirror image,
+ * and the end, once it's known, is reflected too.
+ *
+ * <p>The taps are added up as libswresample's x86 code for processors with FMA3 does, which is what {@code fpcalc}
+ * runs on nearly every current x86-64 processor, so the output is bit for bit what it makes there. Its plain C code,
+ * used elsewhere, adds the taps in another order and so differs in the last bit of a few samples in a hundred
+ * thousand.
  */
 public final class Resampler {
 
-    private static final int PHASES = 256;
-    // Taps on each side of the filter's centre, counted in samples at the lower rate.
-    private static final int HALF_WIDTH = 8;
-    // How much of the band up to the lower rate's Nyquist frequency the filter passes.
-    private static final double PASSBAND = 0.8;
+    private static final int FILTER_SIZE = 16;
+    private static final int PHASE_SHIFT = 8;
+    private static final double CUTOFF = 0.8;
     private static final double KAISER_BETA = 9;
+    private static final int FILTER_ALIGNMENT = 8;
+    // FFmpeg's FMA3 code adds the taps in the eight lanes of a vector register.
+    private static final int LANES = 8;
+    private static final int HALF_LANES = LANES / 2;
+    // libswresample doubles its increments until one of them reaches this.
+    private static final int INCREMENT_LIMIT = 1 << 20;
 
     private final int inputRate;
     private final int outputRate;
-    private final int halfTaps;
-    private final double cutoff;
-    private final double[][] filters;
-    // The input samples later output samples still need, from input sample bufferStart on.
-    private double[] buffer;
-    private int bufferLength;
-    private long bufferStart;
-    private long outputCount;
+    private final int filterLength;
+    private final int phaseCount;
+    private final int filterStride;
+    private final float[] filterBank;
+    private final int sourceIncrement;
+    private final int incrementQuotient;
+    private final int incrementRemainder;
+
+    private final float[] sums = new float[LANES];
+    private final float[] nextSums = new float[LANES];
+
+    private enum End {
+        OPEN,
+        ENDED
+    }
 
     public Resampler(final int inputRate, final int outputRate) {
         this.inputRate = inputRate;
         this.outputRate = outputRate;
-        final var scale = Math.min(1.0, (double) outputRate / inputRate);
-        this.halfTaps = (int) Math.ceil(HALF_WIDTH / scale);
-        this.cutoff = PASSBAND * scale;
-        this.filters = filterTable();
-        // The samples before the stream starts count as silence.
-        this.buffer = new double[4 * halfTaps];
-        this.bufferLength = halfTaps - 1;
-        this.bufferStart = 1 - halfTaps;
+        final var factor = Math.min(outputRate * CUTOFF / inputRate, 1.0);
+        this.filterLength = evenLength(Math.max((int) Math.ceil(FILTER_SIZE / factor), 1));
+        this.phaseCount = exactPhaseCount(inputRate, outputRate);
+        this.filterStride = (filterLength + FILTER_ALIGNMENT - 1) / FILTER_ALIGNMENT * FILTER_ALIGNMENT;
+        this.filterBank = filterBank(factor);
+        final var divisor = gcd(outputRate, (long) inputRate * phaseCount);
+        var source = (int) (outputRate / divisor);
+        var destination = (int) (inputRate * (long) phaseCount / divisor);
+        while (destination < INCREMENT_LIMIT && source < INCREMENT_LIMIT) {
+            destination *= 2;
+            source *= 2;
+        }
+        this.sourceIncrement = source;
+        this.incrementQuotient = destination / source;
+        this.incrementRemainder = destination % source;
     }
 
     /**
-     * @param signal the next samples of the input, in one channel
-     * @return the output samples the input so far completes, in one channel
+     * @return how many input samples are enough to make {@code outputCount} output samples
      */
-    public PcmFrame resampleFrame(final PcmFrame signal) {
-        if (inputRate == outputRate) {
-            return signal;
-        }
-        appendInput(signal);
-        final var output = new int[readyOutputCount()];
-        for (var i = 0; i < output.length; i++) {
-            output[i] = nextOutputSample();
-        }
-        dropUsedInput();
-        return new PcmFrame(new int[][] {output});
+    public int inputNeeded(final int outputCount) {
+        return (int) ((long) outputCount * inputRate / outputRate) + filterLength + 2;
     }
 
-    private double[][] filterTable() {
-        final var table = new double[PHASES + 1][2 * halfTaps];
-        for (var phase = 0; phase <= PHASES; phase++) {
-            table[phase] = phaseFilter((double) phase / PHASES);
-        }
-        return table;
+    /**
+     * @param length how many samples of {@code input} there are, with more audio to follow
+     * @return the output samples whose filters lie within the input
+     */
+    public float[] resampleOpen(final float[] input, final int length) {
+        return resample(input, length, End.OPEN);
     }
 
-    // The filter for an output sample this far past the input sample at its centre, scaled to pass silence unchanged.
-    private double[] phaseFilter(final double offset) {
-        final var taps = new double[2 * halfTaps];
-        var sum = 0.0;
-        for (var tap = 0; tap < taps.length; tap++) {
-            final var distance = tap - halfTaps + 1 - offset;
-            taps[tap] = sinc(cutoff * distance) * kaiserWindow(distance / halfTaps);
-            sum += taps[tap];
-        }
-        for (var tap = 0; tap < taps.length; tap++) {
-            taps[tap] /= sum;
-        }
-        return taps;
+    /**
+     * @param length how many samples of {@code input} there are, which are all the audio
+     * @return the output samples, the last of them made from the input's reflection
+     */
+    public float[] resampleEnded(final float[] input, final int length) {
+        return resample(input, length, End.ENDED);
     }
 
-    private static double sinc(final double x) {
+    private float[] resample(final float[] input, final int length, final End end) {
+        final var output = new float[(int) ((long) (length + filterLength) * outputRate / inputRate) + 2];
+        final var window = new float[filterLength];
+        var available = length;
+        var count = 0;
+        var index = 0;
+        var fraction = 0;
+        var start = -(filterLength - 1) / 2;
+        var reflectionPending = end == End.ENDED;
+        while (true) {
+            if (start + filterLength > available) {
+                if (!reflectionPending) {
+                    break;
+                }
+                available += reflectionLength(length - start);
+                reflectionPending = false;
+                continue;
+            }
+            output[count++] = sampleAt(input, length, window, start, index, fraction);
+            fraction += incrementRemainder;
+            index += incrementQuotient;
+            if (fraction >= sourceIncrement) {
+                fraction -= sourceIncrement;
+                index++;
+            }
+            start += index / phaseCount;
+            index %= phaseCount;
+        }
+        return Arrays.copyOf(output, count);
+    }
+
+    // The output sample for a filter starting at a position in the audio. A filter that reaches past either end is
+    // given a copy of its samples with the mirror image of the start and the reflection of the end in place.
+    private float sampleAt(
+            final float[] input,
+            final int length,
+            final float[] window,
+            final int start,
+            final int index,
+            final int fraction) {
+        if (start >= 0 && start + filterLength <= length) {
+            return outputSample(input, start, index, fraction);
+        }
+        for (var i = 0; i < filterLength; i++) {
+            window[i] = extended(input, length, start + i);
+        }
+        return outputSample(window, 0, index, fraction);
+    }
+
+    private static float extended(final float[] input, final int length, final int position) {
+        var source = position;
+        if (position < 0) {
+            source = -position;
+        } else if (position >= length) {
+            source = 2 * length - 1 - position;
+        }
+        if (source < 0 || source >= length) {
+            return 0;
+        }
+        return input[source];
+    }
+
+    // How many samples libswresample reflects off the end of the audio, from what it hasn't finished with.
+    private int reflectionLength(final int leftover) {
+        return (Math.min(leftover, filterLength) + 1) / 2;
+    }
+
+    // One output sample: the filter for this phase applied to the samples from offset on.
+    private float outputSample(final float[] samples, final int offset, final int index, final int fraction) {
+        final var row = filterStride * index;
+        accumulate(samples, offset, row, sums);
+        fold(sums);
+        if (incrementRemainder != 0 || fraction != 0) {
+            return interpolatedSample(samples, offset, row, fraction);
+        }
+        return total(sums);
+    }
+
+    // The sums of this phase's filter and the next one's, blended by how far between the two the output falls.
+    private float interpolatedSample(final float[] samples, final int offset, final int row, final int fraction) {
+        accumulate(samples, offset, row + filterStride, nextSums);
+        fold(nextSums);
+        final var weight = (float) fraction * (1.0f / (float) sourceIncrement);
+        for (var lane = 0; lane < HALF_LANES; lane++) {
+            sums[lane] = Math.fma(nextSums[lane] - sums[lane], weight, sums[lane]);
+        }
+        return total(sums);
+    }
+
+    // The taps added into eight sums, each of every eighth tap by fused multiply-adds, as FFmpeg's FMA3 code does.
+    private void accumulate(final float[] samples, final int offset, final int row, final float[] lanes) {
+        Arrays.fill(lanes, 0f);
+        for (var i = 0; i < filterLength; i++) {
+            final var lane = i % LANES;
+            lanes[lane] = Math.fma(samples[offset + i], filterBank[row + i], lanes[lane]);
+        }
+    }
+
+    // The upper four sums added onto the lower four.
+    private static void fold(final float[] lanes) {
+        for (var lane = 0; lane < HALF_LANES; lane++) {
+            lanes[lane] += lanes[lane + HALF_LANES];
+        }
+    }
+
+    private static float total(final float[] lanes) {
+        return (lanes[0] + lanes[2]) + (lanes[1] + lanes[3]);
+    }
+
+    private float[] filterBank(final double factor) {
+        final var bank = new float[filterStride * (phaseCount + 1)];
+        final var phasesComputed = phasesComputed();
+        final var center = (filterLength - 1) / 2;
+        final var taps = new double[filterLength];
+        final var norm = filterNorm(factor, center, taps);
+        for (var phase = 0; phase < phasesComputed; phase++) {
+            fillTaps(taps, phase, factor, center);
+            for (var i = 0; i < filterLength; i++) {
+                bank[phase * filterStride + i] = (float) (taps[i] / norm);
+            }
+            if (phaseCount % 2 == 0) {
+                for (var i = 0; i < filterLength; i++) {
+                    bank[(phaseCount - phase) * filterStride + filterLength - 1 - i] = bank[phase * filterStride + i];
+                }
+            }
+        }
+        // The phase after the last is the first one shifted by a sample, for the interpolation to blend towards.
+        System.arraycopy(bank, 0, bank, filterStride * phaseCount + 1, filterStride - 1);
+        bank[filterStride * phaseCount] = bank[filterStride - 1];
+        return bank;
+    }
+
+    private int phasesComputed() {
+        if (phaseCount % 2 != 0) {
+            return phaseCount;
+        }
+        return phaseCount / 2 + 1;
+    }
+
+    // The sum of the first phase's taps, which every phase is divided by.
+    private double filterNorm(final double factor, final int center, final double[] taps) {
+        fillTaps(taps, 0, factor, center);
+        var norm = 0.0;
+        for (final var tap : taps) {
+            norm += tap;
+        }
+        return norm;
+    }
+
+    // The windowed sinc for one phase, before it's normalised.
+    private void fillTaps(final double[] taps, final int phase, final double factor, final int center) {
+        var sign = initialSign(phase, factor, center);
+        for (var i = 0; i < filterLength; i++) {
+            final var x = Math.PI * ((double) (i - center) - (double) phase / phaseCount) * factor;
+            var y = sinc(x, sign, factor);
+            final var w = 2.0 * x / (factor * filterLength * Math.PI);
+            y *= besselI0(KAISER_BETA * Math.sqrt(Math.max(1 - w * w, 0)));
+            taps[i] = y;
+            sign = -sign;
+        }
+    }
+
+    // When the filter doesn't narrow the band, libswresample reads the sine of every tap off the first one's.
+    private double initialSign(final int phase, final double factor, final int center) {
+        if (factor != 1.0) {
+            return 0;
+        }
+        var parity = -1;
+        if ((center & 1) != 0) {
+            parity = 1;
+        }
+        return StrictMath.sin(Math.PI * phase / phaseCount) * parity;
+    }
+
+    private static double sinc(final double x, final double sign, final double factor) {
         if (x == 0) {
-            return 1;
+            return 1.0;
         }
-        return Math.sin(Math.PI * x) / (Math.PI * x);
+        if (factor == 1.0) {
+            return sign / x;
+        }
+        return StrictMath.sin(x) / x;
     }
 
-    private static double kaiserWindow(final double position) {
-        final var inside = Math.max(0, 1 - position * position);
-        return besselI0(KAISER_BETA * Math.sqrt(inside)) / besselI0(KAISER_BETA);
+    // As many phases as the rates make exact, if that's under the 256 asked for.
+    private static int exactPhaseCount(final int inputRate, final int outputRate) {
+        final var exact = outputRate / gcd(outputRate, inputRate);
+        if (exact <= 1 << PHASE_SHIFT) {
+            return (int) exact;
+        }
+        return 1 << PHASE_SHIFT;
     }
 
-    // The zeroth-order modified Bessel function of the first kind, summed as its power series.
+    private static int evenLength(final int length) {
+        if (length > 1) {
+            return (length + 1) / 2 * 2;
+        }
+        return length;
+    }
+
+    private static long gcd(final long a, final long b) {
+        var larger = a;
+        var smaller = b;
+        while (smaller != 0) {
+            final var remainder = larger % smaller;
+            larger = smaller;
+            smaller = remainder;
+        }
+        return larger;
+    }
+
+    // FFmpeg's av_bessel_i0 for the arguments up to 15 a Kaiser window of beta 9 gives it: Blair and Edwards' minimax
+    // rational approximation.
     private static double besselI0(final double x) {
-        var sum = 1.0;
-        var term = 1.0;
-        for (var k = 1; term > 1e-12 * sum; k++) {
-            final var factor = x / (2 * k);
-            term *= factor * factor;
-            sum += term;
+        if (x == 0) {
+            return 1.0;
+        }
+        final var y = Math.abs(x) * Math.abs(x);
+        return evaluate(BESSEL_NUMERATOR, y) / evaluate(BESSEL_DENOMINATOR, y);
+    }
+
+    private static double evaluate(final double[] coefficients, final double x) {
+        var sum = coefficients[coefficients.length - 1];
+        for (var i = coefficients.length - 2; i >= 0; i--) {
+            sum *= x;
+            sum += coefficients[i];
         }
         return sum;
     }
 
-    private void appendInput(final PcmFrame signal) {
-        final var count = signal.sampleCount();
-        if (bufferLength + count > buffer.length) {
-            buffer = Arrays.copyOf(buffer, Math.max(2 * buffer.length, bufferLength + count));
-        }
-        for (var i = 0; i < count; i++) {
-            buffer[bufferLength + i] = signal.channelSample(0, i);
-        }
-        bufferLength += count;
-    }
-
-    // An output sample is ready once the input reaches the end of its filter.
-    private int readyOutputCount() {
-        final var lastCentre = bufferStart + bufferLength - halfTaps;
-        if (lastCentre <= 0) {
-            return 0;
-        }
-        final var readyCount = Math.ceilDiv(lastCentre * outputRate, inputRate);
-        return (int) Math.max(0, readyCount - outputCount);
-    }
-
-    private int nextOutputSample() {
-        final var position = outputCount * inputRate;
-        final var centre = Math.floorDiv(position, outputRate);
-        final var phase = (int) Math.round((double) (position - centre * outputRate) * PHASES / outputRate);
-        final var filter = filters[phase];
-        final var first = (int) (centre - halfTaps + 1 - bufferStart);
-        var sum = 0.0;
-        for (var tap = 0; tap < filter.length; tap++) {
-            sum += filter[tap] * buffer[first + tap];
-        }
-        outputCount++;
-        return Math.clamp(Math.round(sum), Short.MIN_VALUE, Short.MAX_VALUE);
-    }
-
-    // Drops the input samples before the first one the next output sample needs.
-    private void dropUsedInput() {
-        final var nextCentre = Math.floorDiv(outputCount * inputRate, outputRate);
-        final var used = (int) (nextCentre - halfTaps + 1 - bufferStart);
-        System.arraycopy(buffer, used, buffer, 0, bufferLength - used);
-        bufferLength -= used;
-        bufferStart += used;
-    }
+    private static final double[] BESSEL_NUMERATOR = {
+        -2.2335582639474375249e+15,
+        -5.5050369673018427753e+14,
+        -3.2940087627407749166e+13,
+        -8.4925101247114157499e+11,
+        -1.1912746104985237192e+10,
+        -1.0313066708737980747e+08,
+        -5.9545626019847898221e+05,
+        -2.4125195876041896775e+03,
+        -7.0935347449210549190e+00,
+        -1.5453977791786851041e-02,
+        -2.5172644670688975051e-05,
+        -3.0517226450451067446e-08,
+        -2.6843448573468483278e-11,
+        -1.5982226675653184646e-14,
+        -5.2487866627945699800e-18,
+    };
+    private static final double[] BESSEL_DENOMINATOR = {
+        -2.2335582639474375245e+15,
+        7.8858692566751002988e+12,
+        -1.2207067397808979846e+10,
+        1.0377081058062166144e+07,
+        -4.8527560179962773045e+03,
+        1.0,
+    };
 }
