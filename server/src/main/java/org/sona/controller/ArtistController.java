@@ -8,9 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.sona.controller.response.ArtistDetailsResponse;
 import org.sona.controller.response.ArtistPageResponse;
 import org.sona.db.ArtistDao;
+import org.sona.db.ArtistSummary;
 import org.sona.exception.ArtistNotFoundException;
 import org.sona.mappers.ArtistResponseMapper;
-import org.sona.model.tables.pojos.Artist;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,7 +53,7 @@ public class ArtistController {
     /**
      * @param loaded up to one more artist than the page holds
      */
-    private ArtistPageResponse pageResponse(final List<Artist> loaded, final int limit) {
+    private ArtistPageResponse pageResponse(final List<ArtistSummary> loaded, final int limit) {
         final var page = loaded.stream().limit(limit).toList();
         final var artists = page.stream().map(mapper::toSummaryResponse).toList();
         if (loaded.size() == page.size()) {

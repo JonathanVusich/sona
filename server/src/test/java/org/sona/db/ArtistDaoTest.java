@@ -79,7 +79,7 @@ class ArtistDaoTest {
         upsertReleaseGroup(keane, "Hopes and Fears", musicbrainzId);
 
         assertThat(dao.loadFirstPage(2))
-                .extracting(Artist::name, Artist::releaseGroupCount)
+                .extracting(ArtistSummary::name, ArtistSummary::releaseGroupCount)
                 .containsExactly(tuple("Coldplay", 1), tuple("Keane", 1));
     }
 
