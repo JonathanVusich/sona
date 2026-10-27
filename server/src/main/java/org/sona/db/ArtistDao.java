@@ -5,7 +5,6 @@ import static org.jooq.impl.DSL.multiset;
 import static org.jooq.impl.DSL.noCondition;
 import static org.jooq.impl.DSL.row;
 import static org.jooq.impl.DSL.select;
-import static org.jooq.impl.DSL.selectFrom;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.RELEASE_GROUP;
 
@@ -16,11 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.sona.mappers.ArtistDetailsMapper;
+import org.jooq.Records;
 import org.sona.mappers.ArtistMapper;
-import org.sona.mappers.ReleaseGroupMapper;
 import org.sona.model.tables.pojos.Artist;
-import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,8 +32,6 @@ public class ArtistDao {
 
     private final DSLContext dsl;
     private final ArtistMapper artistMapper;
-    private final ReleaseGroupMapper releaseGroupMapper;
-    private final ArtistDetailsMapper detailsMapper;
 
     /**
      * Inserts the artist, or overwrites the stored one with the same MusicBrainz ID with its newer data.
@@ -67,7 +62,7 @@ public class ArtistDao {
      *
      * @return the first {@code size} listed artists, by name
      */
-    public List<Artist> loadFirstPage(final int size) {
+    public List<ArtistSummary> loadFirstPage(final int size) {
         return loadPage(noCondition(), size);
     }
 
@@ -78,7 +73,7 @@ public class ArtistDao {
      * @param after the last artist of the page before; an artist who isn't stored has no page after them
      * @return up to {@code size} listed artists, by name, who come after {@code after}
      */
-    public List<Artist> loadNextPage(final UUID after, final int size) {
+    public List<ArtistSummary> loadNextPage(final UUID after, final int size) {
         return loadPage(afterArtist(after), size);
     }
 
@@ -86,19 +81,20 @@ public class ArtistDao {
      * @return the artist page's data
      */
     public Optional<ArtistDetails> loadDetails(final UUID artistId) {
-        return dsl.select(ARTIST.convertFrom(artistMapper::fromRecord), releaseGroups())
+        return dsl.select(ARTIST.ARTIST_ID, ARTIST.NAME, ARTIST.COUNTRY, releaseGroups())
                 .from(ARTIST)
                 .where(ARTIST.ARTIST_ID.eq(artistId))
-                .fetchOptional(artist -> detailsMapper.fromPojos(artist.value1(), artist.value2()));
+                .fetchOptional(Records.mapping(ArtistDetails::new));
     }
 
-    private List<Artist> loadPage(final Condition start, final int size) {
-        return dsl.selectFrom(ARTIST)
+    private List<ArtistSummary> loadPage(final Condition start, final int size) {
+        return dsl.select(ARTIST.ARTIST_ID, ARTIST.NAME, ARTIST.RELEASE_GROUP_COUNT)
+                .from(ARTIST)
                 .where(ARTIST.RELEASE_GROUP_COUNT.gt(0))
                 .and(start)
                 .orderBy(ARTIST.NAME, ARTIST.ARTIST_ID)
                 .limit(size)
-                .fetch(artistMapper::fromRecord);
+                .fetch(Records.mapping(ArtistSummary::new));
     }
 
     private static Condition afterArtist(final UUID after) {
@@ -111,11 +107,16 @@ public class ArtistDao {
      * The artist's release groups in the library, those with a release stored, newest first, and those with no known
      * date last.
      */
-    private Field<List<ReleaseGroup>> releaseGroups() {
-        return multiset(selectFrom(RELEASE_GROUP)
+    private Field<List<ArtistReleaseGroup>> releaseGroups() {
+        return multiset(select(
+                                RELEASE_GROUP.RELEASE_GROUP_ID,
+                                RELEASE_GROUP.NAME,
+                                RELEASE_GROUP.TYPE,
+                                RELEASE_GROUP.FIRST_RELEASE_DATE)
+                        .from(RELEASE_GROUP)
                         .where(RELEASE_GROUP.ARTIST_ID.eq(ARTIST.ARTIST_ID))
                         .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
                         .orderBy(RELEASE_GROUP.FIRST_RELEASE_DATE.desc().nullsLast(), RELEASE_GROUP.RELEASE_GROUP_ID))
-                .convertFrom(groups -> groups.map(releaseGroupMapper::fromRecord));
+                .convertFrom(groups -> groups.map(Records.mapping(ArtistReleaseGroup::new)));
     }
 }
