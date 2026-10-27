@@ -25,7 +25,7 @@ public final class ChecksummedByteSource implements ByteSource {
      */
     public ChecksummedByteSource(final InputStream inputStream, final Checksum... checksums) {
         this.inputStream = inputStream;
-        this.checksums = checksums.clone();
+        this.checksums = checksums;
     }
 
     @Override

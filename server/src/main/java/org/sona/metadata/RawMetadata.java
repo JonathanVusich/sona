@@ -1,10 +1,6 @@
 package org.sona.metadata;
 
 import java.time.Duration;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -24,20 +20,16 @@ public final class RawMetadata {
     }
 
     /**
-     * @param definedTags each known tag's values, in the order they were read, which the metadata copies
-     * @param unknownTags each other tag's values, in the order they were read, which the metadata copies
+     * @param definedTags each known tag's values, in the order they were read, which no one else changes
+     * @param unknownTags each other tag's values, in the order they were read, which no one else changes
      */
     public RawMetadata(
             final Duration duration,
             final Map<Tag, Set<TagValue>> definedTags,
             final Map<String, Set<TagValue>> unknownTags) {
         this.duration = duration;
-        final var definedCopy = new EnumMap<Tag, Set<TagValue>>(Tag.class);
-        definedTags.forEach((tag, values) -> definedCopy.put(tag, copiedValues(values)));
-        this.definedTags = Collections.unmodifiableMap(definedCopy);
-        final var unknownCopy = new LinkedHashMap<String, Set<TagValue>>();
-        unknownTags.forEach((tag, values) -> unknownCopy.put(tag, copiedValues(values)));
-        this.unknownTags = Collections.unmodifiableMap(unknownCopy);
+        this.definedTags = definedTags;
+        this.unknownTags = unknownTags;
     }
 
     public Duration duration() {
@@ -50,9 +42,5 @@ public final class RawMetadata {
 
     public Stream<TagSet> unknownTags() {
         return unknownTags.entrySet().stream().map(entry -> new TagSet(entry.getKey(), entry.getValue()));
-    }
-
-    private static Set<TagValue> copiedValues(final Set<TagValue> values) {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 }

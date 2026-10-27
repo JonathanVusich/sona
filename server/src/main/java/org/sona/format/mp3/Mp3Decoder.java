@@ -168,16 +168,18 @@ public final class Mp3Decoder implements FloatPcmAudio {
      */
     private FloatPcmFrame decodeNextGivenFrame() throws IOException, InvalidFormatException {
         final var audioLength = streamInfo.audioEnd() - streamInfo.audioStart();
-        for (var found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength());
-                found.isPresent();
-                found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())) {
-            final var header = found.get().header();
+        for (var found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())
+                        .orElse(null);
+                found != null;
+                found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())
+                        .orElse(null)) {
+            final var header = found.header();
             final var position = framePosition;
             framePosition += header.samplesPerFrame();
             final var frameStart = input.getCount() - FrameHeader.SIZE;
             bits.readBits(32);
             final var presentBytes = (int) Math.min(header.frameLength(), audioLength - frameStart);
-            final var decoded = !found.get().afterOtherBytes() && decodeFrame(header, presentBytes);
+            final var decoded = found.lead() == Mp3Parser.FrameLead.AFTER_ZEROS && decodeFrame(header, presentBytes);
             if (!decoded) {
                 continuity = FrameContinuity.AFTER_DECODING_ERROR;
             }
@@ -222,8 +224,16 @@ public final class Mp3Decoder implements FloatPcmAudio {
             }
             end -= padding;
         }
-        final var channelSamples = Arrays.copyOf(samples, header.channelCount());
-        return new FloatPcmFrame(channelSamples, start, end, header.sampleRate(), continuity);
+        return new FloatPcmFrame(copyOfSamples(header.channelCount(), start, end), header.sampleRate(), continuity);
+    }
+
+    // The frame keeps its samples, so they're copied out of the buffers the next frame decodes into.
+    private float[][] copyOfSamples(final int channelCount, final int start, final int end) {
+        final var copy = new float[channelCount][];
+        for (var channel = 0; channel < channelCount; channel++) {
+            copy[channel] = Arrays.copyOfRange(samples[channel], start, end);
+        }
+        return copy;
     }
 
     // How many samples at the end of the frame are the encoder's padding.

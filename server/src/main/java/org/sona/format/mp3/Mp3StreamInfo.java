@@ -12,9 +12,7 @@ import org.sona.format.AudioUtils;
  * @param channelCount the first frame's channels, which a later frame may change
  * @param samplesPerFrame the first frame's samples per channel
  * @param frameCount how many frames of audio the stream has: as its VBR header says, or as the decoder finds them
- * @param lameTag whether the stream has a LAME tag, which gives the encoder's delay and padding
- * @param encoderDelay samples of silence the encoder put before the audio, which a LAME tag gives, otherwise 0
- * @param encoderPadding samples of silence the encoder put after the audio to fill the last frame, likewise
+ * @param encoderTrim the silence the encoder put before and after the audio, which a LAME tag gives
  * @param freeFormatLength how many bytes each frame of a free-format stream takes but for its padding, which their
  *     headers don't give, otherwise 0
  */
@@ -25,13 +23,8 @@ public record Mp3StreamInfo(
         int channelCount,
         int samplesPerFrame,
         long frameCount,
-        boolean lameTag,
-        int encoderDelay,
-        int encoderPadding,
+        EncoderTrim encoderTrim,
         int freeFormatLength) {
-
-    // The delay of the synthesis filterbank and the IMDCT's overlap, in samples.
-    private static final int DECODER_DELAY = 529;
 
     /**
      * @return samples per channel of the audio that was encoded, without the encoder's delay and padding
@@ -46,10 +39,7 @@ public record Mp3StreamInfo(
      *     it's 0. A stream without one is played from its first sample.
      */
     public long leadingSamples() {
-        if (!lameTag) {
-            return 0;
-        }
-        return encoderDelay + DECODER_DELAY;
+        return encoderTrim.leadingSamples();
     }
 
     /**
@@ -58,7 +48,7 @@ public record Mp3StreamInfo(
      *     audio ends that much before the padding starts, but never past the last frame.
      */
     public long paddingStart() {
-        return Math.min(paddingEnd() - encoderPadding + DECODER_DELAY, paddingEnd());
+        return Math.min(paddingEnd() - encoderTrim.padding() + EncoderTrim.DECODER_DELAY, paddingEnd());
     }
 
     /**

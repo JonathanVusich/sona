@@ -12,12 +12,9 @@ sealed interface FirstFrame permits FirstFrame.VbrHeader, FirstFrame.AudioFrame 
      *
      * @param frameCount frames of audio, not counting the one holding this header, or 0 when the header doesn't say
      * @param byteCount bytes of audio, or 0 when the header doesn't say
-     * @param lameTag whether a LAME tag (or FFmpeg's, which it writes the same) follows a Xing header
-     * @param encoderDelay from the LAME tag, otherwise 0
-     * @param encoderPadding likewise
+     * @param encoderTrim from the LAME tag that may follow a Xing header
      */
-    record VbrHeader(long frameCount, long byteCount, boolean lameTag, int encoderDelay, int encoderPadding)
-            implements FirstFrame {}
+    record VbrHeader(long frameCount, long byteCount, EncoderTrim encoderTrim) implements FirstFrame {}
 
     /**
      * A frame of audio, or a VBR header with neither count, so the stream's frames are counted.

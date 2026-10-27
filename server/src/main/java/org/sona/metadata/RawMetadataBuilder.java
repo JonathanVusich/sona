@@ -1,8 +1,10 @@
 package org.sona.metadata;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +31,15 @@ public final class RawMetadataBuilder {
     }
 
     public RawMetadata build() {
-        return new RawMetadata(duration, definedTags, unknownTags);
+        final var definedCopy = new EnumMap<Tag, Set<TagValue>>(Tag.class);
+        definedTags.forEach((tag, values) -> definedCopy.put(tag, unmodifiableValues(values)));
+        final var unknownCopy = new LinkedHashMap<String, Set<TagValue>>();
+        unknownTags.forEach((tag, values) -> unknownCopy.put(tag, unmodifiableValues(values)));
+        return new RawMetadata(
+                duration, Collections.unmodifiableMap(definedCopy), Collections.unmodifiableMap(unknownCopy));
+    }
+
+    private static Set<TagValue> unmodifiableValues(final Set<TagValue> values) {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
     }
 }

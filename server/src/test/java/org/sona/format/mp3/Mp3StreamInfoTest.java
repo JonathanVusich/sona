@@ -42,7 +42,14 @@ class Mp3StreamInfoTest {
         // from its end, only the encoder's delay from its start.
         assertThat(streamInfo)
                 .isEqualTo(new Mp3StreamInfo(
-                        MONO_VBR_TAG_SIZE + 182, bytes.length - ID3V1_SIZE, 22050, 1, 576, 41, true, 576, 0, 0));
+                        MONO_VBR_TAG_SIZE + 182,
+                        bytes.length - ID3V1_SIZE,
+                        22050,
+                        1,
+                        576,
+                        41,
+                        new EncoderTrim.Lame(576, 0),
+                        0));
         assertThat(streamInfo.sampleCount()).isEqualTo(41 * 576 - 576 - 529);
     }
 
