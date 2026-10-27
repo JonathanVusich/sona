@@ -130,12 +130,18 @@ class ReleaseDaoTest {
 
         assertThat(dao.loadDetails(release.releaseId()))
                 .contains(new ReleaseDetails(
-                        withOneTrack(release),
-                        withOneReleaseGroup(artist),
-                        List.of(capitol, parlophone),
+                        release.releaseId(),
+                        release.name(),
+                        release.date(),
+                        release.country(),
+                        1,
+                        release.releaseGroupId(),
+                        artist.artistId(),
+                        artist.name(),
                         List.of(
-                                new MediumWithTracks(disc1, List.of(new TrackWithArtist(track, keane))),
-                                new MediumWithTracks(disc2, List.of()))));
+                                new LabelSummary(capitol.labelId(), capitol.name()),
+                                new LabelSummary(parlophone.labelId(), parlophone.name())),
+                        List.of(mediumWithTracks(disc1, trackWithArtist(track, keane)), mediumWithTracks(disc2))));
     }
 
     @Test
@@ -152,13 +158,12 @@ class ReleaseDaoTest {
 
         final var details = dao.loadDetails(release.releaseId()).orElseThrow();
 
-        assertThat(details.artist()).isEqualTo(withOneReleaseGroup(releaseArtist));
+        assertThat(details.artistId()).isEqualTo(releaseArtist.artistId());
+        assertThat(details.artistName()).isEqualTo(releaseArtist.name());
         assertThat(details.media())
                 .containsExactly(
-                        new MediumWithTracks(
-                                disc1,
-                                List.of(new TrackWithArtist(first, keane), new TrackWithArtist(second, coldplay))),
-                        new MediumWithTracks(disc2, List.of(new TrackWithArtist(bonus, keane))));
+                        mediumWithTracks(disc1, trackWithArtist(first, keane), trackWithArtist(second, coldplay)),
+                        mediumWithTracks(disc2, trackWithArtist(bonus, keane)));
     }
 
     @Test
@@ -171,7 +176,7 @@ class ReleaseDaoTest {
         storeTrack(disc2, artist, 1);
         storeTrack(storeMedium(storeRelease(artist), 1), artist, 1);
 
-        assertThat(dao.loadDetails(release.releaseId()).orElseThrow().release().trackCount())
+        assertThat(dao.loadDetails(release.releaseId()).orElseThrow().trackCount())
                 .isEqualTo(2);
     }
 
@@ -187,9 +192,8 @@ class ReleaseDaoTest {
 
         final var details = dao.loadDetails(release.releaseId()).orElseThrow();
 
-        assertThat(details.media())
-                .containsExactly(new MediumWithTracks(disc, List.of(new TrackWithArtist(imported, keane))));
-        assertThat(details.release().trackCount()).isEqualTo(1);
+        assertThat(details.media()).containsExactly(mediumWithTracks(disc, trackWithArtist(imported, keane)));
+        assertThat(details.trackCount()).isEqualTo(1);
     }
 
     @Test
@@ -311,33 +315,13 @@ class ReleaseDaoTest {
         return artistDao.upsert(new Artist(uuidv7(), name, null, null, 0, uuidv7()));
     }
 
-    /**
-     * @return the artist as stored once {@link #storeRelease} has stored a release group of theirs
-     */
-    private static Artist withOneReleaseGroup(final Artist artist) {
-        return new Artist(
-                artist.artistId(),
-                artist.name(),
-                artist.country(),
-                artist.thumbnailPath(),
-                1,
-                artist.musicbrainzArtistId());
+    private static MediumWithTracks mediumWithTracks(final Medium medium, final TrackWithArtist... tracks) {
+        return new MediumWithTracks(medium.position(), medium.format(), List.of(tracks));
     }
 
-    /**
-     * @return the release as stored once one track of it has been
-     */
-    private static Release withOneTrack(final Release release) {
-        return new Release(
-                release.releaseId(),
-                release.name(),
-                release.thumbnailPath(),
-                release.date(),
-                release.country(),
-                1,
-                release.releaseGroupId(),
-                release.artistId(),
-                release.musicbrainzReleaseId());
+    private static TrackWithArtist trackWithArtist(final Track track, final Artist artist) {
+        return new TrackWithArtist(
+                track.trackId(), track.name(), track.duration(), track.position(), artist.artistId(), artist.name());
     }
 
     private Release storeRelease(final Artist artist) {

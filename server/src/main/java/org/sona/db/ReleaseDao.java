@@ -12,10 +12,9 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
-import org.sona.mappers.ArtistMapper;
+import org.jooq.Records;
 import org.sona.mappers.LabelMapper;
 import org.sona.mappers.MediumMapper;
-import org.sona.mappers.ReleaseDetailsMapper;
 import org.sona.mappers.ReleaseLabelMapper;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.Label;
@@ -36,11 +35,9 @@ public class ReleaseDao {
 
     private final DSLContext dsl;
     private final ReleaseMapper releaseMapper;
-    private final ArtistMapper artistMapper;
     private final LabelMapper labelMapper;
     private final ReleaseLabelMapper releaseLabelMapper;
     private final MediumMapper mediumMapper;
-    private final ReleaseDetailsMapper detailsMapper;
     private final ReleaseFields releaseFields;
 
     /**
@@ -74,8 +71,14 @@ public class ReleaseDao {
      */
     public Optional<ReleaseDetails> loadDetails(final UUID releaseId) {
         return dsl.select(
-                        RELEASE.convertFrom(releaseMapper::fromRecord),
-                        ARTIST.convertFrom(artistMapper::fromRecord),
+                        RELEASE.RELEASE_ID,
+                        RELEASE.NAME,
+                        RELEASE.DATE,
+                        RELEASE.COUNTRY,
+                        RELEASE.TRACK_COUNT,
+                        RELEASE.RELEASE_GROUP_ID,
+                        ARTIST.ARTIST_ID,
+                        ARTIST.NAME,
                         releaseFields.releaseLabels(RELEASE.RELEASE_ID),
                         releaseFields.releaseMediaWithTracks(RELEASE.RELEASE_ID))
                 .from(RELEASE)
@@ -83,8 +86,7 @@ public class ReleaseDao {
                 .on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
                 .where(RELEASE.RELEASE_ID.eq(releaseId))
                 .and(RELEASE.TRACK_COUNT.gt(0))
-                .fetchOptional(release -> detailsMapper.fromPojos(
-                        release.value1(), release.value2(), release.value3(), release.value4()));
+                .fetchOptional(Records.mapping(ReleaseDetails::new));
     }
 
     /**

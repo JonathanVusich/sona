@@ -1,9 +1,13 @@
 package org.sona.db;
 
-import org.sona.model.tables.pojos.Artist;
-import org.sona.model.tables.pojos.Track;
+import java.util.UUID;
 
 /**
- * A track with its own artist, who may not be the release's (as on a compilation).
+ * A track as the page of its release lists it, with its own artist, who may not be the release's (as on a
+ * compilation).
+ *
+ * @param duration in seconds
+ * @param position on its medium, from 1
  */
-public record TrackWithArtist(Track track, Artist artist) {}
+public record TrackWithArtist(
+        UUID trackId, String name, int duration, int position, UUID artistId, String artistName) {}

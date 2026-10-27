@@ -16,14 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Records;
 import org.jooq.SortField;
-import org.sona.mappers.ArtistMapper;
-import org.sona.mappers.DefaultReleaseMapper;
-import org.sona.mappers.EditionMapper;
-import org.sona.mappers.ReleaseGroupDetailsMapper;
 import org.sona.mappers.ReleaseGroupMapper;
-import org.sona.mappers.ReleaseGroupSummaryMapper;
-import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,12 +35,6 @@ public class ReleaseGroupDao {
 
     private final DSLContext dsl;
     private final ReleaseGroupMapper releaseGroupMapper;
-    private final ArtistMapper artistMapper;
-    private final ReleaseMapper releaseMapper;
-    private final ReleaseGroupSummaryMapper summaryMapper;
-    private final ReleaseGroupDetailsMapper detailsMapper;
-    private final EditionMapper editionMapper;
-    private final DefaultReleaseMapper defaultReleaseMapper;
     private final ReleaseFields releaseFields;
 
     /**
@@ -96,8 +85,12 @@ public class ReleaseGroupDao {
      */
     public Optional<ReleaseGroupDetails> loadDetails(final UUID releaseGroupId) {
         return dsl.select(
-                        RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
-                        ARTIST.convertFrom(artistMapper::fromRecord),
+                        RELEASE_GROUP.RELEASE_GROUP_ID,
+                        RELEASE_GROUP.NAME,
+                        RELEASE_GROUP.TYPE,
+                        RELEASE_GROUP.FIRST_RELEASE_DATE,
+                        ARTIST.ARTIST_ID,
+                        ARTIST.NAME,
                         defaultRelease(),
                         editions())
                 .from(RELEASE_GROUP)
@@ -105,14 +98,17 @@ public class ReleaseGroupDao {
                 .on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
                 .where(RELEASE_GROUP.RELEASE_GROUP_ID.eq(releaseGroupId))
                 .and(RELEASE_GROUP.RELEASE_COUNT.gt(0))
-                .fetchOptional(group ->
-                        detailsMapper.fromPojos(group.value1(), group.value2(), group.value3(), group.value4()));
+                .fetchOptional(Records.mapping(ReleaseGroupDetails::new));
     }
 
     private List<ReleaseGroupSummary> loadPage(final Condition start, final int size) {
         return dsl.select(
-                        RELEASE_GROUP.convertFrom(releaseGroupMapper::fromRecord),
-                        ARTIST.convertFrom(artistMapper::fromRecord))
+                        RELEASE_GROUP.RELEASE_GROUP_ID,
+                        RELEASE_GROUP.NAME,
+                        RELEASE_GROUP.TYPE,
+                        RELEASE_GROUP.FIRST_RELEASE_DATE,
+                        ARTIST.ARTIST_ID,
+                        ARTIST.NAME)
                 .from(RELEASE_GROUP)
                 .join(ARTIST)
                 .on(ARTIST.ARTIST_ID.eq(RELEASE_GROUP.ARTIST_ID))
@@ -120,7 +116,7 @@ public class ReleaseGroupDao {
                 .and(start)
                 .orderBy(RELEASE_GROUP.NAME, RELEASE_GROUP.RELEASE_GROUP_ID)
                 .limit(size)
-                .fetch(group -> summaryMapper.fromPojos(group.value1(), group.value2()));
+                .fetch(Records.mapping(ReleaseGroupSummary::new));
     }
 
     private static Condition afterReleaseGroup(final UUID after) {
@@ -135,28 +131,28 @@ public class ReleaseGroupDao {
      */
     // TODO: Let users choose a group's default release, which this then prefers.
     private Field<DefaultRelease> defaultRelease() {
-        return multiset(select(
-                                RELEASE.convertFrom(releaseMapper::fromRecord),
-                                releaseFields.releaseMediaWithTracks(RELEASE.RELEASE_ID))
+        return multiset(select(RELEASE.RELEASE_ID, releaseFields.releaseMediaWithTracks(RELEASE.RELEASE_ID))
                         .from(RELEASE)
                         .where(editionOfGroup())
                         .orderBy(editionOrder())
                         .limit(1))
-                .convertFrom(releases -> releases.map(
-                                found -> defaultReleaseMapper.fromPojos(found.value1(), found.value2()))
-                        .getFirst());
+                .convertFrom(releases ->
+                        releases.map(Records.mapping(DefaultRelease::new)).getFirst());
     }
 
     private Field<List<Edition>> editions() {
         return multiset(select(
-                                RELEASE.convertFrom(releaseMapper::fromRecord),
+                                RELEASE.RELEASE_ID,
+                                RELEASE.NAME,
+                                RELEASE.DATE,
+                                RELEASE.COUNTRY,
+                                RELEASE.TRACK_COUNT,
                                 releaseFields.releaseLabels(RELEASE.RELEASE_ID),
-                                releaseFields.releaseMedia(RELEASE.RELEASE_ID))
+                                releaseFields.releaseFormats(RELEASE.RELEASE_ID))
                         .from(RELEASE)
                         .where(editionOfGroup())
                         .orderBy(editionOrder()))
-                .convertFrom(editions -> editions.map(
-                        edition -> editionMapper.fromPojos(edition.value1(), edition.value2(), edition.value3())));
+                .convertFrom(editions -> editions.map(Records.mapping(Edition::new)));
     }
 
     /**

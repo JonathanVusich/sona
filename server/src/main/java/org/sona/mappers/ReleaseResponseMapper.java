@@ -10,20 +10,20 @@ import org.sona.controller.response.TrackResponse;
 import org.sona.db.MediumWithTracks;
 import org.sona.db.ReleaseDetails;
 import org.sona.db.TrackWithArtist;
-import org.sona.model.tables.pojos.Medium;
 
 @Mapper(componentModel = "spring")
 public interface ReleaseResponseMapper {
 
-    @Mapping(target = ".", source = "release")
+    @Mapping(target = "artist.artistId", source = "artistId")
+    @Mapping(target = "artist.name", source = "artistName")
     @Mapping(target = "formats", source = "media")
     @Mapping(target = "media", source = "media", qualifiedByName = "mediaInLibrary")
     ReleaseResponse toResponse(ReleaseDetails details);
 
-    @Mapping(target = ".", source = "medium")
     MediumResponse toResponse(MediumWithTracks medium);
 
-    @Mapping(target = ".", source = "track")
+    @Mapping(target = "artist.artistId", source = "artistId")
+    @Mapping(target = "artist.name", source = "artistName")
     TrackResponse toResponse(TrackWithArtist track);
 
     /**
@@ -42,13 +42,6 @@ public interface ReleaseResponseMapper {
      * @return what a release's formats list for the medium
      */
     default String mediumFormat(final MediumWithTracks medium) {
-        return mediumFormat(medium.medium());
-    }
-
-    /**
-     * @return what a release's formats list for the medium
-     */
-    default String mediumFormat(final Medium medium) {
         return medium.format();
     }
 }

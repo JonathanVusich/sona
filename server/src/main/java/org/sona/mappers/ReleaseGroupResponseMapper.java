@@ -14,17 +14,16 @@ import org.sona.db.ReleaseGroupSummary;
 @Mapper(componentModel = "spring", uses = ReleaseResponseMapper.class)
 public interface ReleaseGroupResponseMapper {
 
-    @Mapping(target = ".", source = "releaseGroup")
+    @Mapping(target = "artist.artistId", source = "artistId")
+    @Mapping(target = "artist.name", source = "artistName")
     ReleaseGroupResponse toResponse(ReleaseGroupDetails details);
 
-    @Mapping(target = ".", source = "release")
-    @Mapping(target = "formats", source = "media")
     EditionResponse toResponse(Edition edition);
 
-    @Mapping(target = "releaseId", source = "release.releaseId")
     @Mapping(target = "media", source = "media", qualifiedByName = "mediaInLibrary")
     DefaultReleaseResponse toResponse(DefaultRelease defaultRelease);
 
-    @Mapping(target = ".", source = "releaseGroup")
+    @Mapping(target = "artist.artistId", source = "artistId")
+    @Mapping(target = "artist.name", source = "artistName")
     ReleaseGroupSummaryResponse toResponse(ReleaseGroupSummary summary);
 }
