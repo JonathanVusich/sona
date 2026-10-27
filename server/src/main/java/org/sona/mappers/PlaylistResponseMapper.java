@@ -12,13 +12,16 @@ import org.sona.db.PlaylistSummary;
 @Mapper(componentModel = "spring")
 public interface PlaylistResponseMapper {
 
-    @Mapping(target = ".", source = "playlist")
     PlaylistSummaryResponse toResponse(PlaylistSummary summary);
 
-    @Mapping(target = ".", source = "playlist")
     @Mapping(target = "tracks", source = "entries")
     PlaylistResponse toResponse(PlaylistDetails details);
 
-    @Mapping(target = ".", source = "track")
+    @Mapping(target = "trackId", source = "trackId")
+    @Mapping(target = "name", source = "trackName")
+    @Mapping(target = "artist.artistId", source = "artistId")
+    @Mapping(target = "artist.name", source = "artistName")
+    @Mapping(target = "release.releaseId", source = "releaseId")
+    @Mapping(target = "release.name", source = "releaseName")
     PlaylistTrackResponse toResponse(PlaylistEntry entry);
 }

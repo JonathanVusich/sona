@@ -26,13 +26,8 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.sona.mappers.ArtistMapper;
-import org.sona.mappers.PlaylistDetailsMapper;
-import org.sona.mappers.PlaylistEntryMapper;
+import org.jooq.Records;
 import org.sona.mappers.PlaylistMapper;
-import org.sona.mappers.PlaylistSummaryMapper;
-import org.sona.mappers.ReleaseMapper;
-import org.sona.mappers.TrackMapper;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Playlist;
 import org.springframework.stereotype.Component;
@@ -54,12 +49,6 @@ public class PlaylistDao {
 
     private final DSLContext dsl;
     private final PlaylistMapper playlistMapper;
-    private final TrackMapper trackMapper;
-    private final ArtistMapper artistMapper;
-    private final ReleaseMapper releaseMapper;
-    private final PlaylistSummaryMapper summaryMapper;
-    private final PlaylistEntryMapper entryMapper;
-    private final PlaylistDetailsMapper detailsMapper;
 
     public void insert(final Playlist playlist) {
         dsl.insertInto(PLAYLIST).set(playlistMapper.toRecord(playlist)).execute();
@@ -69,22 +58,22 @@ public class PlaylistDao {
      * @return the user's playlists by name, each with what its cover shows
      */
     public List<PlaylistSummary> loadSummaries(final UUID userId) {
-        return dsl.select(PLAYLIST.convertFrom(playlistMapper::fromRecord), coverNames())
+        return dsl.select(PLAYLIST.PLAYLIST_ID, PLAYLIST.NAME, PLAYLIST.TRACK_COUNT, coverNames())
                 .from(PLAYLIST)
                 .where(PLAYLIST.USER_ID.eq(userId))
                 .orderBy(PLAYLIST.NAME, PLAYLIST.PLAYLIST_ID)
-                .fetch(playlist -> summaryMapper.fromPojos(playlist.value1(), playlist.value2()));
+                .fetch(Records.mapping(PlaylistSummary::new));
     }
 
     /**
      * @return the playlist with every track on it in order, if the user has it
      */
     public Optional<PlaylistDetails> loadDetails(final UUID userId, final UUID playlistId) {
-        return dsl.select(PLAYLIST.convertFrom(playlistMapper::fromRecord), entries())
+        return dsl.select(PLAYLIST.PLAYLIST_ID, PLAYLIST.NAME, PLAYLIST.DESCRIPTION, entries())
                 .from(PLAYLIST)
                 .where(PLAYLIST.PLAYLIST_ID.eq(playlistId))
                 .and(PLAYLIST.USER_ID.eq(userId))
-                .fetchOptional(playlist -> detailsMapper.fromPojos(playlist.value1(), playlist.value2()));
+                .fetchOptional(Records.mapping(PlaylistDetails::new));
     }
 
     /**
@@ -178,9 +167,14 @@ public class PlaylistDao {
 
     private Field<List<PlaylistEntry>> entries() {
         return multiset(select(
-                                TRACK.convertFrom(trackMapper::fromRecord),
-                                ARTIST.convertFrom(artistMapper::fromRecord),
-                                RELEASE.convertFrom(releaseMapper::fromRecord))
+                                TRACK.TRACK_ID,
+                                TRACK.NAME,
+                                TRACK.DURATION,
+                                TRACK.POSITION,
+                                ARTIST.ARTIST_ID,
+                                ARTIST.NAME,
+                                RELEASE.RELEASE_ID,
+                                RELEASE.NAME)
                         .from(PLAYLIST_TRACK)
                         .join(TRACK)
                         .on(TRACK.TRACK_ID.eq(PLAYLIST_TRACK.TRACK_ID))
@@ -192,8 +186,7 @@ public class PlaylistDao {
                         .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID))
                         .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(PLAYLIST.PLAYLIST_ID))
                         .orderBy(PLAYLIST_TRACK.POSITION))
-                .convertFrom(entries ->
-                        entries.map(entry -> entryMapper.fromPojos(entry.value1(), entry.value2(), entry.value3())));
+                .convertFrom(entries -> entries.map(Records.mapping(PlaylistEntry::new)));
     }
 
     /**
