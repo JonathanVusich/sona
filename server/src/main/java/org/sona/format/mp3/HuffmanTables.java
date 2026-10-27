@@ -3,7 +3,6 @@ package org.sona.format.mp3;
 import java.util.Arrays;
 import java.util.List;
 import lombok.experimental.UtilityClass;
-import org.sona.exception.InvalidFormatException;
 
 /**
  * The Huffman tables Layer III codes a granule's spectral values with (ISO/IEC 11172-3 Annex B, Table B.7): 32 tables
@@ -241,12 +240,12 @@ final class HuffmanTables {
     private static final int SECOND_LINBITS_TABLE = 24;
 
     /**
-     * @param tableSelect a granule region's table_select field
-     * @throws InvalidFormatException for tables 4 and 14, which the spec doesn't define
+     * @param tableSelect a granule region's table_select field, from 0 to 31
+     * @return the table, where the spec defines none for 4 and 14, which FFmpeg reads as table 0: all 0, in no bits
      */
-    static BigValueTable bigValueTable(final int tableSelect) throws InvalidFormatException {
+    static BigValueTable bigValueTable(final int tableSelect) {
         return switch (tableSelect) {
-            case 0 -> TABLE_0;
+            case 0, 4, 14 -> TABLE_0;
             case 1 -> TABLE_1;
             case 2 -> TABLE_2;
             case 3 -> TABLE_3;
@@ -261,10 +260,7 @@ final class HuffmanTables {
             case 13 -> TABLE_13;
             case 15 -> TABLE_15;
             case 16, 17, 18, 19, 20, 21, 22, 23 -> TABLES_16_TO_23.get(tableSelect - FIRST_LINBITS_TABLE);
-            case 24, 25, 26, 27, 28, 29, 30, 31 -> TABLES_24_TO_31.get(tableSelect - SECOND_LINBITS_TABLE);
-            default ->
-                throw new InvalidFormatException(
-                        "MP3 granule selects Huffman table %d, which isn't defined!".formatted(tableSelect));
+            default -> TABLES_24_TO_31.get(tableSelect - SECOND_LINBITS_TABLE);
         };
     }
 

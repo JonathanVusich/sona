@@ -22,7 +22,14 @@ class FrameHeaderTest {
 
         assertThat(header)
                 .isEqualTo(new FrameHeader(
-                        MpegVersion.MPEG_1, Protection.NONE, 128_000, 44100, 0, ChannelMode.JOINT_STEREO, 2));
+                        MpegVersion.MPEG_1,
+                        Layer.III,
+                        Protection.NONE,
+                        128_000,
+                        44100,
+                        0,
+                        ChannelMode.JOINT_STEREO,
+                        2));
         assertThat(header.frameLength()).isEqualTo(417);
         assertThat(header.channelCount()).isEqualTo(2);
         assertThat(header.sideInfoSize()).isEqualTo(32);
@@ -34,9 +41,33 @@ class FrameHeaderTest {
         final var header = readHeader("FFF372C0");
 
         assertThat(header)
-                .isEqualTo(new FrameHeader(MpegVersion.MPEG_2, Protection.NONE, 56_000, 22050, 1, ChannelMode.MONO, 0));
+                .isEqualTo(new FrameHeader(
+                        MpegVersion.MPEG_2, Layer.III, Protection.NONE, 56_000, 22050, 1, ChannelMode.MONO, 0));
         assertThat(header.frameLength()).isEqualTo(72 * 56_000 / 22050 + 1);
         assertThat(header.sideInfoSize()).isEqualTo(9);
+    }
+
+    // Bitrate index 9 is 160 kbit/s in MPEG-1's Layer II, whose frames take 144 bytes for each bit per sample.
+    @Test
+    void readsLayerIIFrameHeader() throws IOException, InvalidFormatException {
+        final var header = readHeader("FFFD9064");
+
+        assertThat(header.layer()).isEqualTo(Layer.II);
+        assertThat(header.bitrate()).isEqualTo(160_000);
+        assertThat(header.samplesPerFrame()).isEqualTo(1152);
+        assertThat(header.frameLength()).isEqualTo(144 * 160_000 / 44100);
+    }
+
+    // Bitrate index 9 is 288 kbit/s in MPEG-1's Layer I, whose frames take 12 slots of four bytes for each bit per
+    // sample.
+    @Test
+    void readsLayerIFrameHeader() throws IOException, InvalidFormatException {
+        final var header = readHeader("FFFF9064");
+
+        assertThat(header.layer()).isEqualTo(Layer.I);
+        assertThat(header.bitrate()).isEqualTo(288_000);
+        assertThat(header.samplesPerFrame()).isEqualTo(384);
+        assertThat(header.frameLength()).isEqualTo(12 * 288_000 / 44100 * 4);
     }
 
     @Test
@@ -93,8 +124,10 @@ class FrameHeaderTest {
             strings = {
                 // No frame sync.
                 "49443304",
-                // Layer II.
-                "FFFD9064",
+                // The reserved layer.
+                "FFF99064",
+                // Free format in Layer II.
+                "FFFD0064",
                 // Bitrate index 15.
                 "FFFBF064",
                 // Reserved sample rate.
@@ -102,7 +135,7 @@ class FrameHeaderTest {
                 // Reserved MPEG version.
                 "FFEB9064"
             })
-    void rejectsWhatIsNotALayerIIIHeader(final String hex) {
+    void rejectsWhatIsNotAFrameHeader(final String hex) {
         assertThatThrownBy(() -> readHeader(hex)).isInstanceOf(InvalidFormatException.class);
     }
 

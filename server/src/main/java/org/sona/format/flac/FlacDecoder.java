@@ -116,7 +116,7 @@ public final class FlacDecoder implements PcmAudio {
             throw new InvalidFormatException("FLAC frame fails its CRC-16 check!");
         }
         samplesDecoded += header.blockSize();
-        return new PcmFrame(decorrelate(header.channelAssignment(), channels));
+        return new PcmFrame(decorrelate(header.channelAssignment(), channels), streamInfo.sampleRate());
     }
 
     private FrameHeader readFrameHeader() throws IOException, InvalidFormatException {

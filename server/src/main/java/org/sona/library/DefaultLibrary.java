@@ -86,7 +86,7 @@ public final class DefaultLibrary implements Library {
             final Release release,
             final UUID trackId,
             final String trackName,
-            final Format format) {
+            final TrackToIngest trackIngest) {
         final var releaseGroupSegment = new PathSegment(releaseGroup.releaseGroupId(), releaseGroup.name());
         final var releaseSegment = new PathSegment(release.releaseId(), release.name());
         final var trackSegment = new PathSegment(trackId, trackName);
@@ -96,7 +96,7 @@ public final class DefaultLibrary implements Library {
                         releaseGroupSegment,
                         releaseSegment,
                         trackSegment,
-                        format.getExtensions().getFirst());
+                        fileExtension(trackIngest.originalFileName()));
     }
 
     @Override
@@ -127,8 +127,12 @@ public final class DefaultLibrary implements Library {
         }
     }
 
+    private static String fileExtension(final String filename) {
+        return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
+    }
+
     private static void checkFormat(final String filename) throws InvalidFormatException {
-        final var extension = FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
+        final var extension = fileExtension(filename);
         if (!Format.supportedExtensions().contains(extension)) {
             throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
         }

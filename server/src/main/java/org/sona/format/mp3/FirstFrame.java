@@ -7,16 +7,20 @@ package org.sona.format.mp3;
 sealed interface FirstFrame permits FirstFrame.VbrHeader, FirstFrame.AudioFrame {
 
     /**
-     * A Xing (or Info) or VBRI header with the stream's frame count.
+     * A Xing (or Info) or VBRI header with the stream's frame count or byte count, either of which makes FFmpeg skip
+     * its frame.
      *
-     * @param frameCount frames of audio, not counting the one holding this header
-     * @param encoderDelay from a LAME tag after a Xing header, otherwise 0
+     * @param frameCount frames of audio, not counting the one holding this header, or 0 when the header doesn't say
+     * @param byteCount bytes of audio, or 0 when the header doesn't say
+     * @param lameTag whether a LAME tag (or FFmpeg's, which it writes the same) follows a Xing header
+     * @param encoderDelay from the LAME tag, otherwise 0
      * @param encoderPadding likewise
      */
-    record VbrHeader(long frameCount, int encoderDelay, int encoderPadding) implements FirstFrame {}
+    record VbrHeader(long frameCount, long byteCount, boolean lameTag, int encoderDelay, int encoderPadding)
+            implements FirstFrame {}
 
     /**
-     * A frame of audio, or a VBR header without a frame count, so the stream's frames are counted.
+     * A frame of audio, or a VBR header with neither count, so the stream's frames are counted.
      */
     record AudioFrame() implements FirstFrame {}
 }

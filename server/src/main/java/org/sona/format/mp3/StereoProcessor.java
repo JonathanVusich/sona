@@ -9,7 +9,7 @@ package org.sona.format.mp3;
  */
 final class StereoProcessor {
 
-    private static final double INVERSE_SQRT_2 = 1 / Math.sqrt(2);
+    private static final float INVERSE_SQRT_2 = 0.70710678118654752440f;
     // The bands above the scale factor bands use the intensity position of the band below them.
     private static final int LAST_LONG_POSITION_BAND = ScaleFactorBands.LONG_BANDS - 2;
     private static final int LAST_SHORT_POSITION_BAND = ScaleFactorBands.SHORT_BANDS - 2;
@@ -30,7 +30,7 @@ final class StereoProcessor {
             left.setNonZeroEnd(Spectrum.LINES);
             right.setNonZeroEnd(Spectrum.LINES);
         } else if (header.isMidSideStereo()) {
-            midSide(left, right, 0, end);
+            sumAndDifference(left, right, 0, end);
             left.setNonZeroEnd(end);
             right.setNonZeroEnd(end);
         }
@@ -67,8 +67,7 @@ final class StereoProcessor {
                     bands.longBandStart(band),
                     bands.longBandWidth(band),
                     rightPart(band, lastCodedBand),
-                    rightFactors.longFactor(positionBand),
-                    rightFactors.longIntensityLimit(positionBand));
+                    rightFactors.longFactor(positionBand));
         }
     }
 
@@ -95,8 +94,7 @@ final class StereoProcessor {
                         shortLineStart(bands, band, window),
                         bands.shortBandWidth(band),
                         rightPart(band, lastCodedBand),
-                        rightFactors.shortFactor(positionBand, window),
-                        rightFactors.shortIntensityLimit(positionBand, window));
+                        rightFactors.shortFactor(positionBand, window));
             }
         }
         return coded;
@@ -112,9 +110,8 @@ final class StereoProcessor {
             final int start,
             final int width,
             final RightPart rightPart,
-            final int position,
-            final int limit) {
-        if (rightPart == RightPart.ZERO && position < limit) {
+            final int position) {
+        if (rightPart == RightPart.ZERO && position < IntensityRatios.positionLimit(header.version())) {
             final var compress = rightChannel.scalefacCompress();
             final var leftRatio = IntensityRatios.leftRatio(header.version(), compress, position);
             final var rightRatio = IntensityRatios.rightRatio(header.version(), compress, position);
@@ -125,6 +122,17 @@ final class StereoProcessor {
             }
         } else if (header.isMidSideStereo()) {
             midSide(left, right, start, start + width);
+        }
+    }
+
+    // FFmpeg folds the 1/sqrt(2) of mid/side stereo into the global gain when no band is intensity coded, as the
+    // gain's steps are 2^(1/4), and doesn't scale the sum and difference then.
+    private static void sumAndDifference(final Spectrum left, final Spectrum right, final int start, final int end) {
+        for (var line = start; line < end; line++) {
+            final var mid = left.line(line);
+            final var side = right.line(line);
+            left.setLine(line, mid + side);
+            right.setLine(line, mid - side);
         }
     }
 

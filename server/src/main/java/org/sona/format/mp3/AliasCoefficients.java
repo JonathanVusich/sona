@@ -22,6 +22,42 @@ final class AliasCoefficients {
     private static final double[] CA =
             Arrays.stream(CI).map(ci -> ci / Math.sqrt(1 + ci * ci)).toArray();
 
+    // The same as 32-bit floats, as FFmpeg's decoder holds them.
+    private static final float[] FLOAT_CS = {
+        8.574929237365722656e-01f,
+        8.817420005798339844e-01f,
+        9.496286511421203613e-01f,
+        9.833145737648010254e-01f,
+        9.955177903175354004e-01f,
+        9.991605877876281738e-01f,
+        9.998992085456848145e-01f,
+        9.999931454658508301e-01f
+    };
+    private static final float[] FLOAT_CA = {
+        -5.144957900047302246e-01f,
+        -4.717319905757904053e-01f,
+        -3.133774697780609131e-01f,
+        -1.819131970405578613e-01f,
+        -9.457419067621231079e-02f,
+        -4.096558317542076111e-02f,
+        -1.419856864959001541e-02f,
+        -3.699974622577428818e-03f
+    };
+
+    /**
+     * @param butterfly from 0 to {@link #COUNT} - 1
+     */
+    static float floatCs(final int butterfly) {
+        return FLOAT_CS[butterfly];
+    }
+
+    /**
+     * @param butterfly from 0 to {@link #COUNT} - 1
+     */
+    static float floatCa(final int butterfly) {
+        return FLOAT_CA[butterfly];
+    }
+
     /**
      * @param butterfly from 0 to {@link #COUNT} - 1
      */

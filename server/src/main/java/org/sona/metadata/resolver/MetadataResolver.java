@@ -17,11 +17,6 @@ public interface MetadataResolver {
             throws IOException, InterruptedException;
 
     /**
-     * Resolves a track whose audio Sona can't decode yet, so has no fingerprint, by its tags alone.
-     */
-    Optional<ResolvedTrack> resolveTrackByTags(TrackToIngest trackToIngest, RawMetadata metadata);
-
-    /**
      * @return the release a resolved track is on, with its release group and artists
      */
     ResolvedRelease resolveRelease(UUID releaseId);

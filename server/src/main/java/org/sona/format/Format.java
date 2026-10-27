@@ -8,7 +8,8 @@ import org.sona.model.enums.AudioFormat;
 @Getter
 public enum Format {
     FLAC("flac"),
-    MP3("mp3");
+    // MPEG audio of every layer, which FFmpeg reads whatever its extension.
+    MP3("mp3", "mp2", "mp1");
 
     private final List<String> extensions;
 

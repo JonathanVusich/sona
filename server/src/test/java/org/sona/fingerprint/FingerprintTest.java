@@ -88,7 +88,7 @@ class FingerprintTest {
 
         @Override
         public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, this::sample);
         }
 
         private int sample(final int index, final int channel) {
@@ -115,7 +115,7 @@ class FingerprintTest {
 
         @Override
         public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, this::sample);
         }
 
         private int sample(final int index, final int channel) {
@@ -148,7 +148,7 @@ class FingerprintTest {
 
         @Override
         public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, (_, _) -> 0);
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, (_, _) -> 0);
         }
     }
 
@@ -161,12 +161,14 @@ class FingerprintTest {
 
         private static final int FRAME_SIZE = 4096;
 
+        private final int sampleRate;
         private final int sampleCount;
         private final int channels;
         private final SampleSource source;
         private int next;
 
-        FrameIterator(final int sampleCount, final int channels, final SampleSource source) {
+        FrameIterator(final int sampleRate, final int sampleCount, final int channels, final SampleSource source) {
+            this.sampleRate = sampleRate;
             this.sampleCount = sampleCount;
             this.channels = channels;
             this.source = source;
@@ -185,7 +187,7 @@ class FingerprintTest {
                     samples[channel][i] = source.sample(next, channel);
                 }
             }
-            return new PcmFrame(samples);
+            return new PcmFrame(samples, sampleRate);
         }
     }
 }
