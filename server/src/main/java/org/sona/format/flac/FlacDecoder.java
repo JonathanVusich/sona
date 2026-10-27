@@ -137,18 +137,41 @@ public final class FlacDecoder implements PcmAudio {
         }
         skipCodedNumber();
         final var blockSize = readBlockSize(blockSizeCode);
-        // Sona takes the sample rate from STREAMINFO, so only skip the bits a frame may have for it.
-        switch (sampleRateCode) {
-            case 12 -> reader.readBits(8);
-            case 13, 14 -> reader.readBits(16);
-            case 15 -> throw new InvalidFormatException("FLAC frame header has an invalid sample rate!");
-            default -> {}
-        }
+        final var sampleRate = readSampleRate(sampleRateCode);
         reader.readBits(8);
         if (reader.crc8() != 0) {
             throw new InvalidFormatException("FLAC frame header fails its CRC-8 check!");
         }
-        return new FrameHeader(blockSize, channelAssignment, readBitDepth(bitDepthCode));
+        final var header = new FrameHeader(blockSize, channelAssignment, readBitDepth(bitDepthCode));
+        // Sona takes all three from STREAMINFO to size what it decodes, so a frame that disagrees means one is corrupt.
+        if (sampleRate != streamInfo.sampleRate()
+                || header.channels() != streamInfo.numberOfChannels()
+                || header.bitsPerSample() != streamInfo.bitsPerSample()) {
+            throw new InvalidFormatException("FLAC frame header doesn't match STREAMINFO!");
+        }
+        return header;
+    }
+
+    // RFC 9639 section 9.1.2.
+    private int readSampleRate(final int code) throws IOException, InvalidFormatException {
+        return switch (code) {
+            case 0 -> streamInfo.sampleRate();
+            case 1 -> 88200;
+            case 2 -> 176400;
+            case 3 -> 192000;
+            case 4 -> 8000;
+            case 5 -> 16000;
+            case 6 -> 22050;
+            case 7 -> 24000;
+            case 8 -> 32000;
+            case 9 -> 44100;
+            case 10 -> 48000;
+            case 11 -> 96000;
+            case 12 -> (int) reader.readBits(8) * 1000;
+            case 13 -> (int) reader.readBits(16);
+            case 14 -> (int) reader.readBits(16) * 10;
+            default -> throw new InvalidFormatException("FLAC frame header has an invalid sample rate!");
+        };
     }
 
     // The frame or sample number, coded like UTF-8 in up to seven bytes (RFC 9639 section 9.1.5).
