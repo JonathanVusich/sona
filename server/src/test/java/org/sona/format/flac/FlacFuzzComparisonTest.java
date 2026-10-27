@@ -2,6 +2,7 @@ package org.sona.format.flac;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +14,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
@@ -42,6 +44,7 @@ import org.sona.format.PcmFrame;
 class FlacFuzzComparisonTest {
 
     private static final int TIMEOUT_SECONDS = 120;
+    private static final int REAL_MUSIC_THREADS = 4;
     // Larger files make mutants whose references take long to decode, and add nothing a smaller one doesn't.
     private static final long MAX_MUTATED_BYTES = 8_000_000;
     // Under this many bit errors in a thousand, a fingerprint is the same recording to AcoustID.
@@ -105,6 +108,64 @@ class FlacFuzzComparisonTest {
             }
         }
         report("mutant-report.txt", lines);
+    }
+
+    /**
+     * Fingerprints a library of real music, listed in {@code real/list.tsv} (an index and a path under
+     * {@code FLAC_FUZZ_MUSIC}, a tab apart) and compares each with the {@code real/<index>.fp} that {@code fpcalc}
+     * made.
+     */
+    @Test
+    void compareRealMusic() throws Exception {
+        final var music = Path.of(System.getenv("FLAC_FUZZ_MUSIC"));
+        final var entries = Files.readAllLines(dir().resolve("real").resolve("list.tsv"));
+        // Each fingerprint holds a couple of minutes of audio in memory, so only a few run at once.
+        final var pool = new ForkJoinPool(REAL_MUSIC_THREADS);
+        try {
+            final var lines = pool.submit(() -> entries.parallelStream()
+                            .map(entry -> compareRealFile(music, entry))
+                            .toList())
+                    .get();
+            report("real-report.txt", lines);
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    private static String compareRealFile(final Path music, final String entry) {
+        final var parts = entry.split("\t");
+        try {
+            final var reference = Files.readString(dir().resolve("real").resolve(parts[0] + ".fp"))
+                    .trim();
+            final var ours = runWithTimeout(() -> realFingerprint(music.resolve(parts[1])));
+            Files.writeString(dir().resolve("real").resolve(parts[0] + ".ours"), ours);
+            return "%s\t%s\t%s".formatted(parts[0], realVerdict(ours, reference), parts[1]);
+        } catch (final IOException e) {
+            return "%s\tNO_REFERENCE\t%s".formatted(parts[0], parts[1]);
+        }
+    }
+
+    private static String realFingerprint(final Path file) {
+        try (final var channel = FileChannel.open(file)) {
+            return new Fingerprint(new FlacParser().parse(channel).audio()).compressed();
+        } catch (final IOException | InvalidFormatException e) {
+            return "REJECTED " + e;
+        } catch (final RuntimeException e) {
+            return "BUG " + e;
+        }
+    }
+
+    private static String realVerdict(final String ours, final String reference) {
+        if (ours.startsWith("REJECTED") || ours.startsWith("BUG") || ours.startsWith("HANG")) {
+            return ours;
+        }
+        if (reference.isEmpty()) {
+            return "FP_NO_REFERENCE";
+        }
+        if (ours.equals(reference)) {
+            return "FP_EXACT";
+        }
+        return "FP_DIFFERS %d per mille bit errors".formatted(bitErrorsPerMille(ours, reference));
     }
 
     private static Path dir() {

@@ -20,7 +20,7 @@ public final class ChromaImage {
     // Rows quieter than this are left silent rather than normalised, which would amplify noise.
     private static final double SILENCE = 0.01;
 
-    private static final double[] WINDOW = hammingWindow();
+    private static final float[] WINDOW = hammingWindow();
     private static final int[] NOTES = noteOfEachBin();
 
     private final double[][] rows;
@@ -43,20 +43,20 @@ public final class ChromaImage {
         final var fft = new Fft(FRAME_SIZE);
         final var frameCount = Math.max(0, (signal.sampleCount() - FRAME_SIZE) / FRAME_STEP + 1);
         final var rows = new double[frameCount][];
+        final var windowed = new float[FRAME_SIZE];
         for (var frame = 0; frame < frameCount; frame++) {
-            final var windowed = windowedFrame(signal, frame * FRAME_STEP);
+            windowFrame(signal, frame * FRAME_STEP, windowed);
             final var spectrum = fft.powerSpectrum(windowed);
             rows[frame] = noteEnergies(spectrum);
         }
         return rows;
     }
 
-    private static double[] windowedFrame(final Signal signal, final int start) {
-        final var frame = new double[FRAME_SIZE];
+    // The window and the product are single precision, as Chromaprint's are.
+    private static void windowFrame(final Signal signal, final int start, final float[] frame) {
         for (var i = 0; i < FRAME_SIZE; i++) {
             frame[i] = signal.sample(start + i) * WINDOW[i];
         }
-        return frame;
     }
 
     private static double[] noteEnergies(final PowerSpectrum spectrum) {
@@ -103,11 +103,12 @@ public final class ChromaImage {
         return normalised;
     }
 
-    // A Hamming window, also scaling 16-bit samples to the range -1 to 1.
-    private static double[] hammingWindow() {
-        final var window = new double[FRAME_SIZE];
+    // A Hamming window, also scaling 16-bit samples to the range -1 to 1, worked out as Chromaprint does.
+    private static float[] hammingWindow() {
+        final var window = new float[FRAME_SIZE];
+        final var scale = 1.0 / Short.MAX_VALUE;
         for (var i = 0; i < FRAME_SIZE; i++) {
-            window[i] = (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (FRAME_SIZE - 1))) / Short.MAX_VALUE;
+            window[i] = (float) (scale * (0.54 - 0.46 * StrictMath.cos(i * 2.0 * Math.PI / (FRAME_SIZE - 1))));
         }
         return window;
     }
