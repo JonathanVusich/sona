@@ -6,7 +6,8 @@ import lombok.experimental.UtilityClass;
 public final class QueueLimits {
 
     /**
-     * How many entries a queue may hold, enough for a long listening session.
+     * How many tracks a request may list. The queue itself has no limit: a playlist or release of any length fills it
+     * from the server's side.
      */
-    public static final int MAX_ENTRIES = 1000;
+    public static final int MAX_TRACKS = 1000;
 }

@@ -1,44 +1,54 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.function;
 import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.orderBy;
+import static org.jooq.impl.DSL.rand;
+import static org.jooq.impl.DSL.rowNumber;
 import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectOne;
 import static org.jooq.impl.DSL.unnest;
+import static org.jooq.impl.DSL.val;
+import static org.jooq.impl.DSL.when;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.MEDIUM;
+import static org.sona.model.Tables.PLAYLIST;
+import static org.sona.model.Tables.PLAYLIST_TRACK;
 import static org.sona.model.Tables.QUEUE;
 import static org.sona.model.Tables.QUEUE_TRACK;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.TRACK;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
-import static org.sona.utils.IDGenerator.uuidv7;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record10;
+import org.jooq.Record2;
 import org.jooq.Records;
+import org.jooq.Select;
+import org.jooq.SelectOnConditionStep;
+import org.jooq.Table;
+import org.sona.exception.PlaylistNotFoundException;
+import org.sona.exception.QueueStartOutOfRangeException;
+import org.sona.exception.ReleaseNotFoundException;
 import org.sona.exception.TrackNotFoundException;
 import org.sona.mappers.QueueMapper;
-import org.sona.mappers.QueueTrackMapper;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.RepeatMode;
 import org.sona.model.enums.ShuffleMode;
 import org.sona.model.tables.pojos.Queue;
-import org.sona.model.tables.pojos.QueueTrack;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Users' play queues. Each user has one, which only they see, so every method takes the user. A queue's row is created
  * the first time its user changes it. Every change locks the row and raises its version, so changes made at the same
- * time happen one after the other.
+ * time happen one after the other. A queue may be as long as the playlist it was made from, so its entries are read a
+ * page at a time and written by statements that copy them from their source, never through the application.
  */
 @Component
 @RequiredArgsConstructor
@@ -47,23 +57,45 @@ public class QueueDao {
 
     private final DSLContext dsl;
     private final QueueMapper queueMapper;
-    private final QueueTrackMapper queueTrackMapper;
 
     /**
-     * @return the user's queue with its entries in play order, an empty one if they have never changed theirs
+     * @return the user's queue without its entries, but with the current one, an empty queue if they have never
+     * changed theirs
      */
     public QueueDetails loadDetails(final UUID userId) {
-        return dsl.select(
-                        QUEUE.VERSION,
-                        QUEUE.CURRENT_ENTRY_ID,
-                        QUEUE.POSITION_SECONDS,
-                        QUEUE.SHUFFLE,
-                        QUEUE.REPEAT,
-                        entries())
+        return dsl.select(QUEUE.VERSION, currentEntry(), QUEUE.POSITION_SECONDS, QUEUE.SHUFFLE, QUEUE.REPEAT)
                 .from(QUEUE)
                 .where(QUEUE.USER_ID.eq(userId))
                 .fetchOptional(Records.mapping(QueueDetails::new))
                 .orElseGet(QueueDetails::empty);
+    }
+
+    /**
+     * @param playOrder the play order of the entry before the page, 0 for the first page
+     * @param size      how many entries at most
+     * @return the entries that play after it, in play order
+     */
+    public List<QueueEntry> loadEntriesAfter(final UUID userId, final int playOrder, final int size) {
+        return selectEntries()
+                .where(QUEUE_TRACK.USER_ID.eq(userId))
+                .and(QUEUE_TRACK.PLAY_ORDER.gt(playOrder))
+                .orderBy(QUEUE_TRACK.PLAY_ORDER)
+                .limit(size)
+                .fetch(Records.mapping(QueueEntry::new));
+    }
+
+    /**
+     * @param playOrder the play order of the entry after the page
+     * @param size      how many entries at most
+     * @return the entries that play before it, the nearest first
+     */
+    public List<QueueEntry> loadEntriesBefore(final UUID userId, final int playOrder, final int size) {
+        return selectEntries()
+                .where(QUEUE_TRACK.USER_ID.eq(userId))
+                .and(QUEUE_TRACK.PLAY_ORDER.lt(playOrder))
+                .orderBy(QUEUE_TRACK.PLAY_ORDER.desc())
+                .limit(size)
+                .fetch(Records.mapping(QueueEntry::new));
     }
 
     /**
@@ -73,17 +105,55 @@ public class QueueDao {
      *
      * @param startIndex which of the tracks plays first, from 0
      * @return the queue as it is now
-     * @throws TrackNotFoundException if a track isn't in the library
+     * @throws TrackNotFoundException        if a track isn't in the library
+     * @throws QueueStartOutOfRangeException if there is no track at {@code startIndex}
      */
-    public QueueDetails replace(final UUID userId, final List<UUID> trackIds, final int startIndex) {
-        final var queue = lockQueue(userId);
+    public QueueDetails replaceWithTracks(final UUID userId, final List<UUID> trackIds, final int startIndex) {
         requireInLibrary(trackIds);
-        dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
-        final var entryIds = trackIds.stream().map(_ -> uuidv7()).toList();
-        final var playOrder = playOrder(queue.shuffle(), entryIds, startIndex);
-        insertEntries(userId, trackIds, entryIds, playOrder);
-        updateCurrentEntry(userId, entryIds.get(startIndex));
-        return loadDetails(userId);
+        // The tracks given, numbered in the order given.
+        final var given = unnest(trackIds.toArray(UUID[]::new)).withOrdinality().as("given", "track_id", "given_order");
+        final var tracks = select(
+                        given.field("track_id", UUID.class),
+                        given.field("given_order", Long.class).cast(Integer.class))
+                .from(given);
+        return replaceFrom(userId, tracks, startIndex);
+    }
+
+    /**
+     * Fills the queue with the playlist's tracks, as {@link #replaceWithTracks} does.
+     *
+     * @throws PlaylistNotFoundException if the user doesn't have the playlist
+     */
+    public QueueDetails replaceWithPlaylist(final UUID userId, final UUID playlistId, final int startIndex) {
+        final var owned = PLAYLIST.PLAYLIST_ID.eq(playlistId).and(PLAYLIST.USER_ID.eq(userId));
+        if (!dsl.fetchExists(PLAYLIST, owned)) {
+            throw new PlaylistNotFoundException(playlistId);
+        }
+        final var tracks = select(PLAYLIST_TRACK.TRACK_ID, PLAYLIST_TRACK.POSITION)
+                .from(PLAYLIST_TRACK)
+                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId));
+        return replaceFrom(userId, tracks, startIndex);
+    }
+
+    /**
+     * Fills the queue with the release's tracks in the order of its media, as {@link #replaceWithTracks} does.
+     *
+     * @throws ReleaseNotFoundException if the release has no track in the library
+     */
+    public QueueDetails replaceWithRelease(final UUID userId, final UUID releaseId, final int startIndex) {
+        final var inLibrary = RELEASE.RELEASE_ID.eq(releaseId).and(RELEASE.TRACK_COUNT.gt(0));
+        if (!dsl.fetchExists(RELEASE, inLibrary)) {
+            throw new ReleaseNotFoundException(releaseId);
+        }
+        final var tracks = select(TRACK.TRACK_ID, rowNumber().over(orderBy(MEDIUM.POSITION, TRACK.POSITION)))
+                .from(TRACK)
+                .join(MEDIUM)
+                .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
+                .join(TRACK_TO_INGEST)
+                .on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
+                .where(MEDIUM.RELEASE_ID.eq(releaseId))
+                .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED));
+        return replaceFrom(userId, tracks, startIndex);
     }
 
     /**
@@ -148,29 +218,41 @@ public class QueueDao {
         dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
     }
 
-    private Field<List<QueueEntry>> entries() {
-        return multiset(select(
-                                QUEUE_TRACK.QUEUE_TRACK_ID,
-                                TRACK.TRACK_ID,
-                                TRACK.NAME,
-                                TRACK.DURATION,
-                                TRACK.POSITION,
-                                ARTIST.ARTIST_ID,
-                                ARTIST.NAME,
-                                RELEASE.RELEASE_ID,
-                                RELEASE.NAME)
-                        .from(QUEUE_TRACK)
-                        .join(TRACK)
-                        .on(TRACK.TRACK_ID.eq(QUEUE_TRACK.TRACK_ID))
-                        .join(ARTIST)
-                        .on(ARTIST.ARTIST_ID.eq(TRACK.ARTIST_ID))
-                        .join(MEDIUM)
-                        .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
-                        .join(RELEASE)
-                        .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID))
-                        .where(QUEUE_TRACK.USER_ID.eq(QUEUE.USER_ID))
-                        .orderBy(QUEUE_TRACK.PLAY_ORDER))
-                .convertFrom(entries -> entries.map(Records.mapping(QueueEntry::new)));
+    /**
+     * The entries' columns and joins, for the caller to filter and order.
+     */
+    private SelectOnConditionStep<Record10<UUID, Integer, UUID, String, Integer, Integer, UUID, String, UUID, String>>
+            selectEntries() {
+        return dsl.select(
+                        QUEUE_TRACK.QUEUE_TRACK_ID,
+                        QUEUE_TRACK.PLAY_ORDER,
+                        TRACK.TRACK_ID,
+                        TRACK.NAME,
+                        TRACK.DURATION,
+                        TRACK.POSITION,
+                        ARTIST.ARTIST_ID,
+                        ARTIST.NAME,
+                        RELEASE.RELEASE_ID,
+                        RELEASE.NAME)
+                .from(QUEUE_TRACK)
+                .join(TRACK)
+                .on(TRACK.TRACK_ID.eq(QUEUE_TRACK.TRACK_ID))
+                .join(ARTIST)
+                .on(ARTIST.ARTIST_ID.eq(TRACK.ARTIST_ID))
+                .join(MEDIUM)
+                .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
+                .join(RELEASE)
+                .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID));
+    }
+
+    /**
+     * @return the current entry, null when the queue has none
+     */
+    private Field<QueueEntry> currentEntry() {
+        return multiset(selectEntries().where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(QUEUE.CURRENT_ENTRY_ID)))
+                .convertFrom(entries -> entries.map(Records.mapping(QueueEntry::new)).stream()
+                        .findFirst()
+                        .orElse(null));
     }
 
     /**
@@ -184,18 +266,65 @@ public class QueueDao {
         return dsl.selectFrom(QUEUE).where(QUEUE.USER_ID.eq(userId)).forUpdate().fetchSingle(queueMapper::fromRecord);
     }
 
+    /**
+     * @param tracks each track to queue, with its position from 1 in the order it was queued in
+     */
+    private QueueDetails replaceFrom(
+            final UUID userId, final Select<Record2<UUID, Integer>> tracks, final int startIndex) {
+        final var queue = lockQueue(userId);
+        dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
+        insertEntries(userId, tracks.asTable("source", "track_id", "position"), queue.shuffle(), startIndex);
+        final var startEntryId = loadEntryId(userId, startIndex);
+        updateCurrentEntry(userId, startEntryId);
+        return loadDetails(userId);
+    }
+
     private void insertEntries(
-            final UUID userId, final List<UUID> trackIds, final List<UUID> entryIds, final List<UUID> playOrder) {
-        final var entries = IntStream.range(0, entryIds.size())
-                .mapToObj(index -> new QueueTrack(
-                        entryIds.get(index),
-                        userId,
-                        trackIds.get(index),
-                        index + 1,
-                        playOrder.indexOf(entryIds.get(index)) + 1))
-                .map(queueTrackMapper::toRecord)
-                .toList();
-        dsl.batchInsert(entries).execute();
+            final UUID userId,
+            final Table<Record2<UUID, Integer>> tracks,
+            final ShuffleMode shuffle,
+            final int startIndex) {
+        final var trackId = tracks.field("track_id", UUID.class);
+        final var position = tracks.field("position", Integer.class);
+        dsl.insertInto(
+                        QUEUE_TRACK,
+                        QUEUE_TRACK.QUEUE_TRACK_ID,
+                        QUEUE_TRACK.USER_ID,
+                        QUEUE_TRACK.TRACK_ID,
+                        QUEUE_TRACK.POSITION,
+                        QUEUE_TRACK.PLAY_ORDER)
+                .select(select(
+                                function("uuidv7", UUID.class),
+                                val(userId),
+                                trackId,
+                                position,
+                                playOrder(shuffle, position, startIndex))
+                        .from(tracks))
+                .execute();
+    }
+
+    /**
+     * @return the entry queued at the position, from 0
+     */
+    private UUID loadEntryId(final UUID userId, final int index) {
+        return dsl.select(QUEUE_TRACK.QUEUE_TRACK_ID)
+                .from(QUEUE_TRACK)
+                .where(QUEUE_TRACK.USER_ID.eq(userId))
+                .and(QUEUE_TRACK.POSITION.eq(index + 1))
+                .fetchOptional(QUEUE_TRACK.QUEUE_TRACK_ID)
+                .orElseThrow(() -> new QueueStartOutOfRangeException(index));
+    }
+
+    /**
+     * @return the order entries play in: as queued, or with the start first and the rest in a random order
+     */
+    private static Field<Integer> playOrder(
+            final ShuffleMode shuffle, final Field<Integer> position, final int startIndex) {
+        return switch (shuffle) {
+            case OFF -> position;
+            case ON ->
+                rowNumber().over(orderBy(when(position.eq(startIndex + 1), 0).otherwise(1), rand()));
+        };
     }
 
     private void reorderEntries(final UUID userId, final Queue queue, final ShuffleMode shuffle) {
@@ -207,6 +336,36 @@ public class QueueDao {
                         .where(QUEUE_TRACK.USER_ID.eq(userId))
                         .execute();
         }
+    }
+
+    private void shuffleAfterCurrent(final UUID userId, final Queue queue) {
+        final var played = loadCurrentPlayOrder(queue);
+        final var shuffled = select(
+                        QUEUE_TRACK.QUEUE_TRACK_ID,
+                        val(played).plus(rowNumber().over(orderBy(rand()))).as("new_order"))
+                .from(QUEUE_TRACK)
+                .where(QUEUE_TRACK.USER_ID.eq(userId))
+                .and(QUEUE_TRACK.PLAY_ORDER.gt(played))
+                .asTable("shuffled");
+        dsl.update(QUEUE_TRACK)
+                .set(QUEUE_TRACK.PLAY_ORDER, shuffled.field("new_order", Integer.class))
+                .from(shuffled)
+                .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(shuffled.field(QUEUE_TRACK.QUEUE_TRACK_ID)))
+                .execute();
+    }
+
+    /**
+     * @return where the current entry plays, 0 when the queue has none, so that every entry counts as still to play
+     */
+    private int loadCurrentPlayOrder(final Queue queue) {
+        if (queue.currentEntryId() == null) {
+            return 0;
+        }
+        return dsl.select(QUEUE_TRACK.PLAY_ORDER)
+                .from(QUEUE_TRACK)
+                .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(queue.currentEntryId()))
+                .fetchOptional(QUEUE_TRACK.PLAY_ORDER)
+                .orElse(0);
     }
 
     private void requireInLibrary(final List<UUID> trackIds) {
@@ -223,58 +382,5 @@ public class QueueDao {
                 .ifPresent(trackId -> {
                     throw new TrackNotFoundException(trackId);
                 });
-    }
-
-    /**
-     * @return the entries in the order they play: as queued, or with the start first and the rest shuffled
-     */
-    private static List<UUID> playOrder(final ShuffleMode shuffle, final List<UUID> entryIds, final int startIndex) {
-        return switch (shuffle) {
-            case OFF -> entryIds;
-            case ON -> startThenShuffled(entryIds, startIndex);
-        };
-    }
-
-    private static List<UUID> startThenShuffled(final List<UUID> entryIds, final int startIndex) {
-        final var others = Stream.concat(
-                        entryIds.subList(0, startIndex).stream(),
-                        entryIds.subList(startIndex + 1, entryIds.size()).stream())
-                .toList();
-        return Stream.concat(Stream.of(entryIds.get(startIndex)), shuffled(others).stream())
-                .toList();
-    }
-
-    private void shuffleAfterCurrent(final UUID userId, final Queue queue) {
-        final var entryIds = dsl.select(QUEUE_TRACK.QUEUE_TRACK_ID)
-                .from(QUEUE_TRACK)
-                .where(QUEUE_TRACK.USER_ID.eq(userId))
-                .orderBy(QUEUE_TRACK.PLAY_ORDER)
-                .fetch(QUEUE_TRACK.QUEUE_TRACK_ID);
-        // With no current entry, indexOf is -1 and every entry is shuffled.
-        final var played = entryIds.indexOf(queue.currentEntryId()) + 1;
-        final var shuffledOrder = Stream.concat(
-                        entryIds.subList(0, played).stream(),
-                        shuffled(entryIds.subList(played, entryIds.size())).stream())
-                .toList();
-        updatePlayOrder(shuffledOrder);
-    }
-
-    private void updatePlayOrder(final List<UUID> shuffledOrder) {
-        // The entries, numbered in the order given.
-        final var given =
-                unnest(shuffledOrder.toArray(UUID[]::new)).withOrdinality().as("given", "entry_id", "given_order");
-        dsl.update(QUEUE_TRACK)
-                .set(
-                        QUEUE_TRACK.PLAY_ORDER,
-                        given.field("given_order", Long.class).cast(Integer.class))
-                .from(given)
-                .where(QUEUE_TRACK.QUEUE_TRACK_ID.eq(given.field("entry_id", UUID.class)))
-                .execute();
-    }
-
-    private static List<UUID> shuffled(final List<UUID> entryIds) {
-        final var copy = new ArrayList<>(entryIds);
-        Collections.shuffle(copy);
-        return List.copyOf(copy);
     }
 }

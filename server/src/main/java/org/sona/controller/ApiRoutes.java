@@ -74,6 +74,22 @@ public final class ApiRoutes {
      */
     public static final String QUEUE = API + "/queue";
     /**
+     * The queue's entries in the order they play, a page at a time, from the cursor on.
+     */
+    public static final String QUEUE_ENTRIES = QUEUE + "/entries";
+    /**
+     * The entries that play before the cursor, a page at a time, going back.
+     */
+    public static final String QUEUE_EARLIER_ENTRIES = QUEUE_ENTRIES + "/earlier";
+    /**
+     * Followed by a playlist's ID, this is where a PUT fills the queue with the playlist's tracks.
+     */
+    public static final String QUEUE_PLAYLIST = QUEUE + "/playlists/{playlistId}";
+    /**
+     * Followed by a release's ID, this is where a PUT fills the queue with the release's tracks.
+     */
+    public static final String QUEUE_RELEASE = QUEUE + "/releases/{releaseId}";
+    /**
      * Which entry of the queue the player is on, which setting moves it.
      */
     public static final String QUEUE_CURRENT = QUEUE + "/current";

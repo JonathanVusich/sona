@@ -5,11 +5,13 @@ import java.util.UUID;
 /**
  * A track in a user's queue, with just what the queue shows: its own artist and the release it's on.
  *
- * @param duration in seconds
- * @param position on its medium, from 1
+ * @param playOrder where the entry plays in the queue, from 1; no two entries of a queue share one
+ * @param duration  in seconds
+ * @param position  on its medium, from 1
  */
 public record QueueEntry(
         UUID entryId,
+        int playOrder,
         UUID trackId,
         String trackName,
         int duration,

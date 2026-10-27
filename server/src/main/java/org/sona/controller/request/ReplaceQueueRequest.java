@@ -14,7 +14,7 @@ import java.util.UUID;
  * @param startIndex which of the tracks plays first, from 0
  */
 public record ReplaceQueueRequest(
-        @NotEmpty @Size(max = QueueLimits.MAX_ENTRIES) List<@NotNull UUID> trackIds,
+        @NotEmpty @Size(max = QueueLimits.MAX_TRACKS) List<@NotNull UUID> trackIds,
         @Min(0) int startIndex) {
 
     @JsonIgnore
