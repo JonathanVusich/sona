@@ -1,7 +1,5 @@
 package org.sona.format.mp3;
 
-import java.util.List;
-
 /**
  * How many bits each partition of an MPEG-2 granule's scale factors takes, and which table gives how many scale factors
  * each partition holds, both from its scalefac_compress (ISO/IEC 13818-3 section 2.4.3.2), as {@link Mp3Decoder} works
@@ -11,9 +9,14 @@ import java.util.List;
  *     intensity stereo's right channel
  * @param slens how many bits each of the four partitions' scale factors take
  */
-record LsfLengths(int table, List<Integer> slens) {
+record LsfLengths(int table, int[] slens) {
 
-    LsfLengths {
-        slens = List.copyOf(slens);
+    @Override
+    public int[] slens() {
+        return slens.clone();
+    }
+
+    int slen(final int partition) {
+        return slens[partition];
     }
 }

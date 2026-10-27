@@ -1,7 +1,5 @@
 package org.sona.format.mp3;
 
-import java.util.List;
-
 /**
  * How a granule's channel is windowed, and the Huffman tables its big values are coded with, which the
  * window_switching_flag picks between (ISO/IEC 11172-3 section 2.4.1.7), as {@link Mp3Decoder} reads them.
@@ -57,11 +55,16 @@ sealed interface Windowing permits Windowing.Normal, Windowing.Switched {
      *     type, and only gives a short block long scale factor bands below them
      * @param subblockGains each short window's gain, in steps of 8 of the global gain
      */
-    record Switched(BlockType blockType, boolean mixedBlock, int table0, int table1, List<Integer> subblockGains)
+    record Switched(BlockType blockType, boolean mixedBlock, int table0, int table1, int[] subblockGains)
             implements Windowing {
 
-        public Switched {
-            subblockGains = List.copyOf(subblockGains);
+        @Override
+        public int[] subblockGains() {
+            return subblockGains.clone();
+        }
+
+        int subblockGain(final int window) {
+            return subblockGains[window];
         }
 
         @Override

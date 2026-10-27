@@ -186,8 +186,7 @@ final class Spectrum {
         for (var band = firstBand; band < ScaleFactorBands.SHORT_BANDS; band++) {
             final var width = bands.shortBandWidth(band);
             for (var window = 0; window < Windowing.WINDOWS; window++) {
-                final var windowGain =
-                        gain - SUBBLOCK_GAIN_STEP * switched.subblockGains().get(window);
+                final var windowGain = gain - SUBBLOCK_GAIN_STEP * switched.subblockGain(window);
                 fillExponent(line, width, windowGain - (scaleFactors.shortFactor(band, window) << shift));
                 line += width;
             }

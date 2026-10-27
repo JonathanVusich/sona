@@ -13,10 +13,6 @@ public record Picture(
         byte[] data)
         implements Block {
 
-    public Picture {
-        data = data.clone();
-    }
-
     @Override
     public byte[] data() {
         return data.clone();

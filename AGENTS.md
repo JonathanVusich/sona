@@ -229,9 +229,10 @@ testing*): run them rather than formatting by hand. The conventions below are co
 - Methods build and return their results. Do **not** pass mutable collections (lists, sets, maps, deques)
   into a method for it to fill in or modify.
 - Prefer immutable collections (`List.of`, `toList()`, `toUnmodifiableMap`) and immutable jOOQ pojos.
-- Everything a parser or decoder hands out is immutable (frames, tags, blocks, headers): it copies the arrays and
-  collections it is given, never exposes an internal one, and a decoder builds a new frame for each one it decodes,
-  copying out of its working buffers. Data in different representations (integer and float samples) is a type each,
+- Everything a parser or decoder hands out is immutable (frames, tags, blocks, headers): it copies the collections it
+  is given and never exposes an internal array or collection. It may keep an array without copying it when the code
+  that made it never touches it again; one the caller still holds, such as a working buffer, is copied, as a decoder
+  does into a new frame for each one it decodes. Data in different representations (integer and float samples) is a type each,
   and code keeps the specific type rather than switching on a base type and throwing for the kinds that can't happen.
 - Return `Optional` for "may not be found" results from resolvers/lookups.
 - **Avoid combinatorial explosion.** Give each case callers need its own method, function or component, rather than

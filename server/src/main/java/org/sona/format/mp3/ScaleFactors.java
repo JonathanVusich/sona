@@ -27,11 +27,11 @@ final class ScaleFactors {
     private final int part2Length;
 
     /**
-     * @param factors {@link #SIZE} scale factors, laid out by band, which are copied
+     * @param factors {@link #SIZE} scale factors, laid out by band, which the scale factors keep: the caller doesn't touch them again
      * @param part2Length how many bits the scale factors took in the main data
      */
     ScaleFactors(final int[] factors, final int part2Length) {
-        this.factors = factors.clone();
+        this.factors = factors;
         this.part2Length = part2Length;
     }
 

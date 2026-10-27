@@ -9,14 +9,12 @@ public final class IntPcmFrame implements PcmFrame {
     private final int sampleRate;
 
     /**
-     * @param samples one array per channel, all the same length, which the frame copies
+     * @param samples one array per channel, all the same length, which the frame keeps: the caller makes them for it
+     *     and doesn't touch them again
      * @param sampleRate samples per second, per channel
      */
     public IntPcmFrame(final int[][] samples, final int sampleRate) {
-        this.samples = new int[samples.length][];
-        for (var channel = 0; channel < samples.length; channel++) {
-            this.samples[channel] = samples[channel].clone();
-        }
+        this.samples = samples;
         this.sampleRate = sampleRate;
     }
 

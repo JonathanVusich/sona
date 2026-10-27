@@ -5,7 +5,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.HexFormat;
-import java.util.List;
 import org.sona.exception.InvalidFormatException;
 
 /**
@@ -28,7 +27,7 @@ final class Mp3Fixtures {
      * @return a short block, with no subblock gain
      */
     static Windowing.Switched shortBlock() {
-        return new Windowing.Switched(BlockType.SHORT, false, 0, 0, List.of(0, 0, 0));
+        return new Windowing.Switched(BlockType.SHORT, false, 0, 0, new int[] {0, 0, 0});
     }
 
     /**

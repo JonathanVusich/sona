@@ -448,7 +448,7 @@ public final class Mp3Decoder implements FloatPcmAudio {
         var index = 0;
         for (var partition = 0; partition < ScaleFactorTables.LSF_PARTITIONS; partition++) {
             final var count = ScaleFactorTables.lsfBandCount(lengths.table(), layout, partition);
-            final var slen = lengths.slens().get(partition);
+            final var slen = lengths.slen(partition);
             for (var factor = 0; factor < count; factor++) {
                 final var slot = slot(index++, layout, mixedLongBands);
                 factors[slot] = readFactor(mainData, slen);
@@ -471,26 +471,26 @@ public final class Mp3Decoder implements FloatPcmAudio {
     private LsfLengths lsfLengths(final int compress) {
         if (compress < LSF_SPLIT_1) {
             return new LsfLengths(
-                    0, List.of((compress >> 4) / 5, (compress >> 4) % 5, (compress & 15) >> 2, compress & 3));
+                    0, new int[] {(compress >> 4) / 5, (compress >> 4) % 5, (compress & 15) >> 2, compress & 3});
         }
         if (compress < LSF_SPLIT_2) {
             final var offset = compress - LSF_SPLIT_1;
-            return new LsfLengths(1, List.of((offset >> 2) / 5, (offset >> 2) % 5, offset & 3, 0));
+            return new LsfLengths(1, new int[] {(offset >> 2) / 5, (offset >> 2) % 5, offset & 3, 0});
         }
         final var offset = compress - LSF_SPLIT_2;
-        return new LsfLengths(2, List.of(offset / 3, offset % 3, 0, 0));
+        return new LsfLengths(2, new int[] {offset / 3, offset % 3, 0, 0});
     }
 
     private LsfLengths intensityLsfLengths(final int compress) {
         if (compress < LSF_INTENSITY_SPLIT_1) {
-            return new LsfLengths(3, List.of(compress / 36, compress % 36 / 6, compress % 36 % 6, 0));
+            return new LsfLengths(3, new int[] {compress / 36, compress % 36 / 6, compress % 36 % 6, 0});
         }
         if (compress < LSF_INTENSITY_SPLIT_2) {
             final var offset = compress - LSF_INTENSITY_SPLIT_1;
-            return new LsfLengths(4, List.of((offset & 63) >> 4, (offset & 15) >> 2, offset & 3, 0));
+            return new LsfLengths(4, new int[] {(offset & 63) >> 4, (offset & 15) >> 2, offset & 3, 0});
         }
         final var offset = compress - LSF_INTENSITY_SPLIT_2;
-        return new LsfLengths(5, List.of(offset / 3, offset % 3, 0, 0));
+        return new LsfLengths(5, new int[] {offset / 3, offset % 3, 0, 0});
     }
 
     // A scale factor of no bits is 0.
@@ -526,15 +526,15 @@ public final class Mp3Decoder implements FloatPcmAudio {
         final var mainDataBegin = (int) bits.readBits(mainDataBeginBits(header.version()));
         // The private bits are the encoder's own.
         bits.readBits(privateBits(header));
-        final var channelSharing = new ArrayList<Integer>();
-        for (var channel = 0; channel < header.channelCount(); channel++) {
-            channelSharing.add(readChannelSharing(header.version()));
+        final var channelSharing = new int[header.channelCount()];
+        for (var channel = 0; channel < channelSharing.length; channel++) {
+            channelSharing[channel] = readChannelSharing(header.version());
         }
         final var granules = new ArrayList<List<GranuleChannel>>();
         for (var granule = 0; granule < header.granuleCount(); granule++) {
             final var channels = new ArrayList<GranuleChannel>();
             for (var channel = 0; channel < header.channelCount(); channel++) {
-                channels.add(readGranuleChannel(header, channel, granuleSharing(granule, channelSharing.get(channel))));
+                channels.add(readGranuleChannel(header, channel, granuleSharing(granule, channelSharing[channel])));
             }
             granules.add(List.copyOf(channels));
         }
@@ -643,11 +643,11 @@ public final class Mp3Decoder implements FloatPcmAudio {
         final var mixedBlock = bits.readBits(1) == 1;
         final var table0 = readTable();
         final var table1 = readTable();
-        final var subblockGains = new ArrayList<Integer>();
-        for (var window = 0; window < Windowing.WINDOWS; window++) {
-            subblockGains.add((int) bits.readBits(3));
+        final var subblockGains = new int[Windowing.WINDOWS];
+        for (var window = 0; window < subblockGains.length; window++) {
+            subblockGains[window] = (int) bits.readBits(3);
         }
-        return new Windowing.Switched(blockType, mixedBlock, table0, table1, List.copyOf(subblockGains));
+        return new Windowing.Switched(blockType, mixedBlock, table0, table1, subblockGains);
     }
 
     private int readTable() throws IOException {
