@@ -3,7 +3,8 @@ package org.sona.format.mp3;
 /**
  * A granule's scale factors for one channel, as {@link Mp3Decoder} reads them: one per long band, and one per short
  * band and window, laid out by band: the long bands, then each short band's three windows. The bands its layout doesn't
- * use, and those above the scale factor bands, have a scale factor of 0.
+ * use, and those above the scale factor bands, have a scale factor of 0. In intensity stereo, the right channel's scale
+ * factors are intensity positions, and each has a limit that says the band isn't intensity coded.
  */
 final class ScaleFactors {
 
@@ -20,17 +21,21 @@ final class ScaleFactors {
     /**
      * No scale factors, all 0, which no granule before a frame's first leaves.
      */
-    static final ScaleFactors NONE = new ScaleFactors(new int[SIZE], 0);
+    static final ScaleFactors NONE = new ScaleFactors(new int[SIZE], new int[SIZE], 0);
 
     private final int[] factors;
+    private final int[] intensityLimits;
     private final int part2Length;
 
     /**
      * @param factors {@link #SIZE} scale factors, laid out by band, which are copied
+     * @param intensityLimits the intensity position, for each scale factor, that says its band isn't intensity coded,
+     *     which are copied
      * @param part2Length how many bits the scale factors took in the main data
      */
-    ScaleFactors(final int[] factors, final int part2Length) {
+    ScaleFactors(final int[] factors, final int[] intensityLimits, final int part2Length) {
         this.factors = factors.clone();
+        this.intensityLimits = intensityLimits.clone();
         this.part2Length = part2Length;
     }
 
@@ -39,7 +44,15 @@ final class ScaleFactors {
     }
 
     int shortFactor(final int band, final int window) {
-        return factors[ScaleFactorBands.LONG_BANDS + band * Windowing.WINDOWS + window];
+        return factors[shortIndex(band, window)];
+    }
+
+    int longIntensityLimit(final int band) {
+        return intensityLimits[band];
+    }
+
+    int shortIntensityLimit(final int band, final int window) {
+        return intensityLimits[shortIndex(band, window)];
     }
 
     /**
@@ -47,5 +60,9 @@ final class ScaleFactors {
      */
     int part2Length() {
         return part2Length;
+    }
+
+    private static int shortIndex(final int band, final int window) {
+        return ScaleFactorBands.LONG_BANDS + band * Windowing.WINDOWS + window;
     }
 }

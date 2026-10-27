@@ -44,6 +44,8 @@ public final class Mp3Decoder implements PcmAudio {
     // The groups of long bands MPEG-1's second granule may share with its first: bands 0 to 20.
     private static final int[] SHARED_GROUP_STARTS = {0, 6, 11, 16, 21};
     private static final int FIRST_GROUP_BIT = 0b1000;
+    // MPEG-1's intensity positions run from 0 to 6, and 7 says a band isn't intensity coded.
+    private static final int MPEG_1_INTENSITY_LIMIT = 7;
     // MPEG-2's right channel of an intensity stereo frame halves scalefac_compress, then splits it at these.
     private static final int LSF_INTENSITY_SPLIT_1 = 180;
     private static final int LSF_INTENSITY_SPLIT_2 = 244;
@@ -148,10 +150,12 @@ public final class Mp3Decoder implements PcmAudio {
             final int slen2)
             throws IOException {
         final var factors = new int[ScaleFactors.SIZE];
+        final var intensityLimits = new int[ScaleFactors.SIZE];
         var part2Length = 0;
         for (var group = 0; group < SHARED_GROUP_STARTS.length - 1; group++) {
             final var shared = (sharing & (FIRST_GROUP_BIT >> group)) != 0;
             for (var band = SHARED_GROUP_STARTS[group]; band < SHARED_GROUP_STARTS[group + 1]; band++) {
+                intensityLimits[band] = MPEG_1_INTENSITY_LIMIT;
                 if (shared) {
                     factors[band] = previous.longFactor(band);
                 } else {
@@ -161,7 +165,7 @@ public final class Mp3Decoder implements PcmAudio {
                 }
             }
         }
-        return new ScaleFactors(factors, part2Length);
+        return new ScaleFactors(factors, intensityLimits, part2Length);
     }
 
     private ScaleFactors readMpeg1ShortFactors(
@@ -173,13 +177,16 @@ public final class Mp3Decoder implements PcmAudio {
             final int slen2)
             throws IOException {
         final var factors = new int[ScaleFactors.SIZE];
+        final var intensityLimits = new int[ScaleFactors.SIZE];
         var part2Length = 0;
         for (var index = 0; index < count; index++) {
             final var slen = slen(index, slen1Count, slen1, slen2);
-            factors[slot(index, layout, MpegVersion.MPEG_1.mixedLongBands())] = readFactor(mainData, slen);
+            final var slot = slot(index, layout, MpegVersion.MPEG_1.mixedLongBands());
+            factors[slot] = readFactor(mainData, slen);
+            intensityLimits[slot] = MPEG_1_INTENSITY_LIMIT;
             part2Length += slen;
         }
-        return new ScaleFactors(factors, part2Length);
+        return new ScaleFactors(factors, intensityLimits, part2Length);
     }
 
     private int slen(final int index, final int slen1Count, final int slen1, final int slen2) {
@@ -189,7 +196,8 @@ public final class Mp3Decoder implements PcmAudio {
         return slen2;
     }
 
-    // Each partition's scale factors take the same number of bits.
+    // Each partition's scale factors take the same number of bits, and the largest they can hold is the illegal
+    // intensity position (ISO/IEC 13818-3 section 2.4.3.2).
     private ScaleFactors readLsfFactors(
             final BitInputStream mainData,
             final FrameHeader header,
@@ -200,17 +208,20 @@ public final class Mp3Decoder implements PcmAudio {
         final var layout = granuleChannel.windowing().layout();
         final var mixedLongBands = header.version().mixedLongBands();
         final var factors = new int[ScaleFactors.SIZE];
+        final var intensityLimits = new int[ScaleFactors.SIZE];
         var part2Length = 0;
         var index = 0;
         for (var partition = 0; partition < ScaleFactorTables.LSF_PARTITIONS; partition++) {
             final var count = ScaleFactorTables.lsfBandCount(lengths.table(), layout, partition);
             final var slen = lengths.slens().get(partition);
             for (var factor = 0; factor < count; factor++) {
-                factors[slot(index++, layout, mixedLongBands)] = readFactor(mainData, slen);
+                final var slot = slot(index++, layout, mixedLongBands);
+                factors[slot] = readFactor(mainData, slen);
+                intensityLimits[slot] = (1 << slen) - 1;
                 part2Length += slen;
             }
         }
-        return new ScaleFactors(factors, part2Length);
+        return new ScaleFactors(factors, intensityLimits, part2Length);
     }
 
     /**
