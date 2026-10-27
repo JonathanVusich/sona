@@ -14,7 +14,7 @@ import org.sona.controller.request.PlayRequest;
 import org.sona.controller.response.ArtistResponse;
 import org.sona.controller.response.PlayPageResponse;
 import org.sona.controller.response.PlayResponse;
-import org.sona.controller.response.PlaylistTrackResponse;
+import org.sona.controller.response.PlayedTrackResponse;
 import org.sona.controller.response.TrackReleaseResponse;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestDao;
@@ -207,11 +207,11 @@ class PlayControllerTest {
                 .isNoContent();
     }
 
-    private List<PlaylistTrackResponse> playedTracks(final String accessToken) {
+    private List<PlayedTrackResponse> playedTracks(final String accessToken) {
         return tracksOf(loadPage(accessToken, ApiRoutes.PLAYS));
     }
 
-    private static List<PlaylistTrackResponse> tracksOf(final PlayPageResponse page) {
+    private static List<PlayedTrackResponse> tracksOf(final PlayPageResponse page) {
         return page.plays().stream().map(PlayResponse::track).toList();
     }
 
@@ -227,8 +227,8 @@ class PlayControllerTest {
     /**
      * @return how the play history lists a track of Parachutes
      */
-    private PlaylistTrackResponse entry(final Track track) {
-        return new PlaylistTrackResponse(
+    private PlayedTrackResponse entry(final Track track) {
+        return new PlayedTrackResponse(
                 track.trackId(),
                 track.name(),
                 track.duration(),
