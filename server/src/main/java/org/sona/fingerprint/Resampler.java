@@ -90,7 +90,7 @@ public final class Resampler {
 
     private float[] resample(final float[] input, final int length, final End end) {
         final var output = new float[(int) ((long) (length + filterLength) * outputRate / inputRate) + 2];
-        final var window = new float[filterLength];
+        final var window = new float[filterStride];
         var available = length;
         var count = 0;
         var index = 0;
@@ -128,10 +128,10 @@ public final class Resampler {
             final int start,
             final int index,
             final int fraction) {
-        if (start >= 0 && start + filterLength <= length) {
+        if (start >= 0 && start + filterStride <= length) {
             return outputSample(input, start, index, fraction);
         }
-        for (var i = 0; i < filterLength; i++) {
+        for (var i = 0; i < filterStride; i++) {
             window[i] = extended(input, length, start + i);
         }
         return outputSample(window, 0, index, fraction);
@@ -158,7 +158,7 @@ public final class Resampler {
     // One output sample: the filter for this phase applied to the samples from offset on.
     private float outputSample(final float[] samples, final int offset, final int index, final int fraction) {
         final var row = filterStride * index;
-        accumulate(samples, offset, row, sums);
+        accumulate(samples, offset, row, filterLength, sums);
         fold(sums);
         if (incrementRemainder != 0 || fraction != 0) {
             return interpolatedSample(samples, offset, row, fraction);
@@ -168,7 +168,7 @@ public final class Resampler {
 
     // The sums of this phase's filter and the next one's, blended by how far between the two the output falls.
     private float interpolatedSample(final float[] samples, final int offset, final int row, final int fraction) {
-        accumulate(samples, offset, row + filterStride, nextSums);
+        accumulate(samples, offset, row + filterStride, filterStride, nextSums);
         fold(nextSums);
         final var weight = (float) fraction * (1.0f / (float) sourceIncrement);
         for (var lane = 0; lane < HALF_LANES; lane++) {
@@ -178,9 +178,12 @@ public final class Resampler {
     }
 
     // The taps added into eight sums, each of every eighth tap by fused multiply-adds, as FFmpeg's FMA3 code does.
-    private void accumulate(final float[] samples, final int offset, final int row, final float[] lanes) {
+    // The next phase's filter is summed to the end of its padding, as the last phase's shifted copy of the first has a
+    // tap there.
+    private void accumulate(
+            final float[] samples, final int offset, final int row, final int tapCount, final float[] lanes) {
         Arrays.fill(lanes, 0f);
-        for (var i = 0; i < filterLength; i++) {
+        for (var i = 0; i < tapCount; i++) {
             final var lane = i % LANES;
             lanes[lane] = Math.fma(samples[offset + i], filterBank[row + i], lanes[lane]);
         }
