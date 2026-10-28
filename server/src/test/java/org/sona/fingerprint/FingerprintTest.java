@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.sona.exception.InvalidFormatException;
-import org.sona.format.PcmAudio;
-import org.sona.format.PcmFrame;
+import org.sona.format.IntPcmAudio;
+import org.sona.format.IntPcmFrame;
 
 /**
  * Compares fingerprints with those {@code fpcalc} (Chromaprint 1.5.1) computed from the same audio, which the
@@ -84,11 +84,11 @@ class FingerprintTest {
      * Chords of three notes that change every 0.4 seconds, picked by a linear congruential generator: the audio
      * {@code gen.py} wrote for {@code fpcalc}, generated the same way.
      */
-    private record ChordAudio(int sampleRate, int channels, int bitsPerSample, int seconds) implements PcmAudio {
+    private record ChordAudio(int sampleRate, int channels, int bitsPerSample, int seconds) implements IntPcmAudio {
 
         @Override
-        public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+        public Iterator<IntPcmFrame> iterator() {
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, this::sample);
         }
 
         private int sample(final int index, final int channel) {
@@ -106,7 +106,7 @@ class FingerprintTest {
 
     // Chords as in ChordAudio under noise that is a hash of each sample's position, so the audio can be made again
     // anywhere and {@code fpcalc} can be given it.
-    record NoiseAudio(int sampleRate, int channels, int seconds) implements PcmAudio {
+    record NoiseAudio(int sampleRate, int channels, int seconds) implements IntPcmAudio {
 
         @Override
         public int bitsPerSample() {
@@ -114,8 +114,8 @@ class FingerprintTest {
         }
 
         @Override
-        public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, this::sample);
+        public Iterator<IntPcmFrame> iterator() {
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, this::sample);
         }
 
         private int sample(final int index, final int channel) {
@@ -139,7 +139,7 @@ class FingerprintTest {
         }
     }
 
-    private record SilentAudio(int sampleRate, int channels, int seconds) implements PcmAudio {
+    private record SilentAudio(int sampleRate, int channels, int seconds) implements IntPcmAudio {
 
         @Override
         public int bitsPerSample() {
@@ -147,8 +147,8 @@ class FingerprintTest {
         }
 
         @Override
-        public Iterator<PcmFrame> iterator() {
-            return new FrameIterator(sampleRate * seconds, channels, (_, _) -> 0);
+        public Iterator<IntPcmFrame> iterator() {
+            return new FrameIterator(sampleRate, sampleRate * seconds, channels, (_, _) -> 0);
         }
     }
 
@@ -157,16 +157,18 @@ class FingerprintTest {
         int sample(int index, int channel);
     }
 
-    private static final class FrameIterator implements Iterator<PcmFrame> {
+    private static final class FrameIterator implements Iterator<IntPcmFrame> {
 
         private static final int FRAME_SIZE = 4096;
 
+        private final int sampleRate;
         private final int sampleCount;
         private final int channels;
         private final SampleSource source;
         private int next;
 
-        FrameIterator(final int sampleCount, final int channels, final SampleSource source) {
+        FrameIterator(final int sampleRate, final int sampleCount, final int channels, final SampleSource source) {
+            this.sampleRate = sampleRate;
             this.sampleCount = sampleCount;
             this.channels = channels;
             this.source = source;
@@ -178,14 +180,14 @@ class FingerprintTest {
         }
 
         @Override
-        public PcmFrame next() {
+        public IntPcmFrame next() {
             final var samples = new int[channels][Math.min(FRAME_SIZE, sampleCount - next)];
             for (var i = 0; i < samples[0].length; i++, next++) {
                 for (var channel = 0; channel < channels; channel++) {
                     samples[channel][i] = source.sample(next, channel);
                 }
             }
-            return new PcmFrame(samples);
+            return new IntPcmFrame(samples, sampleRate);
         }
     }
 }

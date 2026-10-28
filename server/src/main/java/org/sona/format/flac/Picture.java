@@ -11,4 +11,10 @@ public record Picture(
         int colorDepth,
         int numberOfColors,
         byte[] data)
-        implements Block {}
+        implements Block {
+
+    @Override
+    public byte[] data() {
+        return data.clone();
+    }
+}

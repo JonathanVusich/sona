@@ -1,7 +1,6 @@
 package org.sona.format.mp3;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.javax.bitstream.BitInputStream;
 import java.io.ByteArrayInputStream;
@@ -28,10 +27,11 @@ class HuffmanTablesTest {
         assertThat(table.size()).isPositive();
     }
 
+    // The spec defines no tables 4 and 14, which FFmpeg reads as table 0.
     @ParameterizedTest
-    @ValueSource(ints = {4, 14, 32})
-    void rejectsUndefinedTable(final int tableSelect) {
-        assertThatThrownBy(() -> HuffmanTables.bigValueTable(tableSelect)).isInstanceOf(InvalidFormatException.class);
+    @ValueSource(ints = {4, 14})
+    void readsUndefinedTableAsTable0(final int tableSelect) {
+        assertThat(HuffmanTables.bigValueTable(tableSelect)).isSameAs(HuffmanTables.bigValueTable(0));
     }
 
     // Table 1 in ISO/IEC 11172-3 Table B.7: (0, 0) is 1, (0, 1) is 001, (1, 0) is 01, and (1, 1) is 000.

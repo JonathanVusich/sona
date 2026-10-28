@@ -1,36 +1,42 @@
 package org.sona.metadata;
 
 import java.time.Duration;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * The tags and duration a parser read from a file, which never change once they're made. A {@link RawMetadataBuilder}
+ * collects them as a parser reads them.
+ */
 public final class RawMetadata {
 
     private final Duration duration;
-    private final Map<Tag, Set<TagValue>> definedTags = new EnumMap<>(Tag.class);
-    private final Map<String, Set<TagValue>> unknownTags = new HashMap<>();
+    private final Map<Tag, Set<TagValue>> definedTags;
+    private final Map<String, Set<TagValue>> unknownTags;
 
     public RawMetadata(final Duration duration) {
+        this(duration, Map.of(), Map.of());
+    }
+
+    /**
+     * @param definedTags each known tag's values, in the order they were read, which no one else changes
+     * @param unknownTags each other tag's values, in the order they were read, which no one else changes
+     */
+    public RawMetadata(
+            final Duration duration,
+            final Map<Tag, Set<TagValue>> definedTags,
+            final Map<String, Set<TagValue>> unknownTags) {
         this.duration = duration;
+        this.definedTags = definedTags;
+        this.unknownTags = unknownTags;
     }
 
     public Duration duration() {
         return duration;
     }
 
-    public void addTag(Tag tag, TagValue value) {
-        definedTags.computeIfAbsent(tag, _ -> new LinkedHashSet<>()).add(value);
-    }
-
-    public void addUnknownTag(String tag, String value) {
-        unknownTags.computeIfAbsent(tag, _ -> new LinkedHashSet<>()).add(new TagValue.Str(value));
-    }
-
-    public Set<TagValue> findValues(Tag tag) {
+    public Set<TagValue> findValues(final Tag tag) {
         return definedTags.getOrDefault(tag, Set.of());
     }
 

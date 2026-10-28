@@ -3,12 +3,12 @@ package org.sona.format.mp3;
 import dev.javax.bitstream.BitInputStream;
 import java.io.IOException;
 import java.util.Arrays;
-import org.sona.exception.InvalidFormatException;
 
 /**
  * A granule's 576 frequency lines for one channel: its Huffman-coded values, requantized (ISO/IEC 11172-3 sections
- * 2.4.3.4.4 to 2.4.3.4.7). A short block's lines are in the order they're coded: by band, then window. The decoder
- * keeps one per channel, and reads each granule into it in place, as it runs for every granule of the file.
+ * 2.4.3.4.4 to 2.4.3.4.7) as FFmpeg's floating-point decoder requantizes them, from its tables, in 32-bit floats. A
+ * short block's lines are in the order they're coded: by band, then window. The decoder keeps one per channel, and
+ * reads each granule into it in place, as it runs for every granule of the file.
  */
 final class Spectrum {
 
@@ -17,53 +17,67 @@ final class Spectrum {
     static final int SUBBANDS = 32;
     static final int SUBBAND_LINES = 18;
 
-    // The global gain of 210 leaves a value unscaled.
+    // The global gain of 210 leaves a value unscaled, and FFmpeg's exponents start 400 above it.
     private static final int GAIN_OFFSET = 210;
+    private static final int EXPONENT_OFFSET = 400;
     // Each subblock gain step is 2 in 2^(1/4) steps of the global gain: a factor of 4.
     private static final int SUBBLOCK_GAIN_STEP = 8;
-    // The largest value a big-value table codes is 15 plus 13 linbits.
-    private static final double[] POW_4_3 = pow43(15 + (1 << 13) - 1);
+    // FFmpeg folds mid/side stereo's 1/sqrt(2) into the global gain, as 2 steps of 2^(1/4).
+    private static final int MID_SIDE_GAIN = 2;
+    private static final int MID_SIDE_BIT = 2;
+    private static final int INTENSITY_BIT = 1;
     private static final int LINBITS_VALUE = 15;
     private static final int QUAD = 4;
-    // The most bits the bit stream reads at once is 57.
-    private static final int MAX_READ_BITS = 56;
 
-    private final double[] lines = new double[LINES];
-    // What each line's value is multiplied by: 2 to the power of a quarter of its gain, less its scale factor.
-    private final double[] scales = new double[LINES];
+    private final float[] lines = new float[LINES];
+    // Each line's exponent, in steps of 2^(1/4): its gain, less its scale factor.
+    private final int[] exponents = new int[LINES];
     // One short band's lines as they're reordered.
-    private final double[] reorderBuffer = new double[LINES];
+    private final float[] reorderBuffer = new float[LINES];
     private int nonZeroEnd;
 
     /**
-     * Reads the granule's values for the channel, which follow its scale factors, and the bits after them that its
-     * part2_3_length takes, so that the bit stream is left where the next channel's bits start.
+     * Reads the granule's values for the channel, which follow its scale factors, until its part2_3_length is used up,
+     * as FFmpeg reads them: a pair of big values is read whole if it starts before the channel's bits run out, the
+     * lines after the last one read are 0, and count1's last quadruple is left out if it runs past them. FFmpeg also
+     * stops where the frame's data ends, which a frame the file cuts short does before its part2_3_length.
+     *
+     * @param presentBits how many bits the file has for the channel, from where its scale factors start
      */
     void read(
             final BitInputStream bits,
             final FrameHeader header,
             final GranuleChannel granuleChannel,
-            final ScaleFactors scaleFactors)
-            throws IOException, InvalidFormatException {
+            final ScaleFactors scaleFactors,
+            final int presentBits)
+            throws IOException {
+        Arrays.fill(lines, 0);
         final var part3Length = granuleChannel.part23Length() - scaleFactors.part2Length();
-        if (part3Length < 0) {
-            throw new InvalidFormatException("MP3 granule's scale factors run past its part2_3_length!");
-        }
-        computeScales(header, granuleChannel, scaleFactors);
+        final var presentPart3Length = Math.min(part3Length, presentBits - scaleFactors.part2Length());
+        computeExponents(header, granuleChannel, scaleFactors);
         final var bigValuesEnd = Math.min(2 * granuleChannel.bigValues(), LINES);
-        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd);
-        if (bigValueBits > part3Length) {
-            throw new InvalidFormatException("MP3 granule's big values run past its part2_3_length!");
-        }
-        nonZeroEnd = readCount1(bits, granuleChannel.count1Code(), bigValuesEnd, part3Length - bigValueBits);
-        Arrays.fill(lines, nonZeroEnd, LINES, 0);
+        final var bigValueBits = readBigValues(bits, header, granuleChannel, bigValuesEnd, presentPart3Length);
+        nonZeroEnd = readCount1(
+                bits,
+                granuleChannel.count1Code(),
+                bigValuesEnd,
+                part3Length - bigValueBits,
+                presentPart3Length - bigValueBits);
     }
 
-    double line(final int index) {
+    /**
+     * Makes every line 0, for a granule whose bits start before the stream's main data does.
+     */
+    void clear() {
+        Arrays.fill(lines, 0);
+        nonZeroEnd = 0;
+    }
+
+    float line(final int index) {
         return lines[index];
     }
 
-    void setLine(final int index, final double value) {
+    void setLine(final int index, final float value) {
         lines[index] = value;
     }
 
@@ -123,37 +137,45 @@ final class Spectrum {
             for (var butterfly = 0; butterfly < AliasCoefficients.COUNT; butterfly++) {
                 final var below = lines[first - 1 - butterfly];
                 final var above = lines[first + butterfly];
-                final var cs = AliasCoefficients.cs(butterfly);
-                final var ca = AliasCoefficients.ca(butterfly);
+                final var cs = AliasCoefficients.floatCs(butterfly);
+                final var ca = AliasCoefficients.floatCa(butterfly);
                 lines[first - 1 - butterfly] = below * cs - above * ca;
-                lines[first + butterfly] = above * cs + below * ca;
+                lines[first + butterfly] = below * ca + above * cs;
             }
         }
     }
 
-    private void computeScales(
+    private void computeExponents(
             final FrameHeader header, final GranuleChannel granuleChannel, final ScaleFactors scaleFactors) {
         final var bands = ScaleFactorBands.fromSampleRate(header.sampleRate());
-        final var gain = granuleChannel.globalGain() - GAIN_OFFSET;
+        final var gain = granuleChannel.globalGain() - GAIN_OFFSET - midSideGain(header);
         final var shift = granuleChannel.scalefacScale() + 1;
         final var longEnd = longBandsEnd(header, granuleChannel.windowing().layout());
         for (var band = 0; band < longEnd; band++) {
             final var factor =
                     scaleFactors.longFactor(band) + granuleChannel.preflag() * ScaleFactorTables.pretab(band);
-            fillScale(bands.longBandStart(band), bands.longBandWidth(band), gain - (factor << shift));
+            fillExponent(bands.longBandStart(band), bands.longBandWidth(band), gain - (factor << shift));
         }
         switch (granuleChannel.windowing()) {
             case Windowing.Normal _ -> {}
             case Windowing.Switched switched -> {
                 if (switched.layout() != BlockLayout.LONG) {
-                    computeShortScales(bands, switched, gain, shift, scaleFactors);
+                    computeShortExponents(bands, switched, gain, shift, scaleFactors);
                 }
             }
         }
     }
 
+    // FFmpeg takes the mode extension as it is in the header, whatever the channel mode.
+    private static int midSideGain(final FrameHeader header) {
+        if ((header.modeExtension() & (MID_SIDE_BIT | INTENSITY_BIT)) == MID_SIDE_BIT) {
+            return MID_SIDE_GAIN;
+        }
+        return 0;
+    }
+
     // After its long bands, a short or mixed block's short bands each hold three windows, one after another.
-    private void computeShortScales(
+    private void computeShortExponents(
             final ScaleFactorBands bands,
             final Windowing.Switched switched,
             final int gain,
@@ -164,17 +186,15 @@ final class Spectrum {
         for (var band = firstBand; band < ScaleFactorBands.SHORT_BANDS; band++) {
             final var width = bands.shortBandWidth(band);
             for (var window = 0; window < Windowing.WINDOWS; window++) {
-                final var windowGain =
-                        gain - SUBBLOCK_GAIN_STEP * switched.subblockGains().get(window);
-                fillScale(line, width, windowGain - (scaleFactors.shortFactor(band, window) << shift));
+                final var windowGain = gain - SUBBLOCK_GAIN_STEP * switched.subblockGain(window);
+                fillExponent(line, width, windowGain - (scaleFactors.shortFactor(band, window) << shift));
                 line += width;
             }
         }
     }
 
-    // The exponent is in steps of 2^(1/4).
-    private void fillScale(final int start, final int width, final int exponent) {
-        Arrays.fill(scales, start, start + width, Math.pow(2, exponent / 4.0));
+    private void fillExponent(final int start, final int width, final int exponent) {
+        Arrays.fill(exponents, start, start + width, exponent + EXPONENT_OFFSET);
     }
 
     private static int longBandsEnd(final FrameHeader header, final BlockLayout layout) {
@@ -193,88 +213,128 @@ final class Spectrum {
     }
 
     /**
-     * Reads the big values, which come in up to three regions, each coded with its own table.
+     * Reads the big values, which come in up to three regions, each coded with its own table, while the channel has
+     * bits left.
      *
+     * @param available how many bits the channel has for its values
      * @return how many bits they take
      */
     private int readBigValues(
-            final BitInputStream bits, final FrameHeader header, final GranuleChannel granuleChannel, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final FrameHeader header,
+            final GranuleChannel granuleChannel,
+            final int end,
+            final int available)
+            throws IOException {
         final var bands = ScaleFactorBands.fromSampleRate(header.sampleRate());
         return switch (granuleChannel.windowing()) {
-            case Windowing.Normal normal -> readNormalRegions(bits, bands, normal, end);
-            case Windowing.Switched switched -> readSwitchedRegions(bits, bands, switched, end);
+            case Windowing.Normal normal -> readNormalRegions(bits, bands, normal, end, available);
+            case Windowing.Switched switched -> readSwitchedRegions(bits, bands, switched, end, available);
         };
     }
 
     // The regions end at the long bands the side information gives.
     private int readNormalRegions(
-            final BitInputStream bits, final ScaleFactorBands bands, final Windowing.Normal normal, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final ScaleFactorBands bands,
+            final Windowing.Normal normal,
+            final int end,
+            final int available)
+            throws IOException {
         final var region1 = Math.min(bands.longBandStart(normal.region0Count() + 1), end);
         final var region2Band =
                 Math.min(normal.region0Count() + normal.region1Count() + 2, ScaleFactorBands.LONG_BANDS);
         final var region2 = Math.max(Math.min(bands.longBandStart(region2Band), end), region1);
-        return readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1)
-                + readRegion(bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2)
-                + readRegion(bits, HuffmanTables.bigValueTable(normal.table2()), region2, end);
+        final var region0Bits = readRegion(bits, HuffmanTables.bigValueTable(normal.table0()), 0, region1, available);
+        final var region1Bits = readRegion(
+                bits, HuffmanTables.bigValueTable(normal.table1()), region1, region2, available - region0Bits);
+        return region0Bits
+                + region1Bits
+                + readRegion(
+                        bits,
+                        HuffmanTables.bigValueTable(normal.table2()),
+                        region2,
+                        end,
+                        available - region0Bits - region1Bits);
     }
 
     // The first region takes 8 long bands, or 3 short bands of three windows, and the second takes the rest.
     private int readSwitchedRegions(
-            final BitInputStream bits, final ScaleFactorBands bands, final Windowing.Switched switched, final int end)
-            throws IOException, InvalidFormatException {
+            final BitInputStream bits,
+            final ScaleFactorBands bands,
+            final Windowing.Switched switched,
+            final int end,
+            final int available)
+            throws IOException {
         final var region1Start = switch (switched.blockType()) {
             case SHORT -> 3 * bands.shortBandStart(3);
             case NORMAL, START, STOP -> bands.longBandStart(8);
         };
         final var region1 = Math.min(region1Start, end);
-        return readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1)
-                + readRegion(bits, HuffmanTables.bigValueTable(switched.table1()), region1, end);
+        final var region0Bits = readRegion(bits, HuffmanTables.bigValueTable(switched.table0()), 0, region1, available);
+        return region0Bits
+                + readRegion(
+                        bits, HuffmanTables.bigValueTable(switched.table1()), region1, end, available - region0Bits);
     }
 
-    // Each codeword codes a pair of values, x and y.
-    private int readRegion(final BitInputStream bits, final BigValueTable table, final int start, final int end)
+    // Each codeword codes a pair of values, x and y. A pair is read whole when it starts before the bits run out.
+    private int readRegion(
+            final BitInputStream bits, final BigValueTable table, final int start, final int end, final int available)
             throws IOException {
         var bitsRead = 0;
-        for (var line = start; line < end; line += 2) {
+        for (var line = start; line < end && bitsRead < available; line += 2) {
             final var pair = table.code().readValue(bits);
             bitsRead += table.code().codeLength(pair)
-                    + readValue(bits, table, pair / table.size(), line)
-                    + readValue(bits, table, pair % table.size(), line + 1);
+                    + readValue(bits, table, pair / table.size(), line, exponents[line])
+                    + readValue(bits, table, pair % table.size(), line + 1, exponents[line]);
         }
         return bitsRead;
     }
 
     // A value of 15 in a table with linbits is followed by that many bits to add to it, and a value that isn't 0 by its
-    // sign. Returns how many bits those take.
-    private int readValue(final BitInputStream bits, final BigValueTable table, final int magnitude, final int line)
+    // sign. Returns how many bits those take. FFmpeg requantizes both values of a pair with the first line's exponent,
+    // and values of 15 or more in whole numbers.
+    private int readValue(
+            final BitInputStream bits,
+            final BigValueTable table,
+            final int magnitude,
+            final int line,
+            final int exponent)
             throws IOException {
         if (magnitude == 0) {
             lines[line] = 0;
             return 0;
         }
+        if (magnitude < LINBITS_VALUE) {
+            lines[line] = signed(bits, FfmpegTables.requantized(exponent, magnitude));
+            return 1;
+        }
+        final var linbits = table.linbits();
         var value = magnitude;
-        var linbits = 0;
-        if (magnitude == LINBITS_VALUE && table.linbits() > 0) {
-            linbits = table.linbits();
+        if (linbits > 0) {
             value += (int) bits.readBits(linbits);
         }
-        lines[line] = signed(bits, POW_4_3[value] * scales[line]);
+        lines[line] = signed(bits, FfmpegTables.requantizedLarge(value, exponent));
         return linbits + 1;
     }
 
     // Count1 values come four at a time, each 0 or 1 with a sign bit for each 1, until the channel's bits run out. Some
-    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread. The channel's bits
-    // may end with some its values don't use, which are skipped, so the next channel's bits start where they're read.
-    private int readCount1(final BitInputStream bits, final HuffmanCode code, final int start, final int available)
+    // encoders write a last quadruple that runs past them, which decoders drop, so it's left unread. FFmpeg notices
+    // that only when it goes on to another quadruple, so a quadruple after which no other fits in the granule is kept.
+    private int readCount1(
+            final BitInputStream bits,
+            final HuffmanCode code,
+            final int start,
+            final int available,
+            final int presentAvailable)
             throws IOException {
         var line = start;
         var left = available;
-        while (line + QUAD <= LINES && left > 0) {
+        var presentLeft = presentAvailable;
+        while (line + QUAD <= LINES && left > 0 && presentLeft > 0) {
             final var quad = code.peekValue(bits);
             final var quadBits = code.codeLength(quad) + Integer.bitCount(quad);
-            if (quadBits > left) {
+            if (quadBits > left && line + 2 * QUAD <= LINES) {
                 break;
             }
             code.readValue(bits);
@@ -282,38 +342,24 @@ final class Spectrum {
                 lines[line + value] = readCount1Value(bits, quad >> (QUAD - 1 - value) & 1, line + value);
             }
             left -= quadBits;
+            presentLeft -= quadBits;
             line += QUAD;
         }
-        skipBits(bits, left);
         return line;
     }
 
-    private double readCount1Value(final BitInputStream bits, final int magnitude, final int line) throws IOException {
+    private float readCount1Value(final BitInputStream bits, final int magnitude, final int line) throws IOException {
         if (magnitude == 0) {
             return 0;
         }
-        return signed(bits, scales[line]);
+        return signed(bits, FfmpegTables.requantizedOne(exponents[line]));
     }
 
     // A sign bit of 1 is negative.
-    private static double signed(final BitInputStream bits, final double value) throws IOException {
+    private static float signed(final BitInputStream bits, final float value) throws IOException {
         if (bits.readBits(1) == 1) {
             return -value;
         }
         return value;
-    }
-
-    private static void skipBits(final BitInputStream bits, final int count) throws IOException {
-        for (var left = count; left > 0; left -= MAX_READ_BITS) {
-            bits.readBits(Math.min(left, MAX_READ_BITS));
-        }
-    }
-
-    private static double[] pow43(final int maxValue) {
-        final var powers = new double[maxValue + 1];
-        for (var value = 0; value <= maxValue; value++) {
-            powers[value] = Math.pow(value, 4.0 / 3);
-        }
-        return powers;
     }
 }

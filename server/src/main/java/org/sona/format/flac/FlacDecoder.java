@@ -9,8 +9,9 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
-import org.sona.format.PcmAudio;
-import org.sona.format.PcmFrame;
+import org.sona.format.IntPcmAudio;
+import org.sona.format.IntPcmFrame;
+import org.sona.format.Iteration;
 
 /**
  * Decodes the audio frames of a FLAC stream to PCM samples (RFC 9639 section 9), a frame at a time as it's iterated,
@@ -20,7 +21,7 @@ import org.sona.format.PcmFrame;
  * <p>The iterator throws {@link UncheckedIOException} when the stream can't be read, with an {@link EOFException}
  * when it ends before a frame does, and {@link UncheckedInvalidFormatException} when a frame is corrupt.
  */
-public final class FlacDecoder implements PcmAudio {
+public final class FlacDecoder implements IntPcmAudio {
 
     private static final int SYNC_CODE = 0b11111111111110;
 
@@ -30,7 +31,7 @@ public final class FlacDecoder implements PcmAudio {
 
     private final StreamInfo streamInfo;
     private final FrameReader reader;
-    private boolean iterated;
+    private Iteration iteration = Iteration.NOT_STARTED;
     private long samplesDecoded;
 
     /**
@@ -59,15 +60,15 @@ public final class FlacDecoder implements PcmAudio {
      * @throws IllegalStateException when called a second time
      */
     @Override
-    public Iterator<PcmFrame> iterator() {
-        if (iterated) {
+    public Iterator<IntPcmFrame> iterator() {
+        if (iteration == Iteration.STARTED) {
             throw new IllegalStateException("FLAC decoder can only be iterated once!");
         }
-        iterated = true;
+        iteration = Iteration.STARTED;
         return new FrameIterator();
     }
 
-    private final class FrameIterator implements Iterator<PcmFrame> {
+    private final class FrameIterator implements Iterator<IntPcmFrame> {
 
         @Override
         public boolean hasNext() {
@@ -79,7 +80,7 @@ public final class FlacDecoder implements PcmAudio {
         }
 
         @Override
-        public PcmFrame next() {
+        public IntPcmFrame next() {
             if (!hasNext()) {
                 throw new NoSuchElementException("FLAC stream has no more frames!");
             }
@@ -103,7 +104,7 @@ public final class FlacDecoder implements PcmAudio {
         return reader.hasMoreBytes();
     }
 
-    private PcmFrame readFrame() throws IOException, InvalidFormatException {
+    private IntPcmFrame readFrame() throws IOException, InvalidFormatException {
         reader.startFrame();
         final var header = readFrameHeader();
         final var channels = new long[header.channels()][];
@@ -116,7 +117,7 @@ public final class FlacDecoder implements PcmAudio {
             throw new InvalidFormatException("FLAC frame fails its CRC-16 check!");
         }
         samplesDecoded += header.blockSize();
-        return new PcmFrame(decorrelate(header.channelAssignment(), channels));
+        return new IntPcmFrame(decorrelate(header.channelAssignment(), channels), streamInfo.sampleRate());
     }
 
     private FrameHeader readFrameHeader() throws IOException, InvalidFormatException {

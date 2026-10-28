@@ -20,7 +20,7 @@ import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.UserDao;
 import org.sona.engine.IngestWorker;
-import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.AccountState;
@@ -186,10 +186,10 @@ class IngestProgressTest {
     }
 
     private static byte[] whisper() {
-        final var metadata = new RawMetadata(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        return flacFile(metadata);
+        return flacFile(metadata.build());
     }
 }

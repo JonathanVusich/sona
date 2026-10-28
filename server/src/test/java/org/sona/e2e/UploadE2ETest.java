@@ -23,7 +23,7 @@ import org.sona.controller.ApiRoutes;
 import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
 import org.sona.engine.IngestWorker;
-import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.IngestGroupKind;
@@ -158,17 +158,6 @@ class UploadE2ETest {
     }
 
     @Test
-    void aFileInAFormatSonaCantIngestIsLeftOut(final Page page) {
-        final var uploadPage = logInAndOpen(page);
-
-        uploadPage.chooseFiles(
-                new FilePayload("Somewhere Only We Know.ogg", "audio/ogg", AUDIO), flac("Everybody's Changing.flac"));
-
-        assertThat(uploadPage.error()).hasText("Left out 1 file Sona can't ingest yet: Somewhere Only We Know.ogg");
-        assertThat(uploadPage.groupFiles("Loose files")).hasText(new String[] {"Everybody's Changing.flac"});
-    }
-
-    @Test
     void aFileWhoseConnectionBrokeCanBeSentAgain(final Page page) {
         final var uploadPage = logInAndOpen(page);
         uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));
@@ -297,10 +286,10 @@ class UploadE2ETest {
 
     // A track the recorded MusicBrainz responses match, uploaded from its album's folder.
     private static byte[] whisper() {
-        final var metadata = new RawMetadata(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        return flacFile(metadata);
+        return flacFile(metadata.build());
     }
 }

@@ -17,7 +17,6 @@ final class VbrHeaderReader {
     private static final long XING = 0x58_69_6E_67;
     private static final long INFO = 0x49_6E_66_6F;
     private static final long VBRI = 0x56_42_52_49;
-    private static final long NO_ID = 0;
     private static final int ID_SIZE = 4;
 
     // Xing's flags say which of its fields are present, in this order.
@@ -27,10 +26,11 @@ final class VbrHeaderReader {
     private static final int QUALITY_FLAG = 0x8;
     private static final int TOC_SIZE = 100;
 
-    // VBRI always starts 32 bytes after the frame header, and its frame count follows its version, delay, quality and
-    // byte count.
+    // VBRI always starts 32 bytes after the frame header, and its version, which FFmpeg only reads when 1, is followed
+    // by its delay, quality, byte count and frame count.
     private static final int VBRI_OFFSET = FrameHeader.SIZE + 32;
-    private static final int VBRI_FIELDS_SIZE = 10;
+    private static final int VBRI_VERSION = 1;
+    private static final int VBRI_DELAY_AND_QUALITY_SIZE = 4;
 
     // The encoders whose Xing headers a LAME tag follows, as FFmpeg checks for them: "LAME", "Lavf" and "Lavc".
     private static final long LAME = 0x4C_41_4D_45;
@@ -48,32 +48,39 @@ final class VbrHeaderReader {
         final var bits = BitInputStream.wrap(frame, ByteOrder.BIG_ENDIAN);
         // FFmpeg and mpg123 look for a Xing header straight after the side information, whether or not the frame has
         // a CRC.
-        final var id = readId(frame, bits, header.sideInfoSize());
-        if (id == XING || id == INFO) {
+        if (!(readId(frame, bits, header.sideInfoSize()) instanceof Id id)) {
+            return readVbriHeaderAtOffset(header, frame, bits);
+        }
+        if (id.value() == XING || id.value() == INFO) {
             return readXingHeader(frame, bits);
         }
-        return readVbriHeader(header, frame, bits, id);
+        return readVbriHeader(header, frame, bits, id.value());
     }
 
-    // Its frame count is optional. Without it, the frames are counted instead, taking this one for audio, which it is:
-    // a frame of silence.
+    // Its frame and byte counts are each optional. Without either, the frames are counted instead, taking this one for
+    // audio, which it is: a frame of silence.
     private static FirstFrame readXingHeader(final BoundedInputStream frame, final BitInputStream bits)
             throws IOException {
         final var flags = bits.readBits(32);
-        if ((flags & FRAMES_FLAG) == 0) {
+        final var frameCount = readField(bits, flags, FRAMES_FLAG);
+        final var byteCount = readField(bits, flags, BYTES_FLAG);
+        if (frameCount == 0 && byteCount == 0) {
             return new AudioFrame();
         }
-        final var frameCount = bits.readBits(32);
         frame.skipNBytes(xingFieldsSize(flags));
-        return readLameTag(frame, bits, frameCount);
+        return readLameTag(frame, bits, frameCount, byteCount);
     }
 
-    // The fields after the frame count.
+    private static long readField(final BitInputStream bits, final long flags, final int flag) throws IOException {
+        if ((flags & flag) == 0) {
+            return 0;
+        }
+        return bits.readBits(32);
+    }
+
+    // The fields after the frame and byte counts.
     private static int xingFieldsSize(final long flags) {
         var size = 0;
-        if ((flags & BYTES_FLAG) != 0) {
-            size += Integer.BYTES;
-        }
         if ((flags & TOC_FLAG) != 0) {
             size += TOC_SIZE;
         }
@@ -85,46 +92,68 @@ final class VbrHeaderReader {
 
     // Other encoders may leave the rest of the frame empty, or fill it with their own data.
     private static VbrHeader readLameTag(
-            final BoundedInputStream frame, final BitInputStream bits, final long frameCount) throws IOException {
-        final var encoder = readId(frame, bits, 0);
-        if (encoder != LAME && encoder != LAVF && encoder != LAVC) {
-            return new VbrHeader(frameCount, 0, 0);
+            final BoundedInputStream frame, final BitInputStream bits, final long frameCount, final long byteCount)
+            throws IOException {
+        if (!(readId(frame, bits, 0) instanceof Id encoder) || !isLameEncoder(encoder.value())) {
+            return new VbrHeader(frameCount, byteCount, new EncoderTrim.None());
         }
         frame.skipNBytes(LAME_DELAY_OFFSET);
         final var delay = (int) bits.readBits(12);
         final var padding = (int) bits.readBits(12);
-        return new VbrHeader(frameCount, delay, padding);
+        return new VbrHeader(frameCount, byteCount, new EncoderTrim.Lame(delay, padding));
     }
 
     // In MPEG-1 stereo, the Xing header's place is VBRI's too, so the ID read there is VBRI's.
     private static FirstFrame readVbriHeader(
             final FrameHeader header, final BoundedInputStream frame, final BitInputStream bits, final long xingId)
             throws IOException {
-        final var gap = VBRI_OFFSET - (FrameHeader.SIZE + header.sideInfoSize() + ID_SIZE);
-        final var id = vbriId(frame, bits, gap, xingId);
-        if (id != VBRI) {
+        if (vbriGap(header) < 0) {
+            return readVbriFields(frame, bits, xingId);
+        }
+        return readVbriHeaderAtOffset(header, frame, bits);
+    }
+
+    // VBRI is read from where its offset is, when the frame has bytes enough.
+    private static FirstFrame readVbriHeaderAtOffset(
+            final FrameHeader header, final BoundedInputStream frame, final BitInputStream bits) throws IOException {
+        final var gap = vbriGap(header);
+        if (gap < 0 || !(readId(frame, bits, gap) instanceof Id id)) {
             return new AudioFrame();
         }
-        frame.skipNBytes(VBRI_FIELDS_SIZE);
-        return new VbrHeader(bits.readBits(32), 0, 0);
+        return readVbriFields(frame, bits, id.value());
     }
 
-    private static long vbriId(
-            final BoundedInputStream frame, final BitInputStream bits, final int gap, final long xingId)
+    private static int vbriGap(final FrameHeader header) {
+        return VBRI_OFFSET - (FrameHeader.SIZE + header.sideInfoSize() + ID_SIZE);
+    }
+
+    private static FirstFrame readVbriFields(final BoundedInputStream frame, final BitInputStream bits, final long id)
             throws IOException {
-        if (gap < 0) {
-            return xingId;
+        if (id != VBRI || bits.readBits(16) != VBRI_VERSION) {
+            return new AudioFrame();
         }
-        return readId(frame, bits, gap);
+        frame.skipNBytes(VBRI_DELAY_AND_QUALITY_SIZE);
+        final var byteCount = bits.readBits(32);
+        return new VbrHeader(bits.readBits(32), byteCount, new EncoderTrim.None());
     }
 
-    // The ID after skipping that many bytes, or none when the frame ends first, as a short frame of audio may.
-    private static long readId(final BoundedInputStream frame, final BitInputStream bits, final int skip)
+    private static boolean isLameEncoder(final long encoder) {
+        return encoder == LAME || encoder == LAVF || encoder == LAVC;
+    }
+
+    // The ID after skipping that many bytes, which a short frame of audio may not have.
+    private static IdRead readId(final BoundedInputStream frame, final BitInputStream bits, final int skip)
             throws IOException {
         if (frame.getRemaining() < skip + ID_SIZE) {
-            return NO_ID;
+            return new NoId();
         }
         frame.skipNBytes(skip);
-        return bits.readBits(32);
+        return new Id(bits.readBits(32));
     }
+
+    private sealed interface IdRead permits Id, NoId {}
+
+    private record Id(long value) implements IdRead {}
+
+    private record NoId() implements IdRead {}
 }

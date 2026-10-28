@@ -18,7 +18,6 @@ import org.sona.config.properties.LibraryProperties;
 import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
-import org.sona.format.Format;
 import org.sona.metadata.RawMetadata;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
@@ -101,17 +100,25 @@ class DefaultLibraryTest {
 
     @Test
     void libraryPathUsesDatabaseIds() {
-        assertThat(library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", Format.FLAC))
+        assertThat(library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", newIngest("track.flac")))
                 .isEqualTo("01a11a00-0000-7000-8000-000000000001[A Rush of Blood_ Deluxe_Remastered]/"
                         + "01a11a00-0000-7000-8000-000000000002[A Rush of Blood to the Head]/"
                         + "01a11a00-0000-7000-8000-000000000003[A Whisper].flac");
     }
 
     @Test
+    void libraryPathKeepsTheUploadsExtension() {
+        assertThat(library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", newIngest("Track.MP2")))
+                .endsWith("[A Whisper].mp2");
+        assertThat(library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", newIngest("track.mp1")))
+                .endsWith("[A Whisper].mp1");
+    }
+
+    @Test
     void importTrackMovesFileIntoLibrary() throws InvalidFormatException, IOException {
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
         final var ingestTrack = library.storeIngestTrack(storeGroup(), "track.flac", new ByteArrayInputStream(bytes));
-        final var path = library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", Format.FLAC);
+        final var path = library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", ingestTrack);
 
         library.importTrack(ingestTrack, path);
 
@@ -130,6 +137,10 @@ class DefaultLibraryTest {
                 new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId());
         ingestDao.insertGroup(group);
         return group;
+    }
+
+    private static TrackToIngest newIngest(final String filename) {
+        return new TrackToIngest(uuidv7(), uuidv7(), filename, IngestState.PENDING);
     }
 
     private static Track newTrack(final String path, final UUID trackIngestId) {

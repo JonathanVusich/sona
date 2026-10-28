@@ -10,6 +10,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import org.sona.format.Format;
 import org.sona.format.MD5Checksum;
 import org.sona.format.Parser;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.RawMetadataBuilder;
 
 public final class FlacParser implements Parser {
 
@@ -46,7 +48,7 @@ public final class FlacParser implements Parser {
     private static RawMetadata rawMetadata(final FlacMetadata flacMetadata, final StreamInfo streamInfo) {
         final var comments = flacMetadata.vorbisComments();
 
-        final var rawMetadata = new RawMetadata(streamInfo.duration());
+        final var rawMetadata = new RawMetadataBuilder(streamInfo.duration());
 
         for (final var comment : comments) {
             for (final var field : comment.fields()) {
@@ -61,7 +63,7 @@ public final class FlacParser implements Parser {
             }
         }
 
-        return rawMetadata;
+        return rawMetadata.build();
     }
 
     FlacMetadata parseAllMetadata(final InputStream inputStream) throws IOException, InvalidFormatException {
@@ -79,7 +81,8 @@ public final class FlacParser implements Parser {
                     .add(block);
         } while (block.header().position() == BlockPosition.NOT_LAST);
 
-        return new FlacMetadata(metadataBlocks);
+        metadataBlocks.replaceAll((_, blocks) -> List.copyOf(blocks));
+        return new FlacMetadata(Collections.unmodifiableMap(metadataBlocks));
     }
 
     private StreamInfo readStreamInfo(final DataInputStream inputStream, final BlockHeader header) throws IOException {
@@ -135,7 +138,7 @@ public final class FlacParser implements Parser {
             seekPoints.add(seekPoint);
         }
 
-        return new SeekTable(header, seekPoints);
+        return new SeekTable(header, List.copyOf(seekPoints));
     }
 
     private VorbisComment readVorbisComment(final DataInputStream inputStream, final BlockHeader header)
@@ -166,7 +169,7 @@ public final class FlacParser implements Parser {
             fields.add(new Field(name, content));
         }
 
-        return new VorbisComment(header, vendor, fields);
+        return new VorbisComment(header, vendor, List.copyOf(fields));
     }
 
     private CueSheet readCueSheet(final DataInputStream inputStream, final BlockHeader header) throws IOException {
@@ -185,7 +188,7 @@ public final class FlacParser implements Parser {
             tracks.add(readCueSheetTrack(inputStream));
         }
 
-        return new CueSheet(header, mediaCatalogNumber, leadInSamples, medium, tracks);
+        return new CueSheet(header, mediaCatalogNumber, leadInSamples, medium, List.copyOf(tracks));
     }
 
     private CueSheetTrack readCueSheetTrack(final DataInputStream inputStream) throws IOException {

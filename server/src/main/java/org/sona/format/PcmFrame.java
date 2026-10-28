@@ -1,31 +1,21 @@
 package org.sona.format;
 
 /**
- * A block of decoded audio: the same number of samples for each channel, as signed integers.
+ * A block of decoded audio: the same number of samples for each channel, either signed integers ({@link IntPcmFrame}) or
+ * floating-point numbers a decoder made before rounding them ({@link FloatPcmFrame}). A frame never changes once it's
+ * made, so it can be kept after the decoder moves on to the next.
  */
-public final class PcmFrame {
-
-    private final int[][] samples;
+public sealed interface PcmFrame permits IntPcmFrame, FloatPcmFrame {
 
     /**
-     * @param samples one array per channel, all the same length, which the frame takes ownership of
+     * @return samples per second, per channel, which a stream may change between frames
      */
-    public PcmFrame(final int[][] samples) {
-        this.samples = samples;
-    }
+    int sampleRate();
 
-    public int channelCount() {
-        return samples.length;
-    }
+    int channelCount();
 
     /**
      * @return how many samples each channel has
      */
-    public int sampleCount() {
-        return samples[0].length;
-    }
-
-    public int channelSample(final int channel, final int index) {
-        return samples[channel][index];
-    }
+    int sampleCount();
 }
