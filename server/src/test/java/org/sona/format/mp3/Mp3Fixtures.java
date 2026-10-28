@@ -27,7 +27,7 @@ final class Mp3Fixtures {
      * @return a short block, with no subblock gain
      */
     static Windowing.Switched shortBlock() {
-        return new Windowing.Switched(BlockType.SHORT, false, 0, 0, new int[] {0, 0, 0});
+        return new Windowing.Switched(BlockType.SHORT, LowSubbands.BY_BLOCK_TYPE, 0, 0, new int[] {0, 0, 0});
     }
 
     /**

@@ -16,6 +16,7 @@ import org.sona.exception.UncheckedInvalidFormatException;
 import org.sona.format.FloatPcmAudio;
 import org.sona.format.FloatPcmFrame;
 import org.sona.format.FrameContinuity;
+import org.sona.format.Iteration;
 
 /**
  * The audio of an MP3, which {@link Mp3Parser#parse} opens in its {@link ParsedMp3}, decoded a frame at a time as it's
@@ -85,7 +86,7 @@ public final class Mp3Decoder implements FloatPcmAudio {
     private final PolyphaseSynthesis[] syntheses = {new PolyphaseSynthesis(), new PolyphaseSynthesis()};
     // The samples as FFmpeg makes them in floating point, which a frame copies from.
     private final float[][] samples = new float[MAX_CHANNELS][MAX_SAMPLES_PER_FRAME];
-    private boolean iterated;
+    private Iteration iteration = Iteration.NOT_STARTED;
     // Set once FFmpeg would have returned an error for a frame it dropped, which stops fpcalc reading.
     private FrameContinuity continuity = FrameContinuity.CONTINUOUS;
     // Decoded samples still to skip from the start, as FFmpeg skips them from what it decodes.
@@ -124,22 +125,27 @@ public final class Mp3Decoder implements FloatPcmAudio {
      */
     @Override
     public Iterator<FloatPcmFrame> iterator() {
-        if (iterated) {
+        if (iteration == Iteration.STARTED) {
             throw new IllegalStateException("MP3 decoder can only be iterated once!");
         }
-        iterated = true;
+        iteration = Iteration.STARTED;
         return new FrameIterator();
+    }
+
+    private enum Progress {
+        DECODING,
+        ENDED
     }
 
     // Whether there's a next frame is only known once it's decoded, as FFmpeg may drop or trim a frame whole.
     private final class FrameIterator implements Iterator<FloatPcmFrame> {
 
         private FloatPcmFrame next;
-        private boolean ended;
+        private Progress progress = Progress.DECODING;
 
         @Override
         public boolean hasNext() {
-            if (next == null && !ended) {
+            if (next == null && progress == Progress.DECODING) {
                 try {
                     next = decodeNextGivenFrame();
                 } catch (final IOException e) {
@@ -147,7 +153,9 @@ public final class Mp3Decoder implements FloatPcmAudio {
                 } catch (final InvalidFormatException e) {
                     throw new UncheckedInvalidFormatException(e);
                 }
-                ended = next == null;
+                if (next == null) {
+                    progress = Progress.ENDED;
+                }
             }
             return next != null;
         }
@@ -168,11 +176,8 @@ public final class Mp3Decoder implements FloatPcmAudio {
      */
     private FloatPcmFrame decodeNextGivenFrame() throws IOException, InvalidFormatException {
         final var audioLength = streamInfo.audioEnd() - streamInfo.audioStart();
-        for (var found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())
-                        .orElse(null);
-                found != null;
-                found = parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())
-                        .orElse(null)) {
+        while (parser.findFrame(input, bits, audioLength, streamInfo.freeFormatLength())
+                instanceof Mp3Parser.FoundFrame found) {
             final var header = found.header();
             final var position = framePosition;
             framePosition += header.samplesPerFrame();
@@ -650,14 +655,22 @@ public final class Mp3Decoder implements FloatPcmAudio {
 
     private Windowing readSwitchedWindowing() throws IOException, InvalidFormatException {
         final var blockType = BlockType.fromSwitchedBits((int) bits.readBits(2));
-        final var mixedBlock = bits.readBits(1) == 1;
+        final var lowSubbands = readLowSubbands();
         final var table0 = readTable();
         final var table1 = readTable();
         final var subblockGains = new int[Windowing.WINDOWS];
         for (var window = 0; window < subblockGains.length; window++) {
             subblockGains[window] = (int) bits.readBits(3);
         }
-        return new Windowing.Switched(blockType, mixedBlock, table0, table1, subblockGains);
+        return new Windowing.Switched(blockType, lowSubbands, table0, table1, subblockGains);
+    }
+
+    // The mixed_block_flag.
+    private LowSubbands readLowSubbands() throws IOException {
+        if (bits.readBits(1) == 1) {
+            return LowSubbands.NORMAL_WINDOW;
+        }
+        return LowSubbands.BY_BLOCK_TYPE;
     }
 
     private int readTable() throws IOException {

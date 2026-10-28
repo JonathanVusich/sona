@@ -95,25 +95,32 @@ public final class Signal {
     private static Channels readChannels(final IntPcmAudio audio, final int capacity, final Mixing mixing) {
         final var bitsPerSample = audio.bitsPerSample();
         var samples = new float[0][];
-        var mixed = false;
+        var layout = ChannelLayout.SEPARATE;
         var length = 0;
-        var ended = true;
+        var ending = Ending.ENDED;
         for (final IntPcmFrame frame : audio) {
-            mixed = mixing == Mixing.BEFORE_RESAMPLING && !resamplesFirst(frame.channelCount(), audio.sampleRate());
+            layout = channelLayout(frame, audio, mixing);
             final var copied = Math.min(frame.sampleCount(), capacity - length);
-            samples = grown(samples, readCount(frame, mixed), length + copied, capacity);
-            copyFrame(frame, bitsPerSample, mixed, samples, length, copied);
+            samples = grown(samples, readCount(frame, layout), length + copied, capacity);
+            copyFrame(frame, bitsPerSample, layout, samples, length, copied);
             length += copied;
             if (length == capacity) {
-                ended = false;
+                ending = Ending.FILLED;
                 break;
             }
         }
-        return new Channels(samples, length, ended, mixed);
+        return new Channels(samples, length, ending, layout);
     }
 
-    private static int readCount(final IntPcmFrame frame, final boolean mixed) {
-        if (mixed) {
+    private static ChannelLayout channelLayout(final IntPcmFrame frame, final IntPcmAudio audio, final Mixing mixing) {
+        if (mixing == Mixing.BEFORE_RESAMPLING && !resamplesFirst(frame.channelCount(), audio.sampleRate())) {
+            return ChannelLayout.MIXED;
+        }
+        return ChannelLayout.SEPARATE;
+    }
+
+    private static int readCount(final IntPcmFrame frame, final ChannelLayout layout) {
+        if (layout == ChannelLayout.MIXED) {
             return 1;
         }
         return frame.channelCount();
@@ -122,12 +129,12 @@ public final class Signal {
     private static void copyFrame(
             final IntPcmFrame frame,
             final int bitsPerSample,
-            final boolean mixed,
+            final ChannelLayout layout,
             final float[][] samples,
             final int offset,
             final int count) {
         for (var i = 0; i < count; i++) {
-            if (mixed) {
+            if (layout == ChannelLayout.MIXED) {
                 samples[0][offset + i] = mix(frame, i, bitsPerSample);
                 continue;
             }
@@ -203,7 +210,7 @@ public final class Signal {
         if (channels.count() == 0) {
             return new int[0];
         }
-        if (channels.mixed()) {
+        if (channels.layout() == ChannelLayout.MIXED) {
             final var resampled = resample(channels, channels.samples()[0], resampler);
             return toSixteenBits(resampled, resampled.length);
         }
@@ -215,7 +222,7 @@ public final class Signal {
     }
 
     private static float[] resample(final Channels channels, final float[] samples, final Resampler resampler) {
-        if (channels.ended()) {
+        if (channels.ending() == Ending.ENDED) {
             return resampler.resampleEnded(samples, channels.length());
         }
         return resampler.resampleOpen(samples, channels.length());
@@ -261,7 +268,19 @@ public final class Signal {
         return samples;
     }
 
-    private record Channels(float[][] samples, int length, boolean ended, boolean mixed) {
+    // Whether the channels were mixed down into one as they were read.
+    private enum ChannelLayout {
+        MIXED,
+        SEPARATE
+    }
+
+    // Whether the audio ended before there were samples enough.
+    private enum Ending {
+        ENDED,
+        FILLED
+    }
+
+    private record Channels(float[][] samples, int length, Ending ending, ChannelLayout layout) {
 
         int count() {
             return samples.length;

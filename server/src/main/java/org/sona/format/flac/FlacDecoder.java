@@ -11,6 +11,7 @@ import org.sona.exception.InvalidFormatException;
 import org.sona.exception.UncheckedInvalidFormatException;
 import org.sona.format.IntPcmAudio;
 import org.sona.format.IntPcmFrame;
+import org.sona.format.Iteration;
 
 /**
  * Decodes the audio frames of a FLAC stream to PCM samples (RFC 9639 section 9), a frame at a time as it's iterated,
@@ -30,7 +31,7 @@ public final class FlacDecoder implements IntPcmAudio {
 
     private final StreamInfo streamInfo;
     private final FrameReader reader;
-    private boolean iterated;
+    private Iteration iteration = Iteration.NOT_STARTED;
     private long samplesDecoded;
 
     /**
@@ -60,10 +61,10 @@ public final class FlacDecoder implements IntPcmAudio {
      */
     @Override
     public Iterator<IntPcmFrame> iterator() {
-        if (iterated) {
+        if (iteration == Iteration.STARTED) {
             throw new IllegalStateException("FLAC decoder can only be iterated once!");
         }
-        iterated = true;
+        iteration = Iteration.STARTED;
         return new FrameIterator();
     }
 

@@ -54,9 +54,9 @@ final class Imdct implements SubbandSamples {
         }
         final var sublimit = lastNonZeroSubband();
         final var blockType = windowing.blockType().ordinal();
-        final var mixed = windowing.mixedBlock();
-        final var longEnd = longBlocksEnd(sublimit, blockType, mixed);
-        transformLongBlocks(longEnd, mixed, blockType);
+        final var lowSubbands = windowing.lowSubbands();
+        final var longEnd = longBlocksEnd(sublimit, blockType, lowSubbands);
+        transformLongBlocks(longEnd, lowSubbands, blockType);
         transformShortBlocks(longEnd, sublimit);
         copyZeroBands(sublimit);
     }
@@ -92,17 +92,18 @@ final class Imdct implements SubbandSamples {
         return false;
     }
 
-    private static int longBlocksEnd(final int sublimit, final int blockType, final boolean mixed) {
+    private static int longBlocksEnd(final int sublimit, final int blockType, final LowSubbands lowSubbands) {
         if (blockType != SHORT_BLOCK_TYPE) {
             return sublimit;
         }
-        if (mixed) {
+        if (lowSubbands == LowSubbands.NORMAL_WINDOW) {
             return MIXED_LONG_SUBBANDS;
         }
         return 0;
     }
 
-    private void transformLongBlocks(final int count, final boolean mixed, final int blockType) {
+    private void transformLongBlocks(final int count, final LowSubbands lowSubbands, final int blockType) {
+        final var mixed = lowSubbands == LowSubbands.NORMAL_WINDOW;
         final var groupsEnd = count - (count & (GROUP - 1));
         var subband = 0;
         for (; subband < groupsEnd; subband += GROUP) {
