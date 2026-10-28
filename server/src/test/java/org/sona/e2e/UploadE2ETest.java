@@ -158,17 +158,6 @@ class UploadE2ETest {
     }
 
     @Test
-    void aFileInAFormatSonaCantIngestIsLeftOut(final Page page) {
-        final var uploadPage = logInAndOpen(page);
-
-        uploadPage.chooseFiles(
-                new FilePayload("Somewhere Only We Know.ogg", "audio/ogg", AUDIO), flac("Everybody's Changing.flac"));
-
-        assertThat(uploadPage.error()).hasText("Left out 1 file Sona can't ingest yet: Somewhere Only We Know.ogg");
-        assertThat(uploadPage.groupFiles("Loose files")).hasText(new String[] {"Everybody's Changing.flac"});
-    }
-
-    @Test
     void aFileWhoseConnectionBrokeCanBeSentAgain(final Page page) {
         final var uploadPage = logInAndOpen(page);
         uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));

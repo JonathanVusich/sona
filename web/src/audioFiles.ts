@@ -1,19 +1,6 @@
 // Collects audio files from a file picker or a drag and drop, descending into dropped folders.
 
-const AUDIO_EXTENSIONS = new Set([
-  "flac",
-  "mp3",
-  "mp2",
-  "mp1",
-  "ogg",
-  "opus",
-  "m4a",
-  "aac",
-  "wav",
-  "aif",
-  "aiff",
-  "wma",
-]);
+const AUDIO_EXTENSIONS = new Set(["flac", "mp3", "mp2", "mp1"]);
 
 export interface PickedFile {
   file: File;
