@@ -135,6 +135,9 @@ There is no deadline. Done when it's good.
 2. **Finish FLAC ingest:** working end-to-end import of FLAC albums (album-level matching, ID-based layout,
    tag rewrite, dedupe, review queue).
 3. Then (order to be decided): upload API and auth, Subsonic streaming, more formats, acquisition.
+4. **Bound every input and every size of data** (deferred): request bodies, page and list sizes, what a user can
+   store (playlist and queue lengths, uploads), and the work a single request can cause, so that no user can exhaust
+   the server's memory, database or disk. Sona must be safe to expose to the internet.
 
 ## Open questions
 
