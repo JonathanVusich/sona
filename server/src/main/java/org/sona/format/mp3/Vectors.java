@@ -53,11 +53,11 @@ final class Vectors {
     }
 
     /**
-     * Clears the lanes the mask doesn't keep (andps with a mask of all ones or all zeros in each lane).
+     * Clears the lanes whose bit the mask hasn't set (andps with a mask of all ones or all zeros in each lane).
      */
-    static void keep(final float[] destination, final float[] source, final boolean[] kept) {
+    static void keep(final float[] destination, final float[] source, final int kept) {
         for (var lane = 0; lane < LANES; lane++) {
-            if (kept[lane]) {
+            if ((kept >> lane & 1) == 1) {
                 destination[lane] = source[lane];
             } else {
                 destination[lane] = 0;
@@ -66,11 +66,11 @@ final class Vectors {
     }
 
     /**
-     * Flips the sign of the lanes the mask names (xorps with a sign bit in each).
+     * Flips the sign of the lanes whose bit the mask sets (xorps with a sign bit in each).
      */
-    static void negate(final float[] destination, final float[] source, final boolean[] flipped) {
+    static void negate(final float[] destination, final float[] source, final int flipped) {
         for (var lane = 0; lane < LANES; lane++) {
-            if (flipped[lane]) {
+            if ((flipped >> lane & 1) == 1) {
                 destination[lane] = -source[lane];
             } else {
                 destination[lane] = source[lane];

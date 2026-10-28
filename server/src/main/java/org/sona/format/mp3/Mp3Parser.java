@@ -52,8 +52,6 @@ public final class Mp3Parser implements Parser {
     private static final int FIRST_FRAME_SEARCH = 64 * 1024;
     // How much of a file FFmpeg reads to find its streams.
     private static final int PROBE_SIZE = 5_000_000;
-    // Where no frame starts, as a search for one finds none.
-    private static final long NO_FRAME = -1;
 
     // Picard's TXXX descriptions, and the names it gives the same tags in Vorbis comments, so unknown tags have the
     // same names whether they were read from an MP3 or a FLAC file.
@@ -227,9 +225,9 @@ public final class Mp3Parser implements Parser {
         // FFmpeg would only take a file for MPEG audio when it finds frames, whatever its name says: within its probe
         // size, though not skipping the bytes before a frame that is further in than the first 64 KiB, so the decoder
         // looks for that frame from the start of the audio, and FFmpeg's decoder drops it.
-        if (firstFrame == NO_FRAME
+        if (firstFrame instanceof NoFrameFound
                 && !hasHeaderAt(channel, afterVbrHeader, audioEnd)
-                && findFrameWithin(channel, afterVbrHeader, audioEnd, PROBE_SIZE) == NO_FRAME) {
+                && findFrameWithin(channel, afterVbrHeader, audioEnd, PROBE_SIZE) instanceof NoFrameFound) {
             throw new InvalidFormatException("MP3 has no frames of audio!");
         }
         final var start = decoderStart(firstFrame, afterVbrHeader);
@@ -301,34 +299,43 @@ public final class Mp3Parser implements Parser {
     }
 
     // Where the decoder starts: at the first frame found, if there is one, and otherwise right after the VBR header.
-    private long decoderStart(final long firstFrame, final long afterVbrHeader) {
-        if (firstFrame == NO_FRAME) {
-            return afterVbrHeader;
-        }
-        return firstFrame;
+    private long decoderStart(final FrameLocation firstFrame, final long afterVbrHeader) {
+        return switch (firstFrame) {
+            case FrameAt frameAt -> frameAt.position();
+            case NoFrameFound _ -> afterVbrHeader;
+        };
     }
 
     /**
      * @return where the first frame of the first 64 KiB from the position starts that's followed by another frame of
-     *     its stream (the same version, layer and sample rate), or {@link #NO_FRAME} when none is
+     *     its stream (the same version, layer and sample rate), or a {@code NoFrameFound} when none is
      */
-    private long findFirstFrame(final SeekableByteChannel channel, final long from, final long audioEnd)
+    private FrameLocation findFirstFrame(final SeekableByteChannel channel, final long from, final long audioEnd)
             throws IOException, InvalidFormatException {
         return findFrameWithin(channel, from, audioEnd, FIRST_FRAME_SEARCH);
     }
 
     // The same, in that many bytes from the position.
-    private long findFrameWithin(
+    private FrameLocation findFrameWithin(
             final SeekableByteChannel channel, final long from, final long audioEnd, final long window)
             throws IOException, InvalidFormatException {
         final var end = Math.min(from + window, audioEnd);
         for (var position = from; position < end; position++) {
             if (isFollowedByFrameOfStream(channel, position, audioEnd)) {
-                return position;
+                return new FrameAt(position);
             }
         }
-        return NO_FRAME;
+        return new NoFrameFound();
     }
+
+    /**
+     * Where a search for a frame ended.
+     */
+    private sealed interface FrameLocation permits FrameAt, NoFrameFound {}
+
+    private record FrameAt(long position) implements FrameLocation {}
+
+    private record NoFrameFound() implements FrameLocation {}
 
     private boolean isFollowedByFrameOfStream(
             final SeekableByteChannel channel, final long position, final long audioEnd)
@@ -609,7 +616,7 @@ public final class Mp3Parser implements Parser {
         final var bits = BitInputStream.wrap(body, ByteOrder.BIG_ENDIAN);
         skipExtendedHeader(version, tagFlags, body, bits);
         final var frames = new ArrayList<Id3Frame>();
-        while (body.peek() > 0) {
+        while (body.hasMore() && body.peek() != 0) {
             final var header = readFrameHeader(version, bits);
             if (isReadFrameId(header.frameId()) && !version.isEncrypted(header.formatFlags())) {
                 frames.add(readFrame(version, tagFlags, header, body));

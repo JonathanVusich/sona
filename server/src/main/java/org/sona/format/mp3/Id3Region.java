@@ -26,7 +26,7 @@ final class Id3Region extends InputStream {
     }
 
     /**
-     * @return the next byte, which is left to be read, or -1 at the end of the region
+     * @return the next byte, which is left to be read, when the region {@link #hasMore has more}
      */
     int peek() {
         return next;

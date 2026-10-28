@@ -11,7 +11,7 @@ final class Dct32 {
     private static final int LANES = 8;
     private static final int HALF = LANES / 2;
     private static final int SIZE = 32;
-    private static final boolean[] NEGATE_PAIRS = {false, false, true, true, false, false, true, true};
+    private static final int NEGATE_PAIRS = 0b11001100;
 
     private static final float[] COSINES_0 = {
         0.500603f, 0.505471f, 0.515447f, 0.531043f, 0.553104f, 0.582935f, 0.622504f, 0.674808f
@@ -136,7 +136,7 @@ final class Dct32 {
 
     // The sign mask is {0, 0, 1, 1} in each half for the first pass, and {0, 1, 0, 1} for the second.
     private static float flipped(final int shuffle, final int lane, final float value) {
-        final var negated = shuffle == 0x1b && NEGATE_PAIRS[lane] || shuffle == 0xb1 && (lane & 1) == 1;
+        final var negated = shuffle == 0x1b && (NEGATE_PAIRS >> lane & 1) == 1 || shuffle == 0xb1 && (lane & 1) == 1;
         if (negated) {
             return -value;
         }

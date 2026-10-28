@@ -13,7 +13,6 @@ final class StereoProcessor {
     // The bands above the scale factor bands use the intensity position of the band below them.
     private static final int LAST_LONG_POSITION_BAND = ScaleFactorBands.LONG_BANDS - 2;
     private static final int LAST_SHORT_POSITION_BAND = ScaleFactorBands.SHORT_BANDS - 2;
-    private static final int NONE = -1;
 
     /**
      * @param rightChannel the right channel's side information, whose scale factors give the intensity positions
@@ -53,9 +52,9 @@ final class StereoProcessor {
         if (layout != BlockLayout.LONG) {
             shortBandsCoded = processShortBands(header, bands, left, right, rightChannel, rightFactors);
         }
-        var lastCodedBand = longBands - 1;
+        var firstIntensityBand = longBands;
         if (!shortBandsCoded) {
-            lastCodedBand = lastCodedLongBand(bands, right, longBands);
+            firstIntensityBand = firstIntensityLongBand(bands, right, longBands);
         }
         for (var band = 0; band < longBands; band++) {
             final var positionBand = Math.min(band, LAST_LONG_POSITION_BAND);
@@ -66,7 +65,7 @@ final class StereoProcessor {
                     rightChannel,
                     bands.longBandStart(band),
                     bands.longBandWidth(band),
-                    rightPart(band, lastCodedBand),
+                    rightPart(band, firstIntensityBand),
                     rightFactors.longFactor(positionBand));
         }
     }
@@ -82,8 +81,8 @@ final class StereoProcessor {
         final var firstBand = firstShortBand(rightChannel.windowing().layout());
         var coded = false;
         for (var window = 0; window < Windowing.WINDOWS; window++) {
-            final var lastCodedBand = lastCodedShortBand(bands, right, firstBand, window);
-            coded |= lastCodedBand != NONE;
+            final var firstIntensityBand = firstIntensityShortBand(bands, right, firstBand, window);
+            coded |= firstIntensityBand > firstBand;
             for (var band = firstBand; band < ScaleFactorBands.SHORT_BANDS; band++) {
                 final var positionBand = Math.min(band, LAST_SHORT_POSITION_BAND);
                 processBand(
@@ -93,7 +92,7 @@ final class StereoProcessor {
                         rightChannel,
                         shortLineStart(bands, band, window),
                         bands.shortBandWidth(band),
-                        rightPart(band, lastCodedBand),
+                        rightPart(band, firstIntensityBand),
                         rightFactors.shortFactor(positionBand, window));
             }
         }
@@ -145,30 +144,32 @@ final class StereoProcessor {
         }
     }
 
-    private static RightPart rightPart(final int band, final int lastCodedBand) {
-        if (band > lastCodedBand) {
+    private static RightPart rightPart(final int band, final int firstIntensityBand) {
+        if (band >= firstIntensityBand) {
             return RightPart.ZERO;
         }
         return RightPart.CODED;
     }
 
-    private static int lastCodedLongBand(final ScaleFactorBands bands, final Spectrum right, final int longBands) {
+    // The band above the last long one with a value, which is where intensity coding starts, or 0 when none has.
+    private static int firstIntensityLongBand(final ScaleFactorBands bands, final Spectrum right, final int longBands) {
         for (var band = longBands - 1; band >= 0; band--) {
             if (hasValue(right, bands.longBandStart(band), bands.longBandWidth(band))) {
-                return band;
+                return band + 1;
             }
         }
-        return NONE;
+        return 0;
     }
 
-    private static int lastCodedShortBand(
+    // The same for a window's short bands, or the first short band when none has a value.
+    private static int firstIntensityShortBand(
             final ScaleFactorBands bands, final Spectrum right, final int firstBand, final int window) {
         for (var band = ScaleFactorBands.SHORT_BANDS - 1; band >= firstBand; band--) {
             if (hasValue(right, shortLineStart(bands, band, window), bands.shortBandWidth(band))) {
-                return band;
+                return band + 1;
             }
         }
-        return NONE;
+        return firstBand;
     }
 
     private static boolean hasValue(final Spectrum spectrum, final int start, final int width) {

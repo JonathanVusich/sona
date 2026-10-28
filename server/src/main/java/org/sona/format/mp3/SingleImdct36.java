@@ -10,11 +10,11 @@ final class SingleImdct36 {
 
     private static final int ROW = Spectrum.SUBBANDS;
     private static final int STRIDE = 4;
-    private static final boolean[] KEEP_UPPER_THREE = {false, true, true, true};
-    private static final boolean[] KEEP_ODD = {false, true, false, true};
-    private static final boolean[] KEEP_LAST = {false, false, false, true};
-    private static final boolean[] KEEP_SECOND = {false, true, false, false};
-    private static final boolean[] NEGATE_UPPER_HALF = {false, false, true, true};
+    private static final int KEEP_UPPER_THREE = 0b1110;
+    private static final int KEEP_ODD = 0b1010;
+    private static final int KEEP_LAST = 0b1000;
+    private static final int KEEP_SECOND = 0b0010;
+    private static final int NEGATE_UPPER_HALF = 0b1100;
 
     private static final float[] VALUES_1 = {-0.5f, -0.5f, -0.8660254038f, -0.8660254038f};
     private static final float[] VALUES_2 = {1.0f, 1.0f, 0.8660254038f, 0.8660254038f};
