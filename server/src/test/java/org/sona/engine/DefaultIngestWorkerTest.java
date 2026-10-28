@@ -123,7 +123,7 @@ class DefaultIngestWorkerTest {
     }
 
     private static RawMetadata whisperMetadata() {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
@@ -131,7 +131,7 @@ class DefaultIngestWorkerTest {
     }
 
     private static RawMetadata metadata(final String title, final String artist) {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
         return metadata.build();

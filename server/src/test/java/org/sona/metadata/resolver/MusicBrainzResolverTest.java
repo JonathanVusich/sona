@@ -57,8 +57,7 @@ class MusicBrainzResolverTest {
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         // AcoustID knows no recording with this fingerprint (the stub in src/test/resources/wiremock/mappings).
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(resolved)
                 .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
@@ -74,10 +73,10 @@ class MusicBrainzResolverTest {
     void resolveTheRecordingAFingerprintMatchesCloselyWhateverTheTagsSay()
             throws IOException, InterruptedException, InvalidFormatException {
         stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
-        final var metadata = numberedMetadata("A Whisper", "Coldplay");
+        // Lower Your Eyelids to Die With the Sun is 10:37 long.
+        final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(638));
 
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(resolved)
                 .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
@@ -100,8 +99,7 @@ class MusicBrainzResolverTest {
                 """));
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(matchedTrack(resolved))
                 .extracting(ResolvedTrack::recordingId, ResolvedTrack::releaseId)
@@ -119,8 +117,7 @@ class MusicBrainzResolverTest {
                 """));
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(matchedTrack(resolved).recordingId())
                 .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
@@ -161,18 +158,53 @@ class MusicBrainzResolverTest {
             throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
-        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, fingerprint(metadata)))
+        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, fingerprint()))
                 .isEqualTo(new TrackResolution.NeedsReview(List.of()));
     }
 
     @Test
-    void chooseTheReleaseTheAlbumTagNames() throws IOException, InterruptedException, InvalidFormatException {
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("a rush of blood to the head"));
+    void acceptARecordingExactlyThreeSecondsFromTheAudio()
+            throws IOException, InterruptedException, InvalidFormatException {
+        // A Whisper is 238.000 seconds long.
+        final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(241));
 
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+
+        assertThat(matchedTrack(resolved).recordingId())
+                .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
+    }
+
+    @Test
+    void askForReviewWhenNoRecordingIsWithinThreeSecondsOfTheAudio()
+            throws IOException, InterruptedException, InvalidFormatException {
+        // The three recordings are 238.000, 237.000 and 238.333 seconds long.
+        final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(242));
+
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+
+        assertThat(resolved).isInstanceOf(TrackResolution.NeedsReview.class);
+        final var candidates = ((TrackResolution.NeedsReview) resolved).candidates();
+        assertThat(candidates).extracting(TrackCandidate::score).containsExactly(50, 50, 50);
+    }
+
+    @Test
+    void ignoreAFingerprintMatchOfARecordingOfAnotherLength()
+            throws IOException, InterruptedException, InvalidFormatException {
+        stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
+        // 10:37 is far from A Whisper's length, but the audio is 4 minutes long, so the tags decide.
+        final var metadata = numberedMetadata("A Whisper", "Coldplay");
+
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+
+        assertThat(matchedTrack(resolved).recordingId())
+                .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
+    }
+
+    @Test
+    void chooseTheReleaseTheAlbumTagNames() throws IOException, InterruptedException, InvalidFormatException {
+        final var metadata = albumMetadata("a rush of blood to the head");
+
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(matchedTrack(resolved).releaseId())
                 .isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
@@ -181,12 +213,9 @@ class MusicBrainzResolverTest {
     @Test
     void askForReviewWhenNoReleaseHasTheAlbumTagsTitle()
             throws IOException, InterruptedException, InvalidFormatException {
-        final var metadata = newMetadata("A Whisper", "Coldplay");
-        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
-        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("Parachutes"));
+        final var metadata = albumMetadata("Parachutes");
 
-        final var resolved =
-                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
 
         assertThat(resolved).isInstanceOf(TrackResolution.NeedsReview.class);
         final var candidates = ((TrackResolution.NeedsReview) resolved).candidates();
@@ -214,16 +243,30 @@ class MusicBrainzResolverTest {
     }
 
     // Of the silence every test FLAC file has as its audio.
-    private static Fingerprint fingerprint(final RawMetadata metadata) throws IOException, InvalidFormatException {
-        final var flac = new SeekableInMemoryByteChannel(flacFile(metadata));
+    private static Fingerprint fingerprint() throws IOException, InvalidFormatException {
+        final var flac = new SeekableInMemoryByteChannel(flacFile(newMetadata("Silence", "Nobody")));
         return new Fingerprint(new FlacParser().parse(flac).audio());
     }
 
     private static RawMetadata numberedMetadata(final String title, final String artist) {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        // A Whisper is 3:58 long.
+        return numberedMetadata(title, artist, Duration.ofSeconds(240));
+    }
+
+    private static RawMetadata numberedMetadata(final String title, final String artist, final Duration duration) {
+        final var metadata = new RawMetadataBuilder(duration);
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        return metadata.build();
+    }
+
+    private static RawMetadata albumMetadata(final String album) {
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str(album));
         return metadata.build();
     }
 

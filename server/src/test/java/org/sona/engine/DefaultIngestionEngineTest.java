@@ -40,6 +40,7 @@ import org.sona.db.TrackDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.flac.FlacWriter;
+import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.RawMetadataBuilder;
@@ -62,6 +63,7 @@ import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
 import org.sona.model.tables.records.IngestCandidateRecord;
 import org.sona.samples.Mp3Sample;
+import org.sona.samples.ShortRecordings;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
@@ -112,7 +114,7 @@ class DefaultIngestionEngineTest {
 
         final var track = loadTrack(ingest);
         assertThat(track.name()).isEqualTo("A Whisper");
-        assertThat(track.duration()).isEqualTo(10);
+        assertThat(track.duration()).isEqualTo(240);
         assertThat(track.format()).isEqualTo(AudioFormat.FLAC);
         assertThat(track.position()).isEqualTo(9);
 
@@ -171,7 +173,12 @@ class DefaultIngestionEngineTest {
         }
         final var ingest = storeIngest(mp3, "09 A Whisper.mp3");
 
-        engine.processTrack(ingest);
+        final var stubId = ShortRecordings.stubWhisperSearch(musicBrainz);
+        try {
+            engine.processTrack(ingest);
+        } finally {
+            ShortRecordings.removeStub(musicBrainz, stubId);
+        }
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
         final var track = loadTrack(ingest);
@@ -247,7 +254,8 @@ class DefaultIngestionEngineTest {
     void importTheRecordingItsFingerprintMatchesClosely()
             throws IOException, InvalidFormatException, InterruptedException {
         // The tags say A Whisper, but AcoustID knows the audio as another recording, which wins.
-        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+        // The recording is 10:37 long.
+        final var ingest = storeIngest(flacFile(whisperMetadata(Duration.ofSeconds(640))), "09 A Whisper.flac");
 
         processMatchingFingerprintClosely(ingest);
 
@@ -274,10 +282,21 @@ class DefaultIngestionEngineTest {
         }
         final var ingest = storeIngest(mp3, "he_32khz.mp3");
 
-        processMatchingFingerprintClosely(ingest);
+        final var stubId = ShortRecordings.stubLowerYourEyelidsLookup(musicBrainz, mp3Duration(Mp3Sample.HE_32KHZ));
+        try {
+            processMatchingFingerprintClosely(ingest);
+        } finally {
+            ShortRecordings.removeStub(musicBrainz, stubId);
+        }
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
         assertThat(loadTrack(ingest).name()).isEqualTo("Lower Your Eyelids to Die With the Sun");
+    }
+
+    private static Duration mp3Duration(final Mp3Sample sample) throws IOException, InvalidFormatException {
+        try (final var channel = sample.channel()) {
+            return new Mp3Parser().parse(channel).metadata().duration();
+        }
     }
 
     // AcoustID matches any fingerprint closely with Lower Your Eyelids to Die With the Sun.
@@ -379,11 +398,27 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
+    void requireInputWhenTheAudioIsNotAsLongAsTheRecording()
+            throws IOException, InvalidFormatException, InterruptedException {
+        // A Whisper is 238 seconds long, and this is a tenth of that.
+        final var ingest = storeIngest(flacFile(whisperMetadata(Duration.ofSeconds(10))), "09 A Whisper.flac");
+
+        engine.processTrack(ingest);
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
+        assertThat(dsl.fetchCount(INGEST_CANDIDATE, INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId())))
+                .isEqualTo(3);
+    }
+
+    @Test
     void storeCandidatesWhenNoReleaseHasTheAlbumTagsTitle()
             throws IOException, InvalidFormatException, InterruptedException {
-        final var metadata = whisperMetadata();
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
+        metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
+        metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
         metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("Parachutes"));
-        final var ingest = storeIngest(flacFile(metadata), "09 A Whisper.flac");
+        final var ingest = storeIngest(flacFile(metadata.build()), "09 A Whisper.flac");
 
         engine.processTrack(ingest);
         // Processing it again finds the same candidates, which replace those stored.
@@ -414,8 +449,13 @@ class DefaultIngestionEngineTest {
                 .hasSize(3);
     }
 
+    // A Whisper is 3:58 long.
     private static RawMetadata whisperMetadata() {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        return whisperMetadata(Duration.ofSeconds(240));
+    }
+
+    private static RawMetadata whisperMetadata(final Duration duration) {
+        final var metadata = new RawMetadataBuilder(duration);
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
@@ -423,7 +463,11 @@ class DefaultIngestionEngineTest {
     }
 
     private static RawMetadata newMetadata(final String title, final String artist) {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        return newMetadata(title, artist, Duration.ofSeconds(240));
+    }
+
+    private static RawMetadata newMetadata(final String title, final String artist, final Duration duration) {
+        final var metadata = new RawMetadataBuilder(duration);
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str(title));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str(artist));
         return metadata.build();

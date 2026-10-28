@@ -46,6 +46,11 @@ public final class MusicBrainzResolver implements MetadataResolver {
     private static final int LOOSE_MATCH_BONUS = 10;
     // The release isn't the one the album tag names.
     private static final int ALBUM_MISMATCH_PENALTY = 30;
+    // The recording's length is more than the tolerance from the track's duration, or isn't known. Enough that even a
+    // perfect search score (100) with the bonus above stays under ACCEPT_SCORE.
+    private static final int DURATION_MISMATCH_PENALTY = 50;
+    // How far a recording's length may be from the duration of the audio for it to be the same recording.
+    private static final Duration DURATION_TOLERANCE = Duration.ofSeconds(3);
     private static final int MAX_CANDIDATES = 5;
 
     private final MusicBrainzClient client;
@@ -56,7 +61,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
             final TrackToIngest trackToIngest, final RawMetadata metadata, final Fingerprint fingerprint)
             throws IOException, InterruptedException {
         final var fingerprintMatches = lookUpFingerprint(fingerprint, metadata.duration());
-        final var closeMatch = closeMatch(fingerprintMatches);
+        final var closeMatch = closeMatch(fingerprintMatches, metadata.duration());
         if (closeMatch != null) {
             return new TrackResolution.Matched(convertToTrack(closeMatch));
         }
@@ -75,14 +80,15 @@ public final class MusicBrainzResolver implements MetadataResolver {
 
     /**
      * @return the recording of the closest match, or null when no match is close or none of their recordings can be
-     * imported
+     * imported or is as long as the audio
      */
-    private Recording closeMatch(final List<LookupResult> fingerprintMatches) {
+    private Recording closeMatch(final List<LookupResult> fingerprintMatches, final Duration duration) {
         final var closeMatches = fingerprintMatches.stream().filter(result -> result.score() >= CLOSE_MATCH_SCORE);
         // Each recording is looked up only if those of closer matches can't be imported.
         return recordingIds(closeMatches)
                 .map(client::lookupRecording)
                 .filter(MusicBrainzResolver::hasRelease)
+                .filter(recording -> hasDuration(recording, duration))
                 .findFirst()
                 .orElse(null);
     }
@@ -127,6 +133,8 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 .map(String::strip)
                 .orElse(null);
 
+        final var evidence = new TagEvidence(matchedRecordingIds, albumTitle, metadata.duration());
+
         final var albumArtists =
                 metadata.findValues(Tag.ALBUM_ARTIST).stream().findFirst().flatMap(TagValue::asString).stream()
                         .flatMap(this::semicolonSplit) // Picard groups multiple artists into a single value tag.
@@ -139,7 +147,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 final var recordingQuery = new RecordingQuery(trackName, albumArtist, trackNumber, -1);
 
                 final var recordingsResponse = client.searchRecordings(recordingQuery);
-                final var candidates = rankCandidates(recordingsResponse.recordings(), matchedRecordingIds, albumTitle);
+                final var candidates = rankCandidates(recordingsResponse.recordings(), evidence);
                 if (!candidates.isEmpty()) {
                     return resolution(candidates);
                 }
@@ -150,7 +158,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
         final var recordingQuery = new RecordingQuery(trackName, artist, trackNumber, -1);
 
         final var recordingsResponse = client.searchRecordings(recordingQuery);
-        return resolution(rankCandidates(recordingsResponse.recordings(), matchedRecordingIds, albumTitle));
+        return resolution(rankCandidates(recordingsResponse.recordings(), evidence));
     }
 
     private static TrackResolution resolution(final List<TrackCandidate> candidates) {
@@ -189,42 +197,56 @@ public final class MusicBrainzResolver implements MetadataResolver {
      * @return the importable recordings, best first (those of equal score in the order MusicBrainz found them), each
      * on the release that best suits the album tag
      */
-    private List<TrackCandidate> rankCandidates(
-            final List<Recording> recordings, final Set<UUID> matchedRecordingIds, final String albumTitle) {
+    private List<TrackCandidate> rankCandidates(final List<Recording> recordings, final TagEvidence evidence) {
         return recordings.stream()
                 .filter(MusicBrainzResolver::hasRelease)
-                .map(recording -> bestCandidate(recording, matchedRecordingIds, albumTitle))
+                .map(recording -> bestCandidate(recording, evidence))
                 .sorted(comparingInt(TrackCandidate::score).reversed())
                 .limit(MAX_CANDIDATES)
                 .toList();
     }
 
-    private TrackCandidate bestCandidate(
-            final Recording recording, final Set<UUID> matchedRecordingIds, final String albumTitle) {
+    private TrackCandidate bestCandidate(final Recording recording, final TagEvidence evidence) {
         return recording.releases().stream()
                 .map(release -> new TrackCandidate(
-                        convertToTrack(recording, release),
-                        release.title(),
-                        score(recording, release, matchedRecordingIds, albumTitle)))
+                        convertToTrack(recording, release), release.title(), score(recording, release, evidence)))
                 .max(comparingInt(TrackCandidate::score))
                 .orElseThrow();
     }
 
-    // TODO: Weigh the track's duration against the recording's length, which search results give in milliseconds.
-    private static int score(
-            final Recording recording,
-            final Release release,
-            final Set<UUID> matchedRecordingIds,
-            final String albumTitle) {
+    private static int score(final Recording recording, final Release release, final TagEvidence evidence) {
         var score = recording.score();
-        if (matchedRecordingIds.contains(recording.id())) {
+        if (evidence.matchedRecordingIds().contains(recording.id())) {
             score += LOOSE_MATCH_BONUS;
         }
+        final var albumTitle = evidence.albumTitle();
         if (albumTitle != null && !albumTitle.equalsIgnoreCase(release.title())) {
             score -= ALBUM_MISMATCH_PENALTY;
         }
+        if (!hasDuration(recording, evidence.duration())) {
+            score -= DURATION_MISMATCH_PENALTY;
+        }
         return score;
     }
+
+    // MusicBrainz knows a recording's length in milliseconds, but not always.
+    private static boolean hasDuration(final Recording recording, final Duration duration) {
+        if (recording.length() == null) {
+            return false;
+        }
+        final var difference =
+                Duration.ofMillis(recording.length()).minus(duration).abs();
+        return difference.compareTo(DURATION_TOLERANCE) <= 0;
+    }
+
+    /**
+     * What a file's tags and audio say about the recording it is, to choose between the recordings a search finds.
+     *
+     * @param matchedRecordingIds recordings AcoustID matched the audio to, loosely
+     * @param albumTitle          the album tag, or null when the file has none
+     * @param duration            of the decoded audio
+     */
+    private record TagEvidence(Set<UUID> matchedRecordingIds, String albumTitle, Duration duration) {}
 
     // The library path is built from the release, so recordings without one can't be imported.
     private static boolean hasRelease(final Recording recording) {
