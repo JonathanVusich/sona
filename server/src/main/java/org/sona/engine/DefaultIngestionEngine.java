@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
@@ -34,8 +35,11 @@ import org.sona.metadata.resolver.ResolvedLabel;
 import org.sona.metadata.resolver.ResolvedMedium;
 import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
+import org.sona.metadata.resolver.TrackCandidate;
+import org.sona.metadata.resolver.TrackResolution;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestCandidate;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -89,19 +93,44 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             throw e;
         }
         final var metadata = parsed.metadata();
-        final var resolved = resolver.resolveTrack(trackToIngest, metadata, parsed.fingerprint())
-                .orElse(null);
-
-        // No MusicBrainz track info present!
-        if (resolved == null) {
-            markState(trackToIngest, IngestState.INPUT_REQUIRED);
-
-            // TODO: Refactor to support multiple metadata providers using plugins
-            // TODO: Implement metadata searching
-            return;
+        switch (resolver.resolveTrack(trackToIngest, metadata, parsed.fingerprint())) {
+            case TrackResolution.Matched matched ->
+                importTrack(trackToIngest, matched.track(), metadata.duration(), parser.format());
+            case TrackResolution.NeedsReview review -> requireInput(trackToIngest, review.candidates());
         }
+    }
 
-        importTrack(trackToIngest, resolved, metadata.duration(), parser.format());
+    // The candidates are stored first, so whoever sees the state finds them.
+    private void requireInput(final TrackToIngest trackToIngest, final List<TrackCandidate> candidates) {
+        ingestDao.updateCandidates(trackToIngest.trackIngestId(), newIngestCandidates(trackToIngest, candidates));
+        markState(trackToIngest, IngestState.INPUT_REQUIRED);
+
+        // TODO: Refactor to support multiple metadata providers using plugins
+    }
+
+    private static List<IngestCandidate> newIngestCandidates(
+            final TrackToIngest trackToIngest, final List<TrackCandidate> candidates) {
+        return IntStream.range(0, candidates.size())
+                .mapToObj(index -> newIngestCandidate(trackToIngest, candidates.get(index), index + 1))
+                .toList();
+    }
+
+    private static IngestCandidate newIngestCandidate(
+            final TrackToIngest trackToIngest, final TrackCandidate candidate, final int rank) {
+        final var track = candidate.track();
+        return new IngestCandidate(
+                uuidv7(),
+                trackToIngest.trackIngestId(),
+                rank,
+                candidate.score(),
+                track.recordingId(),
+                track.title(),
+                track.artist().artistId(),
+                track.artist().name(),
+                track.releaseId(),
+                candidate.releaseTitle(),
+                track.discNumber(),
+                track.trackNumber());
     }
 
     private static Parser parserFor(final String filename) throws InvalidFormatException {

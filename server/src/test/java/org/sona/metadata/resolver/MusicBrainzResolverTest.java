@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -60,13 +61,13 @@ class MusicBrainzResolverTest {
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
 
         assertThat(resolved)
-                .contains(new ResolvedTrack(
+                .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
                         UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"),
                         "A Whisper",
                         new ResolvedArtist(COLDPLAY_ID, "Coldplay", null),
                         UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"),
                         1,
-                        9));
+                        9)));
     }
 
     @Test
@@ -79,14 +80,14 @@ class MusicBrainzResolverTest {
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
 
         assertThat(resolved)
-                .contains(new ResolvedTrack(
+                .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
                         UUID.fromString("cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"),
                         "Lower Your Eyelids to Die With the Sun",
                         // Unlike a search, a lookup gives the artist's country.
                         new ResolvedArtist(M83_ID, "M83", "FR"),
                         UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"),
                         1,
-                        15));
+                        15)));
     }
 
     @Test
@@ -102,11 +103,11 @@ class MusicBrainzResolverTest {
         final var resolved =
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
 
-        assertThat(resolved)
-                .map(track -> List.of(track.recordingId(), track.releaseId()))
-                .contains(List.of(
+        assertThat(matchedTrack(resolved))
+                .extracting(ResolvedTrack::recordingId, ResolvedTrack::releaseId)
+                .containsExactly(
                         UUID.fromString("41498c37-0a69-47a8-98d7-bdfab161559e"),
-                        UUID.fromString("a5ab3079-99e6-4a13-9caa-a90291e39d88")));
+                        UUID.fromString("a5ab3079-99e6-4a13-9caa-a90291e39d88"));
     }
 
     @Test
@@ -121,9 +122,8 @@ class MusicBrainzResolverTest {
         final var resolved =
                 resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
 
-        assertThat(resolved)
-                .map(ResolvedTrack::recordingId)
-                .contains(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
+        assertThat(matchedTrack(resolved).recordingId())
+                .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
     }
 
     @Test
@@ -157,11 +157,53 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void returnEmptyWhenNothingMatches() throws IOException, InterruptedException, InvalidFormatException {
+    void askForReviewWithNoCandidatesWhenNothingMatches()
+            throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
         assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, fingerprint(metadata)))
-                .isEmpty();
+                .isEqualTo(new TrackResolution.NeedsReview(List.of()));
+    }
+
+    @Test
+    void chooseTheReleaseTheAlbumTagNames() throws IOException, InterruptedException, InvalidFormatException {
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("a rush of blood to the head"));
+
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+
+        assertThat(matchedTrack(resolved).releaseId())
+                .isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
+    }
+
+    @Test
+    void askForReviewWhenNoReleaseHasTheAlbumTagsTitle()
+            throws IOException, InterruptedException, InvalidFormatException {
+        final var metadata = newMetadata("A Whisper", "Coldplay");
+        metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));
+        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("Parachutes"));
+
+        final var resolved =
+                resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint(metadata));
+
+        assertThat(resolved).isInstanceOf(TrackResolution.NeedsReview.class);
+        final var candidates = ((TrackResolution.NeedsReview) resolved).candidates();
+        // Each of the three recordings once, on its first release, all equally short of an album match.
+        assertThat(candidates)
+                .extracting(candidate -> candidate.track().recordingId(), TrackCandidate::score)
+                .containsExactly(
+                        tuple(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"), 70),
+                        tuple(UUID.fromString("41498c37-0a69-47a8-98d7-bdfab161559e"), 70),
+                        tuple(UUID.fromString("551f064e-1682-4c94-b538-9407978a4f63"), 70));
+    }
+
+    private static ResolvedTrack matchedTrack(final TrackResolution resolution) {
+        return switch (resolution) {
+            case TrackResolution.Matched matched -> matched.track();
+            case TrackResolution.NeedsReview _ -> throw new AssertionError("Expected a match, but " + resolution);
+        };
     }
 
     // Above the stub in src/test/resources/wiremock/mappings that matches every fingerprint with nothing.

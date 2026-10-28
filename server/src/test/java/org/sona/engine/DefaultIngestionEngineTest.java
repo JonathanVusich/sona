@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.model.Tables.ARTIST;
+import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.LABEL;
 import static org.sona.model.Tables.MEDIUM;
 import static org.sona.model.Tables.RELEASE;
@@ -59,6 +60,7 @@ import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.records.IngestCandidateRecord;
 import org.sona.samples.Mp3Sample;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -374,6 +376,42 @@ class DefaultIngestionEngineTest {
                 .isInstanceOf(InvalidFormatException.class)
                 .hasMessage("Extension ogg is not supported!");
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
+    }
+
+    @Test
+    void storeCandidatesWhenNoReleaseHasTheAlbumTagsTitle()
+            throws IOException, InvalidFormatException, InterruptedException {
+        final var metadata = whisperMetadata();
+        metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("Parachutes"));
+        final var ingest = storeIngest(flacFile(metadata), "09 A Whisper.flac");
+
+        engine.processTrack(ingest);
+        // Processing it again finds the same candidates, which replace those stored.
+        engine.processTrack(reloadIngest(ingest));
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
+        final var candidates = dsl.selectFrom(INGEST_CANDIDATE)
+                .where(INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId()))
+                .orderBy(INGEST_CANDIDATE.RANK)
+                .fetch();
+        assertThat(candidates)
+                .extracting(
+                        IngestCandidateRecord::getRank,
+                        IngestCandidateRecord::getScore,
+                        IngestCandidateRecord::getMusicbrainzRecordingId,
+                        IngestCandidateRecord::getArtistName,
+                        IngestCandidateRecord::getReleaseTitle,
+                        IngestCandidateRecord::getDiscNumber,
+                        IngestCandidateRecord::getTrackNumber)
+                .startsWith(tuple(
+                        1,
+                        70,
+                        UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"),
+                        "Coldplay",
+                        "A Rush of Blood to the Head",
+                        1,
+                        9))
+                .hasSize(3);
     }
 
     private static RawMetadata whisperMetadata() {
