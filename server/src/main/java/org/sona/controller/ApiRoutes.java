@@ -69,6 +69,39 @@ public final class ApiRoutes {
      */
     public static final String PLAYS = API + "/plays";
 
+    /**
+     * The signed-in user's own play queue.
+     */
+    public static final String QUEUE = API + "/queue";
+    /**
+     * The queue's entries in the order they play, a page at a time, from the cursor on.
+     */
+    public static final String QUEUE_ENTRIES = QUEUE + "/entries";
+    /**
+     * The entries that play before the cursor, a page at a time, going back.
+     */
+    public static final String QUEUE_EARLIER_ENTRIES = QUEUE_ENTRIES + "/earlier";
+    /**
+     * Followed by a playlist's ID, this is where a PUT fills the queue with the playlist's tracks.
+     */
+    public static final String QUEUE_PLAYLIST = QUEUE + "/playlists/{playlistId}";
+    /**
+     * Followed by a release's ID, this is where a PUT fills the queue with the release's tracks.
+     */
+    public static final String QUEUE_RELEASE = QUEUE + "/releases/{releaseId}";
+    /**
+     * Which entry of the queue the player is on, which setting moves it.
+     */
+    public static final String QUEUE_CURRENT = QUEUE + "/current";
+    /**
+     * How far into the current entry the player is.
+     */
+    public static final String QUEUE_POSITION = QUEUE + "/position";
+    /**
+     * The queue's shuffle and repeat modes.
+     */
+    public static final String QUEUE_MODES = QUEUE + "/modes";
+
     public static final String INGEST_GROUPS = API + "/ingest-groups";
     /**
      * Under the ID Sona gave the group when the uploader created it.

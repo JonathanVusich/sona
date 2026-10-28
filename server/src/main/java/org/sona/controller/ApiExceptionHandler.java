@@ -13,6 +13,8 @@ import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.exception.InvalidRegistrationTokenException;
 import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.PlaylistNotFoundException;
+import org.sona.exception.QueueEntryNotFoundException;
+import org.sona.exception.QueueStartOutOfRangeException;
 import org.sona.exception.ReleaseGroupNotFoundException;
 import org.sona.exception.ReleaseNotFoundException;
 import org.sona.exception.SonaException;
@@ -109,6 +111,8 @@ public final class ApiExceptionHandler {
             case ArtistNotFoundException _ -> ErrorCode.ARTIST_NOT_FOUND;
             case TrackNotFoundException _ -> ErrorCode.TRACK_NOT_FOUND;
             case PlaylistNotFoundException _ -> ErrorCode.PLAYLIST_NOT_FOUND;
+            case QueueEntryNotFoundException _ -> ErrorCode.QUEUE_ENTRY_NOT_FOUND;
+            case QueueStartOutOfRangeException _ -> ErrorCode.INVALID_PARAMETER;
             case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
             case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;

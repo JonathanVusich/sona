@@ -1,0 +1,23 @@
+package org.sona.db;
+
+import java.util.UUID;
+
+/**
+ * A track in a user's queue, with just what the queue shows: its own artist and the release it's on.
+ *
+ * @param playOrder where the entry plays in the queue as it is now, shuffled or not: it grows from one entry to the
+ *                  next, but not by one, and no two entries of a queue share one
+ * @param duration  in seconds
+ * @param position  on its medium, from 1
+ */
+public record QueueEntry(
+        UUID entryId,
+        int playOrder,
+        UUID trackId,
+        String trackName,
+        int duration,
+        int position,
+        UUID artistId,
+        String artistName,
+        UUID releaseId,
+        String releaseName) {}
