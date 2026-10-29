@@ -58,17 +58,20 @@ public final class MusicBrainzResolver implements MetadataResolver {
 
     @Override
     public TrackResolution resolveTrack(
-            final TrackToIngest trackToIngest, final RawMetadata metadata, final Fingerprint fingerprint)
+            final TrackToIngest trackToIngest,
+            final RawMetadata metadata,
+            final Duration duration,
+            final Fingerprint fingerprint)
             throws IOException, InterruptedException {
-        final var fingerprintMatches = lookUpFingerprint(fingerprint, metadata.duration());
-        final var closeMatch = closeMatch(fingerprintMatches, metadata.duration());
+        final var fingerprintMatches = lookUpFingerprint(fingerprint, duration);
+        final var closeMatch = closeMatch(fingerprintMatches, duration);
         if (closeMatch != null) {
             return new TrackResolution.Matched(convertToTrack(closeMatch));
         }
         // Looser matches only help choose between the recordings the tags find.
         final var matchedRecordingIds =
                 recordingIds(fingerprintMatches.stream()).collect(toUnmodifiableSet());
-        return resolveFromTags(trackToIngest, metadata, matchedRecordingIds);
+        return resolveFromTags(trackToIngest, metadata, duration, matchedRecordingIds);
     }
 
     private List<LookupResult> lookUpFingerprint(final Fingerprint fingerprint, final Duration duration) {
@@ -111,7 +114,10 @@ public final class MusicBrainzResolver implements MetadataResolver {
     }
 
     private TrackResolution resolveFromTags(
-            final TrackToIngest trackToIngest, final RawMetadata metadata, final Set<UUID> matchedRecordingIds) {
+            final TrackToIngest trackToIngest,
+            final RawMetadata metadata,
+            final Duration duration,
+            final Set<UUID> matchedRecordingIds) {
         final int trackNumber = metadata.findValues(Tag.TRACK_NUMBER).stream()
                 .findFirst()
                 .flatMap(TagValue::asInt)
@@ -133,7 +139,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
                 .map(String::strip)
                 .orElse(null);
 
-        final var evidence = new TagEvidence(matchedRecordingIds, albumTitle, metadata.duration());
+        final var evidence = new TagEvidence(matchedRecordingIds, albumTitle, duration);
 
         final var albumArtists =
                 metadata.findValues(Tag.ALBUM_ARTIST).stream().findFirst().flatMap(TagValue::asString).stream()

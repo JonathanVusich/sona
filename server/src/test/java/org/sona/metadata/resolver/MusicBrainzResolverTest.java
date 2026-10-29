@@ -57,7 +57,8 @@ class MusicBrainzResolverTest {
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         // AcoustID knows no recording with this fingerprint (the stub in src/test/resources/wiremock/mappings).
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(resolved)
                 .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
@@ -76,7 +77,8 @@ class MusicBrainzResolverTest {
         // Lower Your Eyelids to Die With the Sun is 10:37 long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(638));
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(resolved)
                 .isEqualTo(new TrackResolution.Matched(new ResolvedTrack(
@@ -99,7 +101,8 @@ class MusicBrainzResolverTest {
                 """));
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(matchedTrack(resolved))
                 .extracting(ResolvedTrack::recordingId, ResolvedTrack::releaseId)
@@ -117,7 +120,8 @@ class MusicBrainzResolverTest {
                 """));
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(matchedTrack(resolved).recordingId())
                 .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
@@ -158,7 +162,7 @@ class MusicBrainzResolverTest {
             throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
-        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, fingerprint()))
+        assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, metadata.duration(), fingerprint()))
                 .isEqualTo(new TrackResolution.NeedsReview(List.of()));
     }
 
@@ -168,7 +172,8 @@ class MusicBrainzResolverTest {
         // A Whisper is 238.000 seconds long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(241));
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(matchedTrack(resolved).recordingId())
                 .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
@@ -180,7 +185,8 @@ class MusicBrainzResolverTest {
         // The three recordings are 238.000, 237.000 and 238.333 seconds long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(242));
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(resolved).isInstanceOf(TrackResolution.NeedsReview.class);
         final var candidates = ((TrackResolution.NeedsReview) resolved).candidates();
@@ -194,7 +200,8 @@ class MusicBrainzResolverTest {
         // 10:37 is far from A Whisper's length, but the audio is 4 minutes long, so the tags decide.
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(matchedTrack(resolved).recordingId())
                 .isEqualTo(UUID.fromString("53616964-f51e-4ce0-a589-a5581f771197"));
@@ -204,7 +211,8 @@ class MusicBrainzResolverTest {
     void chooseTheReleaseTheAlbumTagNames() throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = albumMetadata("a rush of blood to the head");
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(matchedTrack(resolved).releaseId())
                 .isEqualTo(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"));
@@ -215,7 +223,8 @@ class MusicBrainzResolverTest {
             throws IOException, InterruptedException, InvalidFormatException {
         final var metadata = albumMetadata("Parachutes");
 
-        final var resolved = resolver.resolveTrack(trackToIngest("09 - A Whisper.flac"), metadata, fingerprint());
+        final var resolved = resolver.resolveTrack(
+                trackToIngest("09 - A Whisper.flac"), metadata, metadata.duration(), fingerprint());
 
         assertThat(resolved).isInstanceOf(TrackResolution.NeedsReview.class);
         final var candidates = ((TrackResolution.NeedsReview) resolved).candidates();

@@ -32,13 +32,6 @@ public final class RawMetadata {
         this.unknownTags = unknownTags;
     }
 
-    /**
-     * @return these tags with another duration, such as one measured from the audio
-     */
-    public RawMetadata withDuration(final Duration measuredDuration) {
-        return new RawMetadata(measuredDuration, definedTags, unknownTags);
-    }
-
     public Duration duration() {
         return duration;
     }

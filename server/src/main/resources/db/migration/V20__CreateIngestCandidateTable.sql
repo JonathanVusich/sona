@@ -2,7 +2,7 @@
 -- suits the file's tags best. Written when the ingest stops, for the review that chooses between them.
 create table if not exists ingest_candidate (
     ingest_candidate_id uuid primary key,
-    track_ingest_id uuid not null references track_to_ingest (track_ingest_id),
+    track_ingest_id uuid not null references track_to_ingest (track_ingest_id) on delete cascade,
 
     -- From 1, the best candidate first.
     rank integer not null,

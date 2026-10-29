@@ -20,14 +20,11 @@ import org.sona.db.ReleaseGroupDao;
 import org.sona.db.TrackDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.fingerprint.Fingerprint;
+import org.sona.format.AudioUtils;
 import org.sona.format.FloatPcmAudio;
 import org.sona.format.Format;
 import org.sona.format.IntPcmAudio;
-import org.sona.format.MeasuredAudio;
-import org.sona.format.MeasuredFloatAudio;
-import org.sona.format.MeasuredIntAudio;
 import org.sona.format.Parser;
-import org.sona.format.PcmAudio;
 import org.sona.format.flac.FlacParser;
 import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
@@ -96,9 +93,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             throw e;
         }
         final var metadata = parsed.metadata();
-        switch (resolver.resolveTrack(trackToIngest, metadata, parsed.fingerprint())) {
+        switch (resolver.resolveTrack(trackToIngest, metadata, parsed.duration(), parsed.fingerprint())) {
             case TrackResolution.Matched matched ->
-                importTrack(trackToIngest, matched.track(), metadata.duration(), parser.format());
+                importTrack(trackToIngest, matched.track(), parsed.duration(), parser.format());
             case TrackResolution.NeedsReview review -> requireInput(trackToIngest, review.candidates());
         }
     }
@@ -149,40 +146,28 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
-    // The audio is fingerprinted while the file is open, as it's decoded from the channel its metadata was read from.
+    // The duration is of the decoded audio, not the header's claim of it, which a bad encoder or an edit can leave
+    // wrong. Decoding it all is one pass over the file, and the fingerprint, which decodes only the start, another.
     private ParsedTrack parseIngestTrack(final TrackToIngest trackToIngest, final Parser parser)
             throws IOException, InvalidFormatException {
+        final Duration duration;
+        try (final var channel = library.readIngestTrack(trackToIngest)) {
+            duration = switch (parser.parse(channel).audio()) {
+                case IntPcmAudio ints -> AudioUtils.duration(ints);
+                case FloatPcmAudio floats -> AudioUtils.duration(floats);
+            };
+        }
         try (final var channel = library.readIngestTrack(trackToIngest)) {
             final var parsed = parser.parse(channel);
-            return measuredTrack(parsed.metadata(), parsed.audio());
+            final var fingerprint = switch (parsed.audio()) {
+                case IntPcmAudio ints -> new Fingerprint(ints);
+                case FloatPcmAudio floats -> new Fingerprint(floats);
+            };
+            return new ParsedTrack(parsed.metadata(), duration, fingerprint);
         }
     }
 
-    // The duration is of the decoded audio, not the header's claim of it, which a bad encoder or an edit can leave
-    // wrong.
-    private static ParsedTrack measuredTrack(final RawMetadata metadata, final PcmAudio audio)
-            throws IOException, InvalidFormatException {
-        return switch (audio) {
-            case IntPcmAudio ints -> {
-                final var measured = new MeasuredIntAudio(ints);
-                yield measuredTrack(metadata, measured, new Fingerprint(measured));
-            }
-            case FloatPcmAudio floats -> {
-                final var measured = new MeasuredFloatAudio(floats);
-                yield measuredTrack(metadata, measured, new Fingerprint(measured));
-            }
-        };
-    }
-
-    private static ParsedTrack measuredTrack(
-            final RawMetadata metadata, final MeasuredAudio<?> audio, final Fingerprint fingerprint)
-            throws IOException, InvalidFormatException {
-        // The fingerprint only decodes the start of the audio.
-        audio.readToEnd();
-        return new ParsedTrack(metadata.withDuration(audio.duration()), fingerprint);
-    }
-
-    private record ParsedTrack(RawMetadata metadata, Fingerprint fingerprint) {}
+    private record ParsedTrack(RawMetadata metadata, Duration duration, Fingerprint fingerprint) {}
 
     private void importTrack(
             final TrackToIngest trackToIngest,

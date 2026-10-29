@@ -50,8 +50,8 @@ IngestWorker (every second, oldest PENDING first) ◄─────────
 IngestionEngine.processTrack
    1. pick a Parser by file extension (format/, case-insensitive)
    2. Parser.parse(SeekableByteChannel) ──► RawMetadata = tags + duration (metadata/), and the audio's Fingerprint,
-        decoded from the same channel (FlacDecoder, Mp3Decoder). The whole audio is decoded (`MeasuredIntAudio`,
-        `MeasuredFloatAudio`), and its duration replaces the header's, which a bad encoder can leave wrong.
+        decoded from the same channel (FlacDecoder, Mp3Decoder). The whole audio is decoded once to measure its duration (`AudioUtils.duration`), which
+        replaces the header's, as a bad encoder can leave that wrong.
    3. MetadataResolver.resolveTrack ──► AcoustID lookup of the fingerprint, then MusicBrainz (client/) ──► ResolvedTrack
         ├─ close AcoustID match ──► its recording, whatever the tags say, if its length is within 3 seconds of the audio's
         └─ otherwise ──► MusicBrainz search by the tags: each recording is scored (its search score, +10 if AcoustID
