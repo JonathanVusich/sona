@@ -40,7 +40,7 @@ class AcoustIdClientTest {
     void lookUpTheRecordingsOfAFingerprint() {
         acoustId.stubFor(post(urlPathEqualTo(LOOKUP_PATH))
                 .atPriority(1)
-                .withFormParam("client", equalTo("test-key"))
+                .withFormParam("client", equalTo(AcoustIdClient.API_KEY))
                 .withFormParam("meta", equalTo("recordingids"))
                 .withFormParam("duration", equalTo("641"))
                 .withFormParam("fingerprint", equalTo("AQABz0qUkZK4oOfhL-CPc4e5C_wW2H2QH9uDL4cvoT8UNQ"))
@@ -101,10 +101,10 @@ class AcoustIdClientTest {
 
     // Built without Spring, so the @RateLimiter aspect doesn't apply.
     private static AcoustIdClient newClient(final String url) {
-        final var properties = new AcoustIdProperties(url, "test-key");
+        final var properties = new AcoustIdProperties(url);
         final var mapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
-        return new AcoustIdClient(new AcoustIdConfig().acoustIdRestClient(properties, mapper), properties);
+        return new AcoustIdClient(new AcoustIdConfig().acoustIdRestClient(properties, mapper));
     }
 }
