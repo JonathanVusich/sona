@@ -78,9 +78,7 @@ public class IngestDao {
      * Replaces the candidates stored for the ingest, as processing it again finds them anew.
      */
     public void updateCandidates(final UUID trackToIngestId, final List<IngestCandidate> candidates) {
-        dsl.deleteFrom(INGEST_CANDIDATE)
-                .where(INGEST_CANDIDATE.TRACK_INGEST_ID.eq(trackToIngestId))
-                .execute();
+        deleteCandidates(trackToIngestId);
         if (candidates.isEmpty()) {
             return;
         }
@@ -89,6 +87,15 @@ public class IngestDao {
         dsl.insertInto(INGEST_CANDIDATE)
                 .columns(INGEST_CANDIDATE.fields())
                 .valuesOfRecords(records)
+                .execute();
+    }
+
+    /**
+     * Deletes the candidates stored for the ingest, once it no longer needs a choice between them.
+     */
+    public void deleteCandidates(final UUID trackToIngestId) {
+        dsl.deleteFrom(INGEST_CANDIDATE)
+                .where(INGEST_CANDIDATE.TRACK_INGEST_ID.eq(trackToIngestId))
                 .execute();
     }
 }

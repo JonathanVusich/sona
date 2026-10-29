@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,7 @@ import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.Artist;
+import org.sona.model.tables.pojos.IngestCandidate;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -408,6 +410,32 @@ class DefaultIngestionEngineTest {
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         assertThat(dsl.fetchCount(INGEST_CANDIDATE, INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId())))
                 .isEqualTo(3);
+    }
+
+    @Test
+    void deleteTheCandidatesOfATrackOnceItIsImported()
+            throws IOException, InvalidFormatException, InterruptedException {
+        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
+        final var candidate = new IngestCandidate(
+                uuidv7(),
+                ingest.trackIngestId(),
+                1,
+                100,
+                uuidv7(),
+                "A Whisper",
+                uuidv7(),
+                "Coldplay",
+                uuidv7(),
+                "Parachutes",
+                1,
+                9);
+        ingestDao.updateCandidates(ingest.trackIngestId(), List.of(candidate));
+
+        engine.processTrack(ingest);
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
+        assertThat(dsl.fetchCount(INGEST_CANDIDATE, INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId())))
+                .isZero();
     }
 
     @Test

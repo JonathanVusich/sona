@@ -192,6 +192,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             markState(trackToIngest, IngestState.MOVE_FAILED);
             throw e;
         }
+        ingestDao.deleteCandidates(trackToIngest.trackIngestId());
         markState(trackToIngest, IngestState.COMPLETED);
     }
 
