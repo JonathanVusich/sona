@@ -7,8 +7,6 @@ musicbrainz:
   url: "https://musicbrainz.org/ws/2/"
 acoustid:
   url: "https://api.acoustid.org/v2/"
-  # TODO: Register Sona as an application at https://acoustid.org/new-application and put its key here.
-  apiKey: ""
 auth:
   accessTokenLifetime: 15m
   refreshTokenLifetime: 30d

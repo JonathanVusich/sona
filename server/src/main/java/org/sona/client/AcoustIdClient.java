@@ -6,7 +6,6 @@ import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.model.acoustid.LookupResponse;
-import org.sona.config.properties.AcoustIdProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
@@ -15,8 +14,10 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class AcoustIdClient {
 
+    // Identifies Sona to AcoustID, which asks each application to register for a key.
+    public static final String API_KEY = "XQlvmYMQBL";
+
     private final RestClient acoustIdRestClient;
-    private final AcoustIdProperties properties;
 
     /**
      * Looks up the MusicBrainz recordings whose fingerprints are like this one.
@@ -29,7 +30,7 @@ public class AcoustIdClient {
     public LookupResponse lookup(final String fingerprint, final Duration duration) {
         // Sent as a form rather than in the URL, as AcoustID prefers, since a fingerprint runs to a few kilobytes.
         final var form = new LinkedMultiValueMap<String, String>();
-        form.add("client", properties.apiKey());
+        form.add("client", API_KEY);
         form.add("meta", "recordingids");
         form.add("duration", Long.toString(duration.toSeconds()));
         form.add("fingerprint", fingerprint);

@@ -297,11 +297,11 @@ class MusicBrainzResolverTest {
     }
 
     private static AcoustIdClient newAcoustIdClient(final String url) {
-        final var properties = new AcoustIdProperties(url, "test-key");
+        final var properties = new AcoustIdProperties(url);
         final var mapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
-        return new AcoustIdClient(new AcoustIdConfig().acoustIdRestClient(properties, mapper), properties);
+        return new AcoustIdClient(new AcoustIdConfig().acoustIdRestClient(properties, mapper));
     }
 
     private static TrackToIngest trackToIngest(final String fileName) {
