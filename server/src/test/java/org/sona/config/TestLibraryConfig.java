@@ -45,6 +45,6 @@ public class TestLibraryConfig {
     @Bean
     @Primary
     AcoustIdProperties acoustIdStubs(final WireMockServer musicBrainzServer) {
-        return new AcoustIdProperties(musicBrainzServer.baseUrl() + "/v2/", "test-key");
+        return new AcoustIdProperties(musicBrainzServer.baseUrl() + "/v2/");
     }
 }
