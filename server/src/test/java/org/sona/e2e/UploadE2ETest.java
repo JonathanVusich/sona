@@ -4,6 +4,7 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.samples.FlacFiles.flacFile;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import com.microsoft.playwright.Page;
@@ -31,6 +32,7 @@ import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Users;
 import org.sona.samples.Mp3Sample;
+import org.sona.samples.ShortRecordings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -53,6 +55,9 @@ class UploadE2ETest {
 
     @Autowired
     IngestWorker worker;
+
+    @Autowired
+    WireMockServer musicBrainz;
 
     @Autowired
     SimpUserRegistry userRegistry;
@@ -225,7 +230,12 @@ class UploadE2ETest {
 
         uploadPage.uploadButton().click();
         assertThat(uploadPage.status("09 A Whisper.mp3")).hasText("Waiting to be matched");
-        worker.processPending();
+        final var stubId = ShortRecordings.stubWhisperSearch(musicBrainz);
+        try {
+            worker.processPending();
+        } finally {
+            ShortRecordings.removeStub(musicBrainz, stubId);
+        }
 
         assertThat(uploadPage.status("09 A Whisper.mp3")).hasText("Added to the library");
         assertThat(uploadPage.ingestSummary()).hasText("1 added to the library");
@@ -286,7 +296,7 @@ class UploadE2ETest {
 
     // A track the recorded MusicBrainz responses match, uploaded from its album's folder.
     private static byte[] whisper() {
-        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(10));
+        final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
         metadata.addTag(Tag.TRACK_NUMBER, new TagValue.Int(9));

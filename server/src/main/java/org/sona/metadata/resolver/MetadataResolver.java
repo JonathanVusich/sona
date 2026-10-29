@@ -1,7 +1,7 @@
 package org.sona.metadata.resolver;
 
 import java.io.IOException;
-import java.util.Optional;
+import java.time.Duration;
 import java.util.UUID;
 import org.sona.fingerprint.Fingerprint;
 import org.sona.metadata.RawMetadata;
@@ -10,10 +10,12 @@ import org.sona.model.tables.pojos.TrackToIngest;
 public interface MetadataResolver {
 
     /**
+     * @param duration of the track's decoded audio, which the file's header may misstate
      * @param fingerprint of the track's audio: a close match settles the recording whatever the tags say, and a
      * looser one helps choose between those the tags find
      */
-    Optional<ResolvedTrack> resolveTrack(TrackToIngest trackToIngest, RawMetadata metadata, Fingerprint fingerprint)
+    TrackResolution resolveTrack(
+            TrackToIngest trackToIngest, RawMetadata metadata, Duration duration, Fingerprint fingerprint)
             throws IOException, InterruptedException;
 
     /**
