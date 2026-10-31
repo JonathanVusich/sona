@@ -1,9 +1,11 @@
 package org.sona.engine;
 
+import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.IngestDao;
+import org.sona.exception.InvalidFormatException;
 import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.IngestGroup;
@@ -64,9 +66,7 @@ public final class DefaultIngestWorker implements IngestWorker {
     private void processAlbum(final List<TrackToIngest> pending) throws InterruptedException {
         try {
             engine.processAlbum(pending);
-        } catch (InterruptedException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             log.warn("Ingesting an album of {} files failed", pending.size(), e);
             for (final var ingest : pending) {
                 failIfPending(ingest);
@@ -77,9 +77,7 @@ public final class DefaultIngestWorker implements IngestWorker {
     private void processIngest(final TrackToIngest ingest) throws InterruptedException {
         try {
             engine.processTrack(ingest);
-        } catch (InterruptedException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch (InvalidFormatException | IOException | RuntimeException e) {
             log.warn("Ingesting {} ({}) failed", ingest.trackIngestId(), ingest.originalFileName(), e);
             failIfPending(ingest);
         }
