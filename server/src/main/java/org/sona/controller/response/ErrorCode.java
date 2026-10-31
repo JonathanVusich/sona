@@ -40,6 +40,8 @@ public enum ErrorCode {
     TRACK_NOT_FOUND(306, HttpStatus.NOT_FOUND, "This track isn't in the library."),
     PLAYLIST_NOT_FOUND(307, HttpStatus.NOT_FOUND, "This playlist doesn't exist."),
     QUEUE_ENTRY_NOT_FOUND(308, HttpStatus.NOT_FOUND, "This track isn't in your queue."),
+    INGEST_TRACK_NOT_FOUND(309, HttpStatus.NOT_FOUND, "This file isn't in an upload group you created."),
+    INGEST_ALREADY_UPLOADED(310, HttpStatus.CONFLICT, "This file has already been uploaded."),
 
     INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid."),
     UNSUPPORTED_CONTENT_TYPE(

@@ -14,6 +14,8 @@ public abstract sealed class SonaException extends RuntimeException
                 QueueEntryNotFoundException,
                 QueueStartOutOfRangeException,
                 IngestGroupNotFoundException,
+                IngestTrackNotFoundException,
+                IngestAlreadyUploadedException,
                 FileTooLargeException,
                 InvalidCredentialsException,
                 InvalidRefreshTokenException,

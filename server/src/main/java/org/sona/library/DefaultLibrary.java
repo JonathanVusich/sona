@@ -1,7 +1,5 @@
 package org.sona.library;
 
-import static org.sona.utils.IDGenerator.uuidv7;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
@@ -16,10 +14,11 @@ import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.IngestDao;
 import org.sona.exception.FileTooLargeException;
+import org.sona.exception.IngestAlreadyUploadedException;
+import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.Format;
 import org.sona.model.enums.IngestState;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -46,32 +45,36 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
+    public void checkIngestFormat(final String filename) throws InvalidFormatException {
+        final var extension = fileExtension(filename);
+        if (!Format.supportedExtensions().contains(extension)) {
+            throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
+        }
+    }
+
+    @Override
     public TrackToIngest storeIngestTrack(
-            final IngestGroup ingestGroup, final String filename, final InputStream inputStream)
-            throws InvalidFormatException, IOException {
-        checkFormat(filename);
-        final UUID ingestTrackId = uuidv7();
+            final UUID ingestGroupId, final UUID ingestTrackId, final InputStream inputStream) throws IOException {
+        final var trackIngest = ingestDao
+                .loadGroupTrackIngest(ingestGroupId, ingestTrackId)
+                .orElseThrow(() -> new IngestTrackNotFoundException(ingestGroupId, ingestTrackId));
+        checkNotUploaded(trackIngest);
+        ingestDao.updateState(ingestTrackId, IngestState.UPLOADING);
 
-        final var ingestFolder =
-                config.ingestFolder().resolve(ingestGroup.ingestGroupId().toString());
-
+        final var ingestFolder = config.ingestFolder().resolve(ingestGroupId.toString());
         Files.createDirectories(ingestFolder);
-
         final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
 
         try {
             copyUpload(inputStream, ingestTarget);
         } catch (IOException | FileTooLargeException e) {
-            // An upload cut short leaves part of a file, which no ingest row would ever point at.
+            // An upload cut short leaves part of a file, which the next upload of it replaces.
             Files.deleteIfExists(ingestTarget);
             throw e;
         }
 
-        final var trackIngest =
-                new TrackToIngest(ingestTrackId, ingestGroup.ingestGroupId(), filename, IngestState.PENDING);
-
-        ingestDao.insertTrackIngest(trackIngest);
-        return trackIngest;
+        ingestDao.updateUploaded(ingestTrackId);
+        return ingestDao.loadTrackIngestById(ingestTrackId);
     }
 
     @Override
@@ -131,10 +134,13 @@ public final class DefaultLibrary implements Library {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
-    private static void checkFormat(final String filename) throws InvalidFormatException {
-        final var extension = fileExtension(filename);
-        if (!Format.supportedExtensions().contains(extension)) {
-            throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
+    // A file is sent again while its ingest is created or uploading. Once it is uploaded it may be in the middle of
+    // being matched, so the stored file mustn't be replaced.
+    private static void checkNotUploaded(final TrackToIngest trackIngest) {
+        switch (trackIngest.state()) {
+            case CREATED, UPLOADING -> {}
+            case UPLOADED, INPUT_REQUIRED, MOVE_FAILED, FAILED, COMPLETED ->
+                throw new IngestAlreadyUploadedException(trackIngest.trackIngestId());
         }
     }
 

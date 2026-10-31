@@ -375,6 +375,6 @@ class MusicBrainzResolverTest {
     }
 
     private static TrackToIngest trackToIngest(final String fileName) {
-        return new TrackToIngest(uuidv7(), uuidv7(), fileName, IngestState.PENDING);
+        return new TrackToIngest(uuidv7(), uuidv7(), fileName, IngestState.UPLOADED);
     }
 }

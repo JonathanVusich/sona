@@ -1,19 +1,20 @@
 package org.sona.engine;
 
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.IngestDao;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
+import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Looks for pending ingests, once all the files of their group are uploaded, in the database once a second ({@code sona.ingest-worker.cron}), so uploads are processed
- * soon after they arrive, and those still pending when Sona stopped are processed when it starts again. Passes never
- * overlap: the next starts only once one has finished.
+ * Looks for ingest groups whose files are all uploaded in the database once a second
+ * ({@code sona.ingest-worker.cron}), so uploads are processed soon after they arrive, and those still waiting when Sona
+ * stopped are processed when it starts again. Passes never overlap: the next starts only once one has finished.
  */
 @Slf4j
 @Service
@@ -39,17 +40,17 @@ public final class DefaultIngestWorker implements IngestWorker {
     }
 
     private void processEachPending() throws InterruptedException {
-        var next = ingestDao.loadOldestReadyPending().orElse(null);
+        var next = ingestDao.loadOldestUploadedGroup().orElse(null);
         while (next != null) {
-            processGroup(next.groupIngestId());
-            next = ingestDao.loadOldestReadyPending().orElse(null);
+            processGroup(next);
+            ingestDao.updateGroupState(next.ingestGroupId(), IngestGroupState.MATCHED);
+            next = ingestDao.loadOldestUploadedGroup().orElse(null);
         }
     }
 
     // An album is matched as a whole. Loose files are matched one by one.
-    private void processGroup(final UUID groupIngestId) throws InterruptedException {
-        final var group = ingestDao.loadGroupById(groupIngestId).orElseThrow();
-        final var pending = ingestDao.loadPendingByGroup(groupIngestId);
+    private void processGroup(final IngestGroup group) throws InterruptedException {
+        final var pending = ingestDao.loadUploadedByGroup(group.ingestGroupId());
         switch (group.kind()) {
             case ALBUM -> processAlbum(pending);
             case UNKNOWN -> {
@@ -84,10 +85,9 @@ public final class DefaultIngestWorker implements IngestWorker {
         }
     }
 
-    // The engine marks the failures it expects. Any other leaves the ingest pending, so it would be taken again
-    // straight away.
+    // The engine marks the failures it expects. Any other leaves the ingest uploaded, as if it had never been tried.
     private void failIfPending(final TrackToIngest ingest) {
-        if (ingestDao.loadTrackIngestById(ingest.trackIngestId()).state() == IngestState.PENDING) {
+        if (ingestDao.loadTrackIngestById(ingest.trackIngestId()).state() == IngestState.UPLOADED) {
             ingestDao.updateState(ingest.trackIngestId(), IngestState.FAILED);
             progressPublisher.publish(ingest, IngestState.FAILED);
         }

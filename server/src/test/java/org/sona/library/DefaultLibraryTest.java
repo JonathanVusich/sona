@@ -3,6 +3,9 @@ package org.sona.library;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.samples.IngestUploadUtils.createAndUpload;
+import static org.sona.samples.IngestUploadUtils.createIngest;
+import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.ByteArrayInputStream;
@@ -17,11 +20,14 @@ import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
+import org.sona.exception.IngestAlreadyUploadedException;
+import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.RawMetadata;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
@@ -69,33 +75,51 @@ class DefaultLibraryTest {
     private LibraryProperties libraryProperties;
 
     @Test
-    void readAndStoreIngestTrack() throws InvalidFormatException, IOException {
+    void readAndStoreIngestTrack() throws IOException {
         final var group = storeGroup();
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
+        final var created = createIngest(ingestDao, group, "track.flac");
 
-        final var ingestTrack = library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(bytes));
+        final var ingestTrack = upload(library, created, bytes);
 
         assertThat(ingestDao.loadTrackIngestById(ingestTrack.trackIngestId()))
                 .isEqualTo(new TrackToIngest(
-                        ingestTrack.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.PENDING));
-
+                        created.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.UPLOADED));
+        assertThat(ingestDao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
+                .isEqualTo(IngestGroupState.UPLOADED);
         try (final var stored = library.readIngestTrack(ingestTrack)) {
             assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(bytes);
         }
     }
 
     @Test
-    void aFileInAnUnsupportedFormatIsNotStored() {
+    void aFileInAnUnsupportedFormatIsRefused() {
+        assertThatThrownBy(() -> library.checkIngestFormat("track.ogg"))
+                .isInstanceOf(InvalidFormatException.class)
+                .hasMessage("Extension ogg is not supported!");
+    }
+
+    @Test
+    void aFileTheGroupDoesNotHaveIsNotStored() {
         final var group = storeGroup();
         final var file = new ByteArrayInputStream(new byte[] {1, 2, 3});
 
-        assertThatThrownBy(() -> library.storeIngestTrack(group, "track.ogg", file))
-                .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("Extension ogg is not supported!");
+        assertThatThrownBy(() -> library.storeIngestTrack(group.ingestGroupId(), uuidv7(), file))
+                .isInstanceOf(IngestTrackNotFoundException.class);
         assertThat(Files.exists(libraryProperties
                         .ingestFolder()
                         .resolve(group.ingestGroupId().toString())))
                 .isFalse();
+    }
+
+    @Test
+    void aFileThatIsUploadedAlreadyIsNotStoredAgain() throws IOException {
+        final var group = storeGroup();
+        final var uploaded = createAndUpload(ingestDao, library, group, "track.flac", new byte[] {1, 2, 3});
+        final var file = new ByteArrayInputStream(new byte[] {4, 5, 6});
+
+        assertThatThrownBy(() -> library.storeIngestTrack(group.ingestGroupId(), uploaded.trackIngestId(), file))
+                .isInstanceOf(IngestAlreadyUploadedException.class);
     }
 
     @Test
@@ -115,9 +139,9 @@ class DefaultLibraryTest {
     }
 
     @Test
-    void importTrackMovesFileIntoLibrary() throws InvalidFormatException, IOException {
+    void importTrackMovesFileIntoLibrary() throws IOException {
         final var bytes = flacFile(new RawMetadata(Duration.ofSeconds(10)));
-        final var ingestTrack = library.storeIngestTrack(storeGroup(), "track.flac", new ByteArrayInputStream(bytes));
+        final var ingestTrack = createAndUpload(ingestDao, library, storeGroup(), "track.flac", bytes);
         final var path = library.libraryPath(RELEASE_GROUP, RELEASE, TRACK_ID, "A Whisper", ingestTrack);
 
         library.importTrack(ingestTrack, path);
@@ -133,14 +157,18 @@ class DefaultLibraryTest {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group =
-                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId(), 1);
+        final var group = new IngestGroup(
+                uuidv7(),
+                IngestGroupKind.ALBUM,
+                "A Rush of Blood to the Head",
+                uploader.userId(),
+                IngestGroupState.CREATED);
         ingestDao.insertGroup(group);
         return group;
     }
 
     private static TrackToIngest newIngest(final String filename) {
-        return new TrackToIngest(uuidv7(), uuidv7(), filename, IngestState.PENDING);
+        return new TrackToIngest(uuidv7(), uuidv7(), filename, IngestState.UPLOADED);
     }
 
     private static Track newTrack(final String path, final UUID trackIngestId) {

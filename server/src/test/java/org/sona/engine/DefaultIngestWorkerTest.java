@@ -2,9 +2,11 @@ package org.sona.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.samples.IngestUploadUtils.createAndUpload;
+import static org.sona.samples.IngestUploadUtils.createIngest;
+import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
@@ -14,7 +16,6 @@ import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.TrackDao;
 import org.sona.db.UserDao;
-import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
 import org.sona.metadata.RawMetadataBuilder;
@@ -22,6 +23,7 @@ import org.sona.metadata.Tag;
 import org.sona.metadata.TagValue;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
@@ -55,7 +57,7 @@ class DefaultIngestWorkerTest {
     ReleaseDao releaseDao;
 
     @Test
-    void aPassImportsEveryPendingIngest() throws InvalidFormatException, IOException {
+    void aPassImportsEveryPendingIngest() throws IOException {
         final var first = storeIngest(flacFile(whisperMetadata()));
         final var second = storeIngest(flacFile(whisperMetadata()));
 
@@ -69,7 +71,7 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void aPassWithNothingPendingDoesNothing() throws InvalidFormatException, IOException {
+    void aPassWithNothingPendingDoesNothing() throws IOException {
         final var ingest = storeIngest(flacFile(whisperMetadata()));
         worker.processPending();
 
@@ -79,7 +81,7 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void aFileMusicBrainzDoesNotKnowNeedsInput() throws InvalidFormatException, IOException {
+    void aFileMusicBrainzDoesNotKnowNeedsInput() throws IOException {
         final var ingest = storeIngest(flacFile(metadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall")));
 
         worker.processPending();
@@ -88,7 +90,7 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void aFileThatIsNotFlacFails() throws InvalidFormatException, IOException {
+    void aFileThatIsNotFlacFails() throws IOException {
         final var ingest = storeIngest(new byte[] {1, 2, 3, 4});
 
         worker.processPending();
@@ -97,7 +99,7 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void aFileWhoseLookupFailsFailsWithoutStoppingThePass() throws InvalidFormatException, IOException {
+    void aFileWhoseLookupFailsFailsWithoutStoppingThePass() throws IOException {
         // MusicBrainz isn't stubbed for this track, so looking it up answers 404.
         final var unstubbed = storeIngest(flacFile(metadata("Unstubbed Song", "Unstubbed Artist")));
         final var whisper = storeIngest(flacFile(whisperMetadata()));
@@ -109,15 +111,17 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void anAlbumWaitsUntilAllItsFilesAreUploaded() throws InvalidFormatException, IOException {
-        final var group = storeGroup(IngestGroupKind.ALBUM, 2);
-        final var first = storeIngest(group, flacFile(whisperMetadata()));
+    void anAlbumWaitsUntilAllItsFilesAreUploaded() throws IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM);
+        final var first = createIngest(ingestDao, group, "track.flac");
+        final var second = createIngest(ingestDao, group, "track.flac");
+        upload(library, first, flacFile(whisperMetadata()));
 
         worker.processPending();
 
-        assertThat(reloadState(first)).isEqualTo(IngestState.PENDING);
+        assertThat(reloadState(first)).isEqualTo(IngestState.UPLOADED);
 
-        final var second = storeIngest(group, flacFile(whisperMetadata()));
+        upload(library, second, flacFile(whisperMetadata()));
         worker.processPending();
 
         assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
@@ -125,10 +129,10 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void anAlbumWithAFileThatIsNotFlacStillImportsTheRest() throws InvalidFormatException, IOException {
-        final var group = storeGroup(IngestGroupKind.ALBUM, 2);
-        final var broken = storeIngest(group, new byte[] {1, 2, 3, 4});
-        final var whisper = storeIngest(group, flacFile(whisperMetadata()));
+    void anAlbumWithAFileThatIsNotFlacStillImportsTheRest() throws IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM);
+        final var broken = createAndUpload(ingestDao, library, group, "track.flac", new byte[] {1, 2, 3, 4});
+        final var whisper = createAndUpload(ingestDao, library, group, "track.flac", flacFile(whisperMetadata()));
 
         worker.processPending();
 
@@ -137,43 +141,36 @@ class DefaultIngestWorkerTest {
     }
 
     @Test
-    void looseFilesAreMatchedOnceAllAreUploaded() throws InvalidFormatException, IOException {
-        final var group = storeGroup(IngestGroupKind.UNKNOWN, 2);
-        final var first = storeIngest(group, flacFile(whisperMetadata()));
+    void looseFilesAreMatchedOnceAllAreUploaded() throws IOException {
+        final var group = storeGroup(IngestGroupKind.UNKNOWN);
+        final var first = createIngest(ingestDao, group, "track.flac");
+        final var second = createIngest(ingestDao, group, "track.flac");
+        upload(library, first, flacFile(whisperMetadata()));
 
         worker.processPending();
 
-        assertThat(reloadState(first)).isEqualTo(IngestState.PENDING);
+        assertThat(reloadState(first)).isEqualTo(IngestState.UPLOADED);
 
-        final var second = storeIngest(group, flacFile(whisperMetadata()));
+        upload(library, second, flacFile(whisperMetadata()));
         worker.processPending();
 
         assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
         assertThat(reloadState(second)).isEqualTo(IngestState.COMPLETED);
     }
 
-    private IngestGroup storeGroup(final IngestGroupKind kind, final int trackCount) {
+    private IngestGroup storeGroup(final IngestGroupKind kind) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group = new IngestGroup(uuidv7(), kind, "A Rush of Blood to the Head", uploader.userId(), trackCount);
+        final var group = new IngestGroup(
+                uuidv7(), kind, "A Rush of Blood to the Head", uploader.userId(), IngestGroupState.CREATED);
         ingestDao.insertGroup(group);
         return group;
     }
 
-    private TrackToIngest storeIngest(final IngestGroup group, final byte[] file)
-            throws InvalidFormatException, IOException {
-        return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
-    }
-
-    private TrackToIngest storeIngest(final byte[] file) throws InvalidFormatException, IOException {
-        final var uploader =
-                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
-        final var group =
-                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId(), 1);
-        ingestDao.insertGroup(group);
-        return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
+    private TrackToIngest storeIngest(final byte[] file) throws IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM);
+        return createAndUpload(ingestDao, library, group, "track.flac", file);
     }
 
     private IngestState reloadState(final TrackToIngest ingest) {

@@ -1,6 +1,5 @@
 package org.sona.db;
 
-import static org.jooq.impl.DSL.field;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
@@ -13,6 +12,7 @@ import org.jooq.DSLContext;
 import org.sona.mappers.IngestCandidateMapper;
 import org.sona.mappers.IngestGroupMapper;
 import org.sona.mappers.TrackToIngestMapper;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.IngestCandidate;
 import org.sona.model.tables.pojos.IngestGroup;
@@ -39,10 +39,41 @@ public class IngestDao {
                 .execute();
     }
 
+    /**
+     * Stores a group together with the ingest of each of its files, so the group never exists without them.
+     */
+    public void insertGroup(final IngestGroup ingestGroup, final List<TrackToIngest> trackIngests) {
+        insertGroup(ingestGroup);
+        final var records =
+                trackIngests.stream().map(trackToIngestMapper::toRecord).toList();
+        dsl.insertInto(TRACK_TO_INGEST)
+                .columns(TRACK_TO_INGEST.fields())
+                .valuesOfRecords(records)
+                .execute();
+    }
+
     public Optional<IngestGroup> loadGroupById(final UUID ingestGroupId) {
         return dsl.selectFrom(INGEST_GROUP)
                 .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
                 .fetchOptional(ingestGroupMapper::fromRecord);
+    }
+
+    /**
+     * @return the oldest group whose files are all uploaded and that hasn't been matched yet
+     */
+    public Optional<IngestGroup> loadOldestUploadedGroup() {
+        return dsl.selectFrom(INGEST_GROUP)
+                .where(INGEST_GROUP.STATE.eq(IngestGroupState.UPLOADED))
+                .orderBy(INGEST_GROUP.INGEST_GROUP_ID)
+                .limit(1)
+                .fetchOptional(ingestGroupMapper::fromRecord);
+    }
+
+    public void updateGroupState(final UUID ingestGroupId, final IngestGroupState state) {
+        dsl.update(INGEST_GROUP)
+                .set(INGEST_GROUP.STATE, state)
+                .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
+                .execute();
     }
 
     public void insertTrackIngest(final TrackToIngest trackToIngest) {
@@ -58,35 +89,44 @@ public class IngestDao {
     }
 
     /**
-     * @return the oldest pending ingest whose group has had all its files uploaded; one of a group still uploading
-     * waits, as matching chooses one release for the whole group
+     * @return the file's ingest, if the group is the one it was created in
      */
-    public Optional<TrackToIngest> loadOldestReadyPending() {
-        final var uploaded = TRACK_TO_INGEST.as("uploaded");
-        final var uploadedCount =
-                dsl.selectCount().from(uploaded).where(uploaded.GROUP_INGEST_ID.eq(TRACK_TO_INGEST.GROUP_INGEST_ID));
-        return dsl.select(TRACK_TO_INGEST.fields())
-                .from(TRACK_TO_INGEST)
-                .join(INGEST_GROUP)
-                .on(INGEST_GROUP.INGEST_GROUP_ID.eq(TRACK_TO_INGEST.GROUP_INGEST_ID))
-                .where(TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
-                .and(field(uploadedCount).ge(INGEST_GROUP.TRACK_COUNT))
-                .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
-                .limit(1)
-                .fetchOptional()
-                .map(record -> record.into(TRACK_TO_INGEST))
-                .map(trackToIngestMapper::fromRecord);
+    public Optional<TrackToIngest> loadGroupTrackIngest(final UUID ingestGroupId, final UUID trackToIngestId) {
+        return dsl.selectFrom(TRACK_TO_INGEST)
+                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                .and(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .fetchOptional(trackToIngestMapper::fromRecord);
     }
 
     /**
-     * @return the group's ingests still waiting to be processed, oldest first
+     * @return the group's ingests that are uploaded and waiting to be processed, oldest first
      */
-    public List<TrackToIngest> loadPendingByGroup(final UUID ingestGroupId) {
+    public List<TrackToIngest> loadUploadedByGroup(final UUID ingestGroupId) {
         return dsl.selectFrom(TRACK_TO_INGEST)
                 .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
-                .and(TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
+                .and(TRACK_TO_INGEST.STATE.eq(IngestState.UPLOADED))
                 .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
                 .fetch(trackToIngestMapper::fromRecord);
+    }
+
+    /**
+     * Marks the file uploaded, and its group too if that was the last of its files to arrive. The group is locked
+     * first, so two files finishing at once can't each see the other as still uploading.
+     */
+    public void updateUploaded(final UUID trackToIngestId) {
+        final var ingestGroupId = loadTrackIngestById(trackToIngestId).groupIngestId();
+        dsl.select(INGEST_GROUP.INGEST_GROUP_ID)
+                .from(INGEST_GROUP)
+                .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
+                .forUpdate()
+                .fetch();
+        updateState(trackToIngestId, IngestState.UPLOADED);
+        final var stillUploading = dsl.fetchExists(dsl.selectFrom(TRACK_TO_INGEST)
+                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING)));
+        if (!stillUploading) {
+            updateGroupState(ingestGroupId, IngestGroupState.UPLOADED);
+        }
     }
 
     public void updateState(final UUID trackToIngestId, final IngestState state) {

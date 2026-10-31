@@ -2,8 +2,11 @@
 -- itself.
 create type ingest_group_kind as enum ('ALBUM', 'UNKNOWN');
 
--- Files uploaded together. The uploader makes up the ID, and creates the group once its groups are final, before
--- uploading any of its files.
+-- CREATED: its files are still being uploaded. UPLOADED: all of them are, and it waits for the worker to match them.
+-- MATCHED: the worker has matched them, whatever came of each file.
+create type ingest_group_state as enum ('CREATED', 'UPLOADED', 'MATCHED');
+
+-- Files uploaded together. The uploader creates the group, with all of its files, before uploading any of them.
 create table if not exists ingest_group (
     ingest_group_id uuid primary key,
     kind ingest_group_kind not null,
@@ -11,7 +14,8 @@ create table if not exists ingest_group (
     name text not null,
     -- The user who uploaded it, the only one shown how its files' ingests are getting on.
     user_id uuid not null references users,
-    -- How many files the uploader will send. Matching waits until all of them are uploaded, so it can choose one
-    -- release for the group.
-    track_count integer not null check (track_count > 0)
+    state ingest_group_state not null default 'CREATED'
 );
+
+-- The ingest worker takes uploaded groups oldest first.
+create index if not exists ingest_group_state_idx on ingest_group (state, ingest_group_id);

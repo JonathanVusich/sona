@@ -109,6 +109,10 @@ public final class ApiRoutes {
     public static final String INGEST_GROUP = INGEST_GROUPS + "/{groupIngestId}";
 
     public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
+    /**
+     * Under the ID Sona gave the file when the group was created, which the file is uploaded to.
+     */
+    public static final String INGEST_GROUP_TRACK = INGEST_GROUP_TRACKS + "/{trackIngestId}";
 
     public static final String JWKS = "/.well-known/jwks.json";
 

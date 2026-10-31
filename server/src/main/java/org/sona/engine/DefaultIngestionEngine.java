@@ -74,7 +74,10 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     public void processTrack(final TrackToIngest trackToIngest)
             throws InvalidFormatException, IOException, InterruptedException {
         switch (trackToIngest.state()) {
-            case PENDING, INPUT_REQUIRED -> ingestTrack(trackToIngest);
+            case UPLOADED, INPUT_REQUIRED -> ingestTrack(trackToIngest);
+            case CREATED, UPLOADING ->
+                throw new IllegalStateException(
+                        "Track %s hasn't been uploaded".formatted(trackToIngest.trackIngestId()));
             case MOVE_FAILED -> retryMove(trackToIngest);
             case FAILED ->
                 throw new IllegalStateException("Track %s can't be imported".formatted(trackToIngest.trackIngestId()));

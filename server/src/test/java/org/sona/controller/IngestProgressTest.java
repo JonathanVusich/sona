@@ -6,6 +6,7 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -171,15 +172,18 @@ class IngestProgressTest {
 
     private TrackIngestResponse uploadWhisper(final Users uploader) {
         final var token = token(uploader);
-        final var group = api.createIngestGroup(token, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", 1))
+        final var group = api.createIngestGroup(
+                        token,
+                        new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", List.of("09 A Whisper.flac")))
                 .expectStatus()
                 .isCreated()
                 .expectBody(IngestGroupResponse.class)
                 .returnResult()
                 .getResponseBody();
-        return api.uploadTrack(token, group.groupIngestId(), "09 A Whisper.flac", whisper())
+        return api.uploadTrack(
+                        token, group.groupIngestId(), group.tracks().getFirst().trackIngestId(), whisper())
                 .expectStatus()
-                .isCreated()
+                .isOk()
                 .expectBody(TrackIngestResponse.class)
                 .returnResult()
                 .getResponseBody();
