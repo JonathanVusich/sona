@@ -57,7 +57,7 @@ public class IngestController {
     public IngestGroupResponse createIngestGroup(
             final UserAuthentication authentication, @RequestBody @Valid final IngestGroupRequest request) {
         final var group = new IngestGroup(
-                uuidv7(), request.kind(), request.name(), authentication.user().userId());
+                uuidv7(), request.kind(), request.name(), authentication.user().userId(), request.trackCount());
         ingestDao.insertGroup(group);
         return ingestGroupResponseMapper.toResponse(group);
     }

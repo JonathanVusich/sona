@@ -108,12 +108,70 @@ class DefaultIngestWorkerTest {
         assertThat(reloadState(whisper)).isEqualTo(IngestState.COMPLETED);
     }
 
+    @Test
+    void anAlbumWaitsUntilAllItsFilesAreUploaded() throws InvalidFormatException, IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM, 2);
+        final var first = storeIngest(group, flacFile(whisperMetadata()));
+
+        worker.processPending();
+
+        assertThat(reloadState(first)).isEqualTo(IngestState.PENDING);
+
+        final var second = storeIngest(group, flacFile(whisperMetadata()));
+        worker.processPending();
+
+        assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadState(second)).isEqualTo(IngestState.COMPLETED);
+    }
+
+    @Test
+    void anAlbumWithAFileThatIsNotFlacStillImportsTheRest() throws InvalidFormatException, IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM, 2);
+        final var broken = storeIngest(group, new byte[] {1, 2, 3, 4});
+        final var whisper = storeIngest(group, flacFile(whisperMetadata()));
+
+        worker.processPending();
+
+        assertThat(reloadState(broken)).isEqualTo(IngestState.FAILED);
+        assertThat(reloadState(whisper)).isEqualTo(IngestState.COMPLETED);
+    }
+
+    @Test
+    void looseFilesAreMatchedOnceAllAreUploaded() throws InvalidFormatException, IOException {
+        final var group = storeGroup(IngestGroupKind.UNKNOWN, 2);
+        final var first = storeIngest(group, flacFile(whisperMetadata()));
+
+        worker.processPending();
+
+        assertThat(reloadState(first)).isEqualTo(IngestState.PENDING);
+
+        final var second = storeIngest(group, flacFile(whisperMetadata()));
+        worker.processPending();
+
+        assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadState(second)).isEqualTo(IngestState.COMPLETED);
+    }
+
+    private IngestGroup storeGroup(final IngestGroupKind kind, final int trackCount) {
+        final var uploader =
+                new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
+        userDao.insert(uploader);
+        final var group = new IngestGroup(uuidv7(), kind, "A Rush of Blood to the Head", uploader.userId(), trackCount);
+        ingestDao.insertGroup(group);
+        return group;
+    }
+
+    private TrackToIngest storeIngest(final IngestGroup group, final byte[] file)
+            throws InvalidFormatException, IOException {
+        return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
+    }
+
     private TrackToIngest storeIngest(final byte[] file) throws InvalidFormatException, IOException {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group =
-                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId());
+                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", uploader.userId(), 1);
         ingestDao.insertGroup(group);
         return library.storeIngestTrack(group, "track.flac", new ByteArrayInputStream(file));
     }

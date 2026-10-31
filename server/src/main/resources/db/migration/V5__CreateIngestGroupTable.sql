@@ -10,5 +10,8 @@ create table if not exists ingest_group (
     -- The folder's name, or what the uploader called the group; shown while it's ingested.
     name text not null,
     -- The user who uploaded it, the only one shown how its files' ingests are getting on.
-    user_id uuid not null references users
+    user_id uuid not null references users,
+    -- How many files the uploader will send. Matching waits until all of them are uploaded, so it can choose one
+    -- release for the group.
+    track_count integer not null check (track_count > 0)
 );

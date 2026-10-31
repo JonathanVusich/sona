@@ -34,6 +34,8 @@ export type IngestGroupKind = (typeof IngestGroupKind)[keyof typeof IngestGroupK
 export interface IngestGroupRequest {
   kind: IngestGroupKind;
   name: string;
+  /** How many files will be uploaded; Sona matches the group once all of them are. */
+  trackCount: number;
 }
 
 export interface CreatePlaylistRequest {

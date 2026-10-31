@@ -10,3 +10,6 @@ create table if not exists track_to_ingest (
 
 -- The ingest worker takes pending ingests oldest first.
 create index if not exists track_to_ingest_state_idx on track_to_ingest (state, track_ingest_id);
+
+-- Counts the files of a group uploaded so far.
+create index if not exists track_to_ingest_group_idx on track_to_ingest (group_ingest_id);

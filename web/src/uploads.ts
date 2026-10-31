@@ -136,7 +136,7 @@ async function createGroup(group: UploadGroup): Promise<ApiResult<IngestGroupRes
 }
 
 async function sendGroup(group: UploadGroup): Promise<ApiResult<IngestGroupResponse>> {
-  const request = { kind: group.kind, name: group.name.trim() };
+  const request = { kind: group.kind, name: group.name.trim(), trackCount: group.files.length };
   return sendAsCurrentUser((accessToken) => api.createIngestGroup(accessToken, request));
 }
 

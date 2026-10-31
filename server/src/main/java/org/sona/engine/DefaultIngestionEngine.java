@@ -6,12 +6,14 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.sona.db.ArtistDao;
 import org.sona.db.IngestDao;
@@ -29,6 +31,7 @@ import org.sona.format.flac.FlacParser;
 import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
+import org.sona.metadata.resolver.AlbumTrack;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
 import org.sona.metadata.resolver.ResolvedLabel;
@@ -49,6 +52,7 @@ import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public final class DefaultIngestionEngine implements IngestionEngine {
@@ -82,21 +86,62 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
     private void ingestTrack(final TrackToIngest trackToIngest)
             throws InvalidFormatException, IOException, InterruptedException {
-        final Parser parser;
-        final ParsedTrack parsed;
+        final var parsed = parseOrFail(trackToIngest);
+        final var resolution =
+                resolver.resolveTrack(trackToIngest, parsed.metadata(), parsed.duration(), parsed.fingerprint());
+        applyResolution(parsed, resolution);
+    }
+
+    @Override
+    public void processAlbum(final List<TrackToIngest> tracks) throws IOException, InterruptedException {
+        final var parsedTracks = new ArrayList<ParsedTrack>();
+        for (final var track : tracks) {
+            try {
+                parsedTracks.add(parseOrFail(track));
+            } catch (InvalidFormatException e) {
+                // It is marked failed. The rest of the album is still matched.
+                log.warn("Ingesting {} ({}) failed", track.trackIngestId(), track.originalFileName(), e);
+            }
+        }
+        final var albumTracks = parsedTracks.stream()
+                .map(parsed -> new AlbumTrack(
+                        parsed.trackToIngest(), parsed.metadata(), parsed.duration(), parsed.fingerprint()))
+                .toList();
+        final var resolutions = resolver.resolveAlbum(albumTracks);
+        for (var index = 0; index < parsedTracks.size(); index++) {
+            applyAlbumResolution(parsedTracks.get(index), resolutions.get(index));
+        }
+    }
+
+    // A track that can't be imported doesn't stop the rest of its album.
+    private void applyAlbumResolution(final ParsedTrack parsed, final TrackResolution resolution) {
         try {
-            parser = parserFor(trackToIngest.originalFileName());
-            parsed = parseIngestTrack(trackToIngest, parser);
+            applyResolution(parsed, resolution);
+        } catch (IOException e) {
+            log.warn(
+                    "Importing {} ({}) failed",
+                    parsed.trackToIngest().trackIngestId(),
+                    parsed.trackToIngest().originalFileName(),
+                    e);
+        }
+    }
+
+    private ParsedTrack parseOrFail(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException {
+        try {
+            final var parser = parserFor(trackToIngest.originalFileName());
+            return parseIngestTrack(trackToIngest, parser);
         } catch (InvalidFormatException e) {
             // Processing it again would fail the same way.
             markState(trackToIngest, IngestState.FAILED);
             throw e;
         }
-        final var metadata = parsed.metadata();
-        switch (resolver.resolveTrack(trackToIngest, metadata, parsed.duration(), parsed.fingerprint())) {
+    }
+
+    private void applyResolution(final ParsedTrack parsed, final TrackResolution resolution) throws IOException {
+        switch (resolution) {
             case TrackResolution.Matched matched ->
-                importTrack(trackToIngest, matched.track(), parsed.duration(), parser.format());
-            case TrackResolution.NeedsReview review -> requireInput(trackToIngest, review.candidates());
+                importTrack(parsed.trackToIngest(), matched.track(), parsed.duration(), parsed.format());
+            case TrackResolution.NeedsReview review -> requireInput(parsed.trackToIngest(), review.candidates());
         }
     }
 
@@ -163,11 +208,16 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 case IntPcmAudio ints -> new Fingerprint(ints);
                 case FloatPcmAudio floats -> new Fingerprint(floats);
             };
-            return new ParsedTrack(parsed.metadata(), duration, fingerprint);
+            return new ParsedTrack(trackToIngest, parser.format(), parsed.metadata(), duration, fingerprint);
         }
     }
 
-    private record ParsedTrack(RawMetadata metadata, Duration duration, Fingerprint fingerprint) {}
+    private record ParsedTrack(
+            TrackToIngest trackToIngest,
+            Format format,
+            RawMetadata metadata,
+            Duration duration,
+            Fingerprint fingerprint) {}
 
     private void importTrack(
             final TrackToIngest trackToIngest,

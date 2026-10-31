@@ -171,7 +171,7 @@ class IngestProgressTest {
 
     private TrackIngestResponse uploadWhisper(final Users uploader) {
         final var token = token(uploader);
-        final var group = api.createIngestGroup(token, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+        final var group = api.createIngestGroup(token, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", 1))
                 .expectStatus()
                 .isCreated()
                 .expectBody(IngestGroupResponse.class)

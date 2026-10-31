@@ -1,5 +1,6 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.field;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
@@ -57,14 +58,35 @@ public class IngestDao {
     }
 
     /**
-     * @return the oldest ingest still waiting to be processed
+     * @return the oldest pending ingest whose group has had all its files uploaded; one of a group still uploading
+     * waits, as matching chooses one release for the whole group
      */
-    public Optional<TrackToIngest> loadOldestPending() {
-        return dsl.selectFrom(TRACK_TO_INGEST)
+    public Optional<TrackToIngest> loadOldestReadyPending() {
+        final var uploaded = TRACK_TO_INGEST.as("uploaded");
+        final var uploadedCount =
+                dsl.selectCount().from(uploaded).where(uploaded.GROUP_INGEST_ID.eq(TRACK_TO_INGEST.GROUP_INGEST_ID));
+        return dsl.select(TRACK_TO_INGEST.fields())
+                .from(TRACK_TO_INGEST)
+                .join(INGEST_GROUP)
+                .on(INGEST_GROUP.INGEST_GROUP_ID.eq(TRACK_TO_INGEST.GROUP_INGEST_ID))
                 .where(TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
+                .and(field(uploadedCount).ge(INGEST_GROUP.TRACK_COUNT))
                 .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
                 .limit(1)
-                .fetchOptional(trackToIngestMapper::fromRecord);
+                .fetchOptional()
+                .map(record -> record.into(TRACK_TO_INGEST))
+                .map(trackToIngestMapper::fromRecord);
+    }
+
+    /**
+     * @return the group's ingests still waiting to be processed, oldest first
+     */
+    public List<TrackToIngest> loadPendingByGroup(final UUID ingestGroupId) {
+        return dsl.selectFrom(TRACK_TO_INGEST)
+                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                .and(TRACK_TO_INGEST.STATE.eq(IngestState.PENDING))
+                .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
+                .fetch(trackToIngestMapper::fromRecord);
     }
 
     public void updateState(final UUID trackToIngestId, final IngestState state) {

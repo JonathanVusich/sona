@@ -90,7 +90,7 @@ class UploadE2ETest {
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
         assertThat(uploadPage.status("01 Somewhere Only We Know.flac")).hasText("Waiting to be matched");
         assertThat(storedGroup())
-                .isEqualTo(new IngestGroup(null, IngestGroupKind.ALBUM, "Hopes and Fears", root.userId()));
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.ALBUM, "Hopes and Fears", root.userId(), 2));
     }
 
     @Test
@@ -106,7 +106,7 @@ class UploadE2ETest {
 
         assertThat(uploadPage.summary()).hasText("2 of 2 files uploaded");
         assertThat(storedGroup())
-                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId()));
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId(), 2));
     }
 
     @Test
@@ -178,7 +178,7 @@ class UploadE2ETest {
 
         assertThat(uploadPage.status("Somewhere Only We Know.flac")).hasText("Waiting to be matched");
         assertThat(storedGroup())
-                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId()));
+                .isEqualTo(new IngestGroup(null, IngestGroupKind.UNKNOWN, "Loose files", root.userId(), 1));
     }
 
     @Test
@@ -285,9 +285,9 @@ class UploadE2ETest {
 
     // The group of the first file uploaded, with its ID, which the frontend made up, left out.
     private IngestGroup storedGroup() {
-        final var ingest = ingestDao.loadOldestPending().orElseThrow();
+        final var ingest = ingestDao.loadOldestReadyPending().orElseThrow();
         final var group = ingestDao.loadGroupById(ingest.groupIngestId()).orElseThrow();
-        return new IngestGroup(null, group.kind(), group.name(), group.userId());
+        return new IngestGroup(null, group.kind(), group.name(), group.userId(), group.trackCount());
     }
 
     private static FilePayload flac(final String name) {

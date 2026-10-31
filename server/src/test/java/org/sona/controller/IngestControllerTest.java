@@ -69,7 +69,7 @@ class IngestControllerTest {
     @Test
     void aGroupIsCreatedUnderANewId() {
         final var created = api.createIngestGroup(
-                        adminToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+                        adminToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", 1))
                 .expectStatus()
                 .isCreated()
                 .expectBody(IngestGroupResponse.class)
@@ -79,13 +79,13 @@ class IngestControllerTest {
         assertThat(created.kind()).isEqualTo(IngestGroupKind.ALBUM);
         assertThat(created.name()).isEqualTo("Parachutes");
         assertThat(ingestDao.loadGroupById(created.groupIngestId()))
-                .contains(
-                        new IngestGroup(created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes", admin.userId()));
+                .contains(new IngestGroup(
+                        created.groupIngestId(), IngestGroupKind.ALBUM, "Parachutes", admin.userId(), 1));
     }
 
     @Test
     void eachGroupGetsItsOwnId() {
-        final var request = new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes");
+        final var request = new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", 1);
 
         final var first = createGroup(request);
         final var second = createGroup(request);
@@ -95,7 +95,7 @@ class IngestControllerTest {
 
     @Test
     void aGroupWithoutANameIsRefused() {
-        api.createIngestGroup(adminToken, new IngestGroupRequest(IngestGroupKind.UNKNOWN, " "))
+        api.createIngestGroup(adminToken, new IngestGroupRequest(IngestGroupKind.UNKNOWN, " ", 1))
                 .expectStatus()
                 .isBadRequest()
                 .expectBody()
@@ -221,7 +221,7 @@ class IngestControllerTest {
         final var userToken = new TestTokens(encoder).accessToken(uuidv7(), "bob", UserRole.USER, SessionState.ACTIVE);
         final var group = storeGroup();
 
-        api.createIngestGroup(userToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes"))
+        api.createIngestGroup(userToken, new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", 1))
                 .expectStatus()
                 .isForbidden()
                 .expectBody()
@@ -247,7 +247,7 @@ class IngestControllerTest {
 
     private IngestGroup storeGroup() {
         final var group =
-                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", admin.userId());
+                new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "A Rush of Blood to the Head", admin.userId(), 1);
         ingestDao.insertGroup(group);
         return group;
     }
