@@ -42,11 +42,10 @@ public final class DefaultIngestWorker implements IngestWorker {
     }
 
     private void processEachPending() throws InterruptedException {
-        var next = ingestDao.loadOldestUploadedGroup().orElse(null);
-        while (next != null) {
-            processGroup(next);
-            ingestDao.updateGroupState(next.ingestGroupId(), IngestGroupState.MATCHED);
-            next = ingestDao.loadOldestUploadedGroup().orElse(null);
+        final var groups = ingestDao.loadUploadedGroups();
+        for (final var group : groups) {
+            processGroup(group);
+            ingestDao.updateGroupState(group.ingestGroupId(), IngestGroupState.MATCHED);
         }
     }
 
@@ -69,7 +68,7 @@ public final class DefaultIngestWorker implements IngestWorker {
         } catch (IOException | RuntimeException e) {
             log.warn("Ingesting an album of {} files failed", pending.size(), e);
             for (final var ingest : pending) {
-                failIfPending(ingest);
+                failIfUploaded(ingest);
             }
         }
     }
@@ -79,14 +78,13 @@ public final class DefaultIngestWorker implements IngestWorker {
             engine.processTrack(ingest);
         } catch (InvalidFormatException | IOException | RuntimeException e) {
             log.warn("Ingesting {} ({}) failed", ingest.trackIngestId(), ingest.originalFileName(), e);
-            failIfPending(ingest);
+            failIfUploaded(ingest);
         }
     }
 
     // The engine marks the failures it expects. Any other leaves the ingest uploaded, as if it had never been tried.
-    private void failIfPending(final TrackToIngest ingest) {
-        if (ingestDao.loadTrackIngestById(ingest.trackIngestId()).state() == IngestState.UPLOADED) {
-            ingestDao.updateState(ingest.trackIngestId(), IngestState.FAILED);
+    private void failIfUploaded(final TrackToIngest ingest) {
+        if (ingestDao.updateState(ingest.trackIngestId(), IngestState.UPLOADED, IngestState.FAILED)) {
             progressPublisher.publish(ingest, IngestState.FAILED);
         }
     }

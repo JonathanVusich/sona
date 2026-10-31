@@ -289,7 +289,7 @@ class UploadE2ETest {
 
     // The group of the first file uploaded, with its ID, which the frontend made up, left out.
     private IngestGroup storedGroup() {
-        final var group = ingestDao.loadOldestUploadedGroup().orElseThrow();
+        final var group = ingestDao.loadUploadedGroups().getFirst();
         return new IngestGroup(null, group.kind(), group.name(), group.userId(), group.state());
     }
 

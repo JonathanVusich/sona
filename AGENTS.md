@@ -239,6 +239,13 @@ testing*): run them rather than formatting by hand. The conventions below are co
   internal array or collection. Data in different representations (integer and float samples) is a type each,
   and code keeps the specific type rather than switching on a base type and throwing for the kinds that can't happen.
 - Return `Optional` for "may not be found" results from resolvers/lookups.
+- **Delete dead code in the change that makes it dead.** When a change stops using a method, field, constant, class,
+  exception, error code, route or index, remove it with its tests and docs; search for what the change left unused
+  before finishing. Code already unused when you find it goes too. Error codes may be renumbered until the first
+  release.
+- **Catch only what can happen.** Never `catch (Exception)` or `Throwable`: catch the exceptions the call throws, so
+  an `InterruptedException` passes through. A `catch (InterruptedException e) { throw e; }` above a broad catch is a
+  catch that is too wide.
 - **Avoid combinatorial explosion.** Give each case callers need its own method, function or component, rather than
   one that takes nullable, optional or mode arguments and branches on which it was given: `getAsUser(accessToken)` and
   `postJson(body)` rather than `send(accessToken | null, body | null)`, `playTracks(tracks)` and
@@ -280,6 +287,15 @@ testing*): run them rather than formatting by hand. The conventions below are co
   `insert`, `upsert` / `upsertAll`, `update…` and `delete`. A read that may find nothing returns `Optional`, and one
   whose row must exist returns the pojo. Every DAO method has a caller in `main`: delete one when its last caller goes,
   along with any index that only it used.
+- **Query for the rows you want; never load rows and filter or check their state in Java.** The state goes in the
+  `where` (`IngestDao.loadUploadedGroups`, `UserDao.loadActiveById`), not in a `filter(...)` or a `switch` over
+  `state()` on rows loaded anyway, and not in a static helper that checks a loaded row. A change that only applies in
+  some state is one conditional `update ... where state = ?` that returns whether it changed anything
+  (`IngestDao.updateState(id, from, to)`, `updateUploading`), not a load, a check and an update, which two requests
+  can both pass. Look the row up afterwards only to explain a failure. (Decisions on the identity in the request's
+  token, such as its `SessionState`, are not loaded rows.)
+- **Load a whole batch in one query.** A pass over work (the worker's uploaded groups) loads everything it will go
+  through once and iterates, not one row per query until none is left.
 - Each page has one endpoint, which reads everything the page shows first in one query, for a fast first paint: joins
   for single rows, `multiset` for lists (`ReleaseDao.loadDetails`). Don't chain lookups by ID and stitch the
   results together in Java. Secondary sections and menus (a release's **More by** and **Other editions**) load after

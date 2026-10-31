@@ -59,14 +59,13 @@ public class IngestDao {
     }
 
     /**
-     * @return the oldest group whose files are all uploaded and that hasn't been matched yet
+     * @return the groups whose files are all uploaded and that haven't been matched yet, oldest first
      */
-    public Optional<IngestGroup> loadOldestUploadedGroup() {
+    public List<IngestGroup> loadUploadedGroups() {
         return dsl.selectFrom(INGEST_GROUP)
                 .where(INGEST_GROUP.STATE.eq(IngestGroupState.UPLOADED))
                 .orderBy(INGEST_GROUP.INGEST_GROUP_ID)
-                .limit(1)
-                .fetchOptional(ingestGroupMapper::fromRecord);
+                .fetch(ingestGroupMapper::fromRecord);
     }
 
     public void updateGroupState(final UUID ingestGroupId, final IngestGroupState state) {
@@ -95,6 +94,22 @@ public class IngestDao {
         return dsl.selectFrom(TRACK_TO_INGEST)
                 .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
                 .and(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .fetchOptional(trackToIngestMapper::fromRecord);
+    }
+
+    /**
+     * Marks the file as receiving its bytes, if it is in the group and hasn't been uploaded yet; one that is
+     * uploading may be sent again.
+     *
+     * @return the ingest, or nothing if the group has no such file or it has been uploaded
+     */
+    public Optional<TrackToIngest> updateUploading(final UUID ingestGroupId, final UUID trackToIngestId) {
+        return dsl.update(TRACK_TO_INGEST)
+                .set(TRACK_TO_INGEST.STATE, IngestState.UPLOADING)
+                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                .and(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING))
+                .returning()
                 .fetchOptional(trackToIngestMapper::fromRecord);
     }
 
@@ -134,6 +149,20 @@ public class IngestDao {
                 .set(TRACK_TO_INGEST.STATE, state)
                 .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
                 .execute();
+    }
+
+    /**
+     * Moves the ingest on only if it is still in {@code from}, so a state the engine set meanwhile isn't overwritten.
+     *
+     * @return whether the ingest was in {@code from}
+     */
+    public boolean updateState(final UUID trackToIngestId, final IngestState from, final IngestState to) {
+        final var updated = dsl.update(TRACK_TO_INGEST)
+                .set(TRACK_TO_INGEST.STATE, to)
+                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .and(TRACK_TO_INGEST.STATE.eq(from))
+                .execute();
+        return updated > 0;
     }
 
     /**

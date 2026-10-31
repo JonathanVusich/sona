@@ -33,6 +33,17 @@ class UserDaoTest {
     }
 
     @Test
+    void aDisabledUserIsNotLoadedAsActive() {
+        final var active = newUser("alice", UserRole.USER, AccountState.ACTIVE);
+        final var disabled = newUser("bob", UserRole.USER, AccountState.DISABLED);
+        dao.insert(active);
+        dao.insert(disabled);
+
+        assertThat(dao.loadActiveById(active.userId())).contains(active);
+        assertThat(dao.loadActiveById(disabled.userId())).isEmpty();
+    }
+
+    @Test
     void usernamesAreUnique() {
         dao.insert(newUser("alice", UserRole.USER, AccountState.ACTIVE));
 
