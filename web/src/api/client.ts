@@ -240,7 +240,7 @@ function playlistTrackPath(playlistId: string, trackId: string): string {
 }
 
 /**
- * Creates an ingest group, under an ID Sona gives it.
+ * Creates an ingest group with an ingest for each of its files, under IDs Sona gives them.
  */
 export async function createIngestGroup(
   accessToken: string,
@@ -250,19 +250,21 @@ export async function createIngestGroup(
 }
 
 /**
- * Uploads one file into an ingest group, under the ID Sona gave the group.
+ * Uploads one file of an ingest group, to the ID Sona gave it when the group was created. It may be sent again until
+ * it has been stored.
  *
  * @param onProgress called as the file is sent, with how much of it has been, from 0 to 1
  */
 export async function uploadTrack(
   accessToken: string,
   groupIngestId: string,
+  trackIngestId: string,
   file: File,
   onProgress: (sent: number) => void,
 ): Promise<ApiResult<TrackIngestResponse>> {
-  const query = new URLSearchParams({ filename: file.name });
-  const path = `${ApiRoutes.INGEST_GROUPS}/${encodeURIComponent(groupIngestId)}/tracks?${query}`;
-  return sendForJson(path, postFileAsUser(accessToken, file, onProgress));
+  const group = `${ApiRoutes.INGEST_GROUPS}/${encodeURIComponent(groupIngestId)}`;
+  const path = `${group}/tracks/${encodeURIComponent(trackIngestId)}`;
+  return sendForJson(path, putFileAsUser(accessToken, file, onProgress));
 }
 
 function pageQuery(page: PageRequest): string {
@@ -301,9 +303,9 @@ function deleteAsUser(accessToken: string): AxiosRequestConfig {
   return { method: HttpMethod.DELETE, headers: authorizationHeader(accessToken) };
 }
 
-function postFileAsUser(accessToken: string, file: File, onProgress: (sent: number) => void): AxiosRequestConfig {
+function putFileAsUser(accessToken: string, file: File, onProgress: (sent: number) => void): AxiosRequestConfig {
   return {
-    method: HttpMethod.POST,
+    method: HttpMethod.PUT,
     headers: { ...authorizationHeader(accessToken), ...FILE_CONTENT },
     data: file,
     onUploadProgress: (event) => onProgress(sentFraction(file, event)),

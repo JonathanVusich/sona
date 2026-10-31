@@ -23,6 +23,7 @@ import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
@@ -201,7 +202,8 @@ class PlayerE2ETest {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
+        final var group = new IngestGroup(
+                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), name + ".flac", IngestState.COMPLETED);
         ingestDao.insertTrackIngest(ingest);

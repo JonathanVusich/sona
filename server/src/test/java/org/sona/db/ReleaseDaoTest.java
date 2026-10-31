@@ -11,6 +11,7 @@ import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
@@ -188,7 +189,7 @@ class ReleaseDaoTest {
         final var disc = storeMedium(release, 1);
         final var imported = storeTrack(disc, keane, 1);
         storeTrackInState(disc, keane.artistId(), 2, IngestState.MOVE_FAILED);
-        storeTrackInState(disc, keane.artistId(), 3, IngestState.PENDING);
+        storeTrackInState(disc, keane.artistId(), 3, IngestState.UPLOADED);
 
         final var details = dao.loadDetails(release.releaseId()).orElseThrow();
 
@@ -200,7 +201,7 @@ class ReleaseDaoTest {
     void trackCountFollowsTheTracksIngest() {
         final var artist = storeArtist("Coldplay");
         final var release = storeRelease(artist);
-        final var track = storeTrackInState(storeMedium(release, 1), artist.artistId(), 1, IngestState.PENDING);
+        final var track = storeTrackInState(storeMedium(release, 1), artist.artistId(), 1, IngestState.UPLOADED);
 
         ingestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
         final var failed = trackCount(release);
@@ -367,7 +368,8 @@ class ReleaseDaoTest {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
+        final var group = new IngestGroup(
+                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "track.flac", state);
         ingestDao.insertTrackIngest(ingest);

@@ -21,6 +21,7 @@ import org.sona.db.TrackDao;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.Artist;
@@ -263,7 +264,8 @@ public class DevLibraryRunner implements ApplicationRunner {
             final Users uploader) {
         final var trackId = uuidv7();
         final var fileName = trackId + ".flac";
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
+        final var group = new IngestGroup(
+                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), fileName, IngestState.COMPLETED);
         ingestDao.insertTrackIngest(ingest);

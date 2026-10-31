@@ -83,6 +83,8 @@ export const ErrorCode = {
   FILE_TOO_LARGE: 305,
   TRACK_NOT_FOUND: 306,
   PLAYLIST_NOT_FOUND: 307,
+  INGEST_TRACK_NOT_FOUND: 309,
+  INGEST_ALREADY_UPLOADED: 310,
 
   INVALID_PARAMETER: 400,
   UNSUPPORTED_CONTENT_TYPE: 401,
@@ -250,7 +252,11 @@ export interface ErrorResponse {
 
 /** How far a file's ingest has got. */
 export const IngestState = {
-  PENDING: "PENDING",
+  // Its ingest is made, and its bytes are yet to be sent.
+  CREATED: "CREATED",
+  UPLOADING: "UPLOADING",
+  // Its bytes are stored, and it waits to be matched.
+  UPLOADED: "UPLOADED",
   INPUT_REQUIRED: "INPUT_REQUIRED",
   MOVE_FAILED: "MOVE_FAILED",
   FAILED: "FAILED",
@@ -259,14 +265,16 @@ export const IngestState = {
 
 export type IngestState = (typeof IngestState)[keyof typeof IngestState];
 
-/** A group of files to upload, under the ID Sona gave it, which its files are uploaded under. */
+/** A group of files to upload, under the ID Sona gave it. */
 export interface IngestGroupResponse {
   groupIngestId: string;
   kind: IngestGroupKind;
   name: string;
+  /** The group's files, in the order they were listed, each under the ID it is uploaded to. */
+  tracks: TrackIngestResponse[];
 }
 
-/** One uploaded file, and how far its ingest has got. */
+/** One file of an upload, and how far its ingest has got. */
 export interface TrackIngestResponse {
   trackIngestId: string;
   groupIngestId: string;

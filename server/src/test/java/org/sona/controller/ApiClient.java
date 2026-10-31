@@ -201,14 +201,12 @@ public final class ApiClient {
     }
 
     /**
-     * Sends one file of an upload, as the frontend does: its bytes as the body, and its name as a parameter.
+     * Sends one file of an upload, as the frontend does: its bytes as the body, to the ID Sona gave it.
      */
     public RestTestClient.ResponseSpec uploadTrack(
-            final String accessToken, final UUID groupIngestId, final String filename, final byte[] file) {
-        return client.post()
-                .uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
-                        .queryParam("filename", filename)
-                        .build(groupIngestId))
+            final String accessToken, final UUID groupIngestId, final UUID trackIngestId, final byte[] file) {
+        return client.put()
+                .uri(ApiRoutes.INGEST_GROUP_TRACK, groupIngestId, trackIngestId)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(file)
@@ -219,23 +217,11 @@ public final class ApiClient {
      * Sends a file as curl does by default, as if it were a form.
      */
     public RestTestClient.ResponseSpec uploadTrackAsForm(
-            final String accessToken, final UUID groupIngestId, final String filename, final byte[] file) {
-        return client.post()
-                .uri(uri -> uri.path(ApiRoutes.INGEST_GROUP_TRACKS)
-                        .queryParam("filename", filename)
-                        .build(groupIngestId))
+            final String accessToken, final UUID groupIngestId, final UUID trackIngestId, final byte[] file) {
+        return client.put()
+                .uri(ApiRoutes.INGEST_GROUP_TRACK, groupIngestId, trackIngestId)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(file)
-                .exchange();
-    }
-
-    public RestTestClient.ResponseSpec uploadTrackWithoutFilename(
-            final String accessToken, final UUID groupIngestId, final byte[] file) {
-        return client.post()
-                .uri(ApiRoutes.INGEST_GROUP_TRACKS, groupIngestId)
-                .headers(headers -> headers.setBearerAuth(accessToken))
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(file)
                 .exchange();
     }

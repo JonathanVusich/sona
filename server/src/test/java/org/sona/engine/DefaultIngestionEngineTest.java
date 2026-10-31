@@ -16,10 +16,10 @@ import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
 import static org.sona.model.Tables.RELEASE_LABEL;
 import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -50,6 +50,7 @@ import org.sona.metadata.TagValue;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestGroupKind;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.enums.UserRole;
@@ -388,9 +389,10 @@ class DefaultIngestionEngineTest {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
+        final var group = new IngestGroup(
+                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);
-        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.ogg", IngestState.PENDING);
+        final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.ogg", IngestState.UPLOADED);
         ingestDao.insertTrackIngest(ingest);
 
         assertThatThrownBy(() -> engine.processTrack(ingest))
@@ -506,9 +508,10 @@ class DefaultIngestionEngineTest {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
-        final var group = new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId());
+        final var group = new IngestGroup(
+                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.CREATED);
         ingestDao.insertGroup(group);
-        return library.storeIngestTrack(group, fileName, new ByteArrayInputStream(flac));
+        return createAndUpload(ingestDao, library, group, fileName, flac);
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {

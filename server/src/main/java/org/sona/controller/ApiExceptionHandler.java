@@ -6,7 +6,9 @@ import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.ArtistNotFoundException;
 import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IncorrectPasswordException;
+import org.sona.exception.IngestAlreadyUploadedException;
 import org.sona.exception.IngestGroupNotFoundException;
+import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidCredentialsException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.InvalidRefreshTokenException;
@@ -114,6 +116,8 @@ public final class ApiExceptionHandler {
             case QueueEntryNotFoundException _ -> ErrorCode.QUEUE_ENTRY_NOT_FOUND;
             case QueueStartOutOfRangeException _ -> ErrorCode.INVALID_PARAMETER;
             case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
+            case IngestTrackNotFoundException _ -> ErrorCode.INGEST_TRACK_NOT_FOUND;
+            case IngestAlreadyUploadedException _ -> ErrorCode.INGEST_ALREADY_UPLOADED;
             case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;
             case InvalidRefreshTokenException _ -> ErrorCode.INVALID_REFRESH_TOKEN;
