@@ -21,7 +21,6 @@ public abstract sealed class SonaException extends RuntimeException
                 IncorrectPasswordException,
                 UnchangedPasswordException,
                 PasswordManagedByProviderException,
-                InvalidRegistrationTokenException,
                 AlreadyRegisteredException,
                 UsernameTakenException {
 

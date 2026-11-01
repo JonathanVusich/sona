@@ -57,8 +57,15 @@ public class UserDao {
         return !dsl.fetchExists(USERS);
     }
 
-    public void insert(final Users user) {
-        dsl.insertInto(USERS).set(usersMapper.toRecord(user)).execute();
+    /**
+     * @return whether the user was inserted, rather than their ID or username being taken
+     */
+    public boolean insert(final Users user) {
+        return dsl.insertInto(USERS)
+                        .set(usersMapper.toRecord(user))
+                        .onConflictDoNothing()
+                        .execute()
+                > 0;
     }
 
     /**

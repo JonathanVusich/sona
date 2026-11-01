@@ -1,10 +1,10 @@
 package org.sona.auth;
 
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.auth.SonaJwtConverter.ROLE_CLAIM;
 import static org.sona.auth.SonaJwtConverter.STATE_CLAIM;
 import static org.sona.auth.SonaJwtConverter.USERNAME_CLAIM;
-import static org.sona.utils.HashUtils.sha256Hex;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.security.SecureRandom;

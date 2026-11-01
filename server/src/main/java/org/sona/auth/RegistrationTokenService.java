@@ -4,7 +4,6 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
 import org.sona.model.enums.UserRole;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -59,20 +58,16 @@ public final class RegistrationTokenService {
     }
 
     /**
-     * @return the user the token was issued for, or empty if it is invalid or expired
+     * @return the user the token was issued for
+     * @throws JwtException if the token is invalid or expired
      */
-    public Optional<ProviderUser> readToken(final String token) {
-        try {
-            final var jwt = decoder.decode(token);
-            final var user = new ProviderUser(
-                    jwt.getClaimAsString(PROVIDER_CLAIM),
-                    jwt.getClaimAsString(OIDC_ISSUER_CLAIM),
-                    jwt.getClaimAsString(OIDC_SUBJECT_CLAIM),
-                    parseRole(jwt.getClaimAsString(ROLE_CLAIM)));
-            return Optional.of(user);
-        } catch (final JwtException _) {
-            return Optional.empty();
-        }
+    public ProviderUser readToken(final String token) {
+        final var jwt = decoder.decode(token);
+        return new ProviderUser(
+                jwt.getClaimAsString(PROVIDER_CLAIM),
+                jwt.getClaimAsString(OIDC_ISSUER_CLAIM),
+                jwt.getClaimAsString(OIDC_SUBJECT_CLAIM),
+                parseRole(jwt.getClaimAsString(ROLE_CLAIM)));
     }
 
     private static UserRole parseRole(final String claim) {

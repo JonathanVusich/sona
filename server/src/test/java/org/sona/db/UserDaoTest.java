@@ -45,10 +45,12 @@ class UserDaoTest {
 
     @Test
     void usernamesAreUnique() {
-        dao.insert(newUser("alice", UserRole.USER, AccountState.ACTIVE));
+        final var alice = newUser("alice", UserRole.USER, AccountState.ACTIVE);
 
-        assertThatThrownBy(() -> dao.insert(newUser("alice", UserRole.ADMIN, AccountState.ACTIVE)))
-                .isInstanceOf(DuplicateKeyException.class);
+        assertThat(dao.insert(alice)).isTrue();
+        assertThat(dao.insert(newUser("alice", UserRole.ADMIN, AccountState.ACTIVE)))
+                .isFalse();
+        assertThat(dao.insert(alice)).isFalse();
     }
 
     @Test
