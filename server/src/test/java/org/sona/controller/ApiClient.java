@@ -204,9 +204,9 @@ public final class ApiClient {
      * Sends one file of an upload, as the frontend does: its bytes as the body, to the ID Sona gave it.
      */
     public RestTestClient.ResponseSpec uploadTrack(
-            final String accessToken, final UUID groupIngestId, final UUID trackIngestId, final byte[] file) {
+            final String accessToken, final UUID trackIngestId, final byte[] file) {
         return client.put()
-                .uri(ApiRoutes.INGEST_GROUP_TRACK, groupIngestId, trackIngestId)
+                .uri(ApiRoutes.INGEST_TRACK, trackIngestId)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(file)
@@ -217,9 +217,9 @@ public final class ApiClient {
      * Sends a file as curl does by default, as if it were a form.
      */
     public RestTestClient.ResponseSpec uploadTrackAsForm(
-            final String accessToken, final UUID groupIngestId, final UUID trackIngestId, final byte[] file) {
+            final String accessToken, final UUID trackIngestId, final byte[] file) {
         return client.put()
-                .uri(ApiRoutes.INGEST_GROUP_TRACK, groupIngestId, trackIngestId)
+                .uri(ApiRoutes.INGEST_TRACK, trackIngestId)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(file)

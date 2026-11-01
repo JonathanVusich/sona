@@ -161,7 +161,7 @@ async function uploadWaitingFiles(): Promise<void> {
 async function sendUpload(upload: FileUpload, ingest: TrackIngestResponse): Promise<ApiResult<TrackIngestResponse>> {
   const file = upload.file.file;
   return sendAsCurrentUser((accessToken) =>
-    api.uploadTrack(accessToken, ingest.groupIngestId, ingest.trackIngestId, file, (sent) => updateSent(upload, sent)),
+    api.uploadTrack(accessToken, ingest.trackIngestId, file, (sent) => updateSent(upload, sent)),
   );
 }
 

@@ -169,7 +169,7 @@ class UploadE2ETest {
     void aFileWhoseConnectionBrokeCanBeSentAgain(final Page page) {
         final var uploadPage = logInAndOpen(page);
         uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));
-        final Predicate<String> trackUploads = url -> url.contains("/tracks/");
+        final Predicate<String> trackUploads = url -> url.contains("/ingest-tracks/");
         page.route(trackUploads, Route::abort);
 
         uploadPage.uploadButton().click();
@@ -190,7 +190,7 @@ class UploadE2ETest {
         final var uploadPage = logInAndOpen(page);
         uploadPage.chooseFiles(flac("Somewhere Only We Know.flac"));
         final var held = new ArrayList<Route>();
-        page.route(url -> url.contains("/tracks/"), held::add);
+        page.route(url -> url.contains("/ingest-tracks/"), held::add);
 
         uploadPage.uploadButton().click();
         // WebKit sends the request a while after the ring appears.

@@ -82,7 +82,7 @@ class DefaultLibraryTest {
 
         final var ingestTrack = upload(library, created, bytes);
 
-        assertThat(ingestDao.loadTrackIngestById(ingestTrack.trackIngestId()))
+        assertThat(ingestDao.loadTrackIngestById(ingestTrack.trackIngestId()).orElseThrow())
                 .isEqualTo(new TrackToIngest(
                         created.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.UPLOADED));
         assertThat(ingestDao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
@@ -104,7 +104,7 @@ class DefaultLibraryTest {
         final var group = storeGroup();
         final var file = new ByteArrayInputStream(new byte[] {1, 2, 3});
 
-        assertThatThrownBy(() -> library.storeIngestTrack(group.ingestGroupId(), uuidv7(), file))
+        assertThatThrownBy(() -> library.storeIngestTrack(uuidv7(), file))
                 .isInstanceOf(IngestTrackNotFoundException.class);
         assertThat(Files.exists(libraryProperties
                         .ingestFolder()
@@ -118,7 +118,7 @@ class DefaultLibraryTest {
         final var uploaded = createAndUpload(ingestDao, library, group, "track.flac", new byte[] {1, 2, 3});
         final var file = new ByteArrayInputStream(new byte[] {4, 5, 6});
 
-        assertThatThrownBy(() -> library.storeIngestTrack(group.ingestGroupId(), uploaded.trackIngestId(), file))
+        assertThatThrownBy(() -> library.storeIngestTrack(uploaded.trackIngestId(), file))
                 .isInstanceOf(IngestAlreadyUploadedException.class);
     }
 

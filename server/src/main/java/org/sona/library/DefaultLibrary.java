@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Locale;
 import java.util.UUID;
@@ -53,26 +54,14 @@ public final class DefaultLibrary implements Library {
     }
 
     @Override
-    public TrackToIngest storeIngestTrack(
-            final UUID ingestGroupId, final UUID ingestTrackId, final InputStream inputStream) throws IOException {
-        if (!ingestDao.updateUploading(ingestGroupId, ingestTrackId)) {
-            throw refusedUpload(ingestGroupId, ingestTrackId);
-        }
+    public TrackToIngest storeIngestTrack(final UUID trackIngestId, final InputStream inputStream) throws IOException {
+        final var trackIngest =
+                ingestDao.updateUploading(trackIngestId).orElseThrow(() -> refusedUpload(trackIngestId));
 
-        final var ingestFolder = config.ingestFolder().resolve(ingestGroupId.toString());
-        Files.createDirectories(ingestFolder);
-        final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
-
-        try {
-            copyUpload(inputStream, ingestTarget);
-        } catch (IOException | FileTooLargeException e) {
-            // An upload cut short leaves part of a file, which the next upload of it replaces.
-            Files.deleteIfExists(ingestTarget);
-            throw e;
-        }
-
-        ingestDao.updateUploaded(ingestTrackId);
-        return ingestDao.loadTrackIngestById(ingestTrackId);
+        final var ingestTarget = resolveIngestTrack(trackIngest);
+        Files.createDirectories(ingestTarget.getParent());
+        copyUpload(inputStream, ingestTarget);
+        return ingestDao.updateUploaded(trackIngestId);
     }
 
     @Override
@@ -114,7 +103,8 @@ public final class DefaultLibrary implements Library {
         return new FileSystemResource(resolveLibraryPath(track.path()));
     }
 
-    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it.
+    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it. An
+    // upload cut short or refused leaves part of a file, which the next upload of it replaces.
     private void copyUpload(final InputStream inputStream, final Path target) throws IOException {
         final var maxBytes = config.maxUploadSize().toBytes();
         final var bounded = BoundedInputStream.builder()
@@ -122,7 +112,7 @@ public final class DefaultLibrary implements Library {
                 .setMaxCount(maxBytes + 1)
                 .setPropagateClose(false)
                 .get();
-        final var copied = Files.copy(bounded, target);
+        final var copied = Files.copy(bounded, target, StandardCopyOption.REPLACE_EXISTING);
         if (copied > maxBytes) {
             throw new FileTooLargeException(config.maxUploadSize());
         }
@@ -134,11 +124,11 @@ public final class DefaultLibrary implements Library {
 
     // A file is sent again while its ingest is created or uploading. Once it is uploaded it may be in the middle of
     // being matched, so the stored file mustn't be replaced.
-    private SonaException refusedUpload(final UUID ingestGroupId, final UUID ingestTrackId) {
+    private SonaException refusedUpload(final UUID trackIngestId) {
         return ingestDao
-                .loadGroupTrackIngest(ingestGroupId, ingestTrackId)
-                .<SonaException>map(_ -> new IngestAlreadyUploadedException(ingestTrackId))
-                .orElseGet(() -> new IngestTrackNotFoundException(ingestGroupId, ingestTrackId));
+                .loadTrackIngestById(trackIngestId)
+                .<SonaException>map(_ -> new IngestAlreadyUploadedException(trackIngestId))
+                .orElseGet(() -> new IngestTrackNotFoundException(trackIngestId));
     }
 
     private Path resolveLibraryPath(final String libraryPath) {

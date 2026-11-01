@@ -257,13 +257,11 @@ export async function createIngestGroup(
  */
 export async function uploadTrack(
   accessToken: string,
-  groupIngestId: string,
   trackIngestId: string,
   file: File,
   onProgress: (sent: number) => void,
 ): Promise<ApiResult<TrackIngestResponse>> {
-  const group = `${ApiRoutes.INGEST_GROUPS}/${encodeURIComponent(groupIngestId)}`;
-  const path = `${group}/tracks/${encodeURIComponent(trackIngestId)}`;
+  const path = `${ApiRoutes.INGEST_TRACKS}/${encodeURIComponent(trackIngestId)}`;
   return sendForJson(path, putFileAsUser(accessToken, file, onProgress));
 }
 

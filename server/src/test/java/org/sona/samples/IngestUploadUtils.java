@@ -32,7 +32,7 @@ public class IngestUploadUtils {
      */
     public static TrackToIngest upload(final Library library, final TrackToIngest ingest, final byte[] file)
             throws IOException {
-        return library.storeIngestTrack(ingest.groupIngestId(), ingest.trackIngestId(), new ByteArrayInputStream(file));
+        return library.storeIngestTrack(ingest.trackIngestId(), new ByteArrayInputStream(file));
     }
 
     /**

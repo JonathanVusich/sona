@@ -62,7 +62,7 @@ class MusicBrainzResolverTest {
             newClient(musicBrainz.baseUrl() + "/ws/2/"), newAcoustIdClient(musicBrainz.baseUrl() + "/v2/"));
 
     @Test
-    void resolveTaggedTrack() throws IOException, InterruptedException, InvalidFormatException {
+    void resolveTaggedTrack() throws IOException, InvalidFormatException {
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
 
         // AcoustID knows no recording with this fingerprint (the stub in src/test/resources/wiremock/mappings).
@@ -80,8 +80,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void resolveTheRecordingAFingerprintMatchesCloselyWhateverTheTagsSay()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void resolveTheRecordingAFingerprintMatchesCloselyWhateverTheTagsSay() throws IOException, InvalidFormatException {
         stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
         // Lower Your Eyelids to Die With the Sun is 10:37 long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(638));
@@ -101,8 +100,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void preferTheTaggedRecordingALooseFingerprintMatchIsOf()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void preferTheTaggedRecordingALooseFingerprintMatchIsOf() throws IOException, InvalidFormatException {
         // The instrumental A Whisper, the second recording the tags find, matches loosely.
         stubFingerprintMatch(aResponse().withBody("""
                 {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
@@ -122,7 +120,7 @@ class MusicBrainzResolverTest {
 
     @Test
     void resolveFromTheTagsWhenALooseFingerprintMatchIsOfNoTaggedRecording()
-            throws IOException, InterruptedException, InvalidFormatException {
+            throws IOException, InvalidFormatException {
         stubFingerprintMatch(aResponse().withBody("""
                 {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
                     "recordings": [{"id": "cd2e7c47-16f5-46c6-a37c-a1eb7bf599ff"}]}], "status": "ok"}
@@ -167,8 +165,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void askForReviewWithNoCandidatesWhenNothingMatches()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void askForReviewWithNoCandidatesWhenNothingMatches() throws IOException, InvalidFormatException {
         final var metadata = newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall");
 
         assertThat(resolver.resolveTrack(trackToIngest("unknown.flac"), metadata, metadata.duration(), fingerprint()))
@@ -176,8 +173,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void acceptARecordingExactlyThreeSecondsFromTheAudio()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void acceptARecordingExactlyThreeSecondsFromTheAudio() throws IOException, InvalidFormatException {
         // A Whisper is 238.000 seconds long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(241));
 
@@ -189,8 +185,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void askForReviewWhenNoRecordingIsWithinThreeSecondsOfTheAudio()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void askForReviewWhenNoRecordingIsWithinThreeSecondsOfTheAudio() throws IOException, InvalidFormatException {
         // The three recordings are 238.000, 237.000 and 238.333 seconds long.
         final var metadata = numberedMetadata("A Whisper", "Coldplay", Duration.ofSeconds(242));
 
@@ -203,8 +198,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void ignoreAFingerprintMatchOfARecordingOfAnotherLength()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void ignoreAFingerprintMatchOfARecordingOfAnotherLength() throws IOException, InvalidFormatException {
         stubFingerprintMatch(aResponse().withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json"));
         // 10:37 is far from A Whisper's length, but the audio is 4 minutes long, so the tags decide.
         final var metadata = numberedMetadata("A Whisper", "Coldplay");
@@ -217,7 +211,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void chooseTheReleaseTheAlbumTagNames() throws IOException, InterruptedException, InvalidFormatException {
+    void chooseTheReleaseTheAlbumTagNames() throws IOException, InvalidFormatException {
         final var metadata = albumMetadata("a rush of blood to the head");
 
         final var resolved = resolver.resolveTrack(
@@ -228,8 +222,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void askForReviewWhenNoReleaseHasTheAlbumTagsTitle()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void askForReviewWhenNoReleaseHasTheAlbumTagsTitle() throws IOException, InvalidFormatException {
         final var metadata = albumMetadata("Parachutes");
 
         final var resolved = resolver.resolveTrack(
@@ -247,8 +240,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void resolveTheTracksOfAnAlbumOnTheReleaseMostOfThemAreOn()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void resolveTheTracksOfAnAlbumOnTheReleaseMostOfThemAreOn() throws IOException, InvalidFormatException {
         stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", COMPILATION_ID, ALBUM_ID));
         stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", ALBUM_ID));
         final var songOne = albumTrack("Song One");
@@ -266,8 +258,7 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void askForReviewOfAnAlbumTrackThatIsNotOnTheAlbumsRelease()
-            throws IOException, InterruptedException, InvalidFormatException {
+    void askForReviewOfAnAlbumTrackThatIsNotOnTheAlbumsRelease() throws IOException, InvalidFormatException {
         stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", ALBUM_ID));
         stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", ALBUM_ID));
         stubSearch("Bonus Song", recordingJson(BONUS_ID, "Bonus Song", COMPILATION_ID));

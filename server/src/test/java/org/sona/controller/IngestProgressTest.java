@@ -180,8 +180,7 @@ class IngestProgressTest {
                 .expectBody(IngestGroupResponse.class)
                 .returnResult()
                 .getResponseBody();
-        return api.uploadTrack(
-                        token, group.groupIngestId(), group.tracks().getFirst().trackIngestId(), whisper())
+        return api.uploadTrack(token, group.tracks().getFirst().trackIngestId(), whisper())
                 .expectStatus()
                 .isOk()
                 .expectBody(TrackIngestResponse.class)

@@ -76,14 +76,12 @@ public class IngestController {
      * again. The body must be sent as {@code application/octet-stream}: a form type would have the server read the
      * file as form fields.
      *
-     * @param groupIngestId the ID Sona gave the file's group when the uploader created it
      * @param trackIngestId the ID Sona gave the file when the uploader created its group
      */
-    @PutMapping(path = ApiRoutes.INGEST_GROUP_TRACK, consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public TrackIngestResponse uploadTrack(
-            @PathVariable final UUID groupIngestId, @PathVariable final UUID trackIngestId, final InputStream body)
+    @PutMapping(path = ApiRoutes.INGEST_TRACK, consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public TrackIngestResponse uploadTrack(@PathVariable final UUID trackIngestId, final InputStream body)
             throws IOException {
-        final var ingest = library.storeIngestTrack(groupIngestId, trackIngestId, body);
+        final var ingest = library.storeIngestTrack(trackIngestId, body);
         return mapper.toResponse(ingest);
     }
 }

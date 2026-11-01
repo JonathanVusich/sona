@@ -1,6 +1,7 @@
 package org.sona.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.samples.IngestUploadUtils.createIngest;
@@ -10,11 +11,11 @@ import static org.sona.utils.IDGenerator.uuidv7;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
+import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
-import org.sona.db.TrackDao;
 import org.sona.db.UserDao;
 import org.sona.library.Library;
 import org.sona.metadata.RawMetadata;
@@ -51,7 +52,7 @@ class DefaultIngestWorkerTest {
     UserDao userDao;
 
     @Autowired
-    TrackDao trackDao;
+    DSLContext dsl;
 
     @Autowired
     ReleaseDao releaseDao;
@@ -65,7 +66,8 @@ class DefaultIngestWorkerTest {
 
         assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
         assertThat(reloadState(second)).isEqualTo(IngestState.COMPLETED);
-        assertThat(trackDao.loadByIngest(first.trackIngestId()).name()).isEqualTo("A Whisper");
+        assertThat(dsl.fetchValue(TRACK.NAME, TRACK.TRACK_INGEST_ID.eq(first.trackIngestId())))
+                .isEqualTo("A Whisper");
         assertThat(releaseDao.loadByMusicBrainzId(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")))
                 .isPresent();
     }
@@ -174,7 +176,10 @@ class DefaultIngestWorkerTest {
     }
 
     private IngestState reloadState(final TrackToIngest ingest) {
-        return ingestDao.loadTrackIngestById(ingest.trackIngestId()).state();
+        return ingestDao
+                .loadTrackIngestById(ingest.trackIngestId())
+                .orElseThrow()
+                .state();
     }
 
     private static RawMetadata whisperMetadata() {

@@ -91,7 +91,10 @@ class IngestControllerTest {
                         admin.userId(),
                         IngestGroupState.CREATED));
         for (final var track : created.tracks()) {
-            assertThat(ingestDao.loadTrackIngestById(track.trackIngestId()).state())
+            assertThat(ingestDao
+                            .loadTrackIngestById(track.trackIngestId())
+                            .orElseThrow()
+                            .state())
                     .isEqualTo(IngestState.CREATED);
         }
     }
@@ -171,7 +174,7 @@ class IngestControllerTest {
         final var track = group.tracks().getFirst();
         final var flac = flacFile(new RawMetadata(Duration.ofSeconds(10)));
 
-        final var response = uploadTrack(group, track, flac)
+        final var response = uploadTrack(track, flac)
                 .expectStatus()
                 .isOk()
                 .expectBody(TrackIngestResponse.class)
@@ -181,7 +184,7 @@ class IngestControllerTest {
         assertThat(response.groupIngestId()).isEqualTo(group.groupIngestId());
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
         assertThat(response.state()).isEqualTo(IngestState.UPLOADED);
-        final var ingest = ingestDao.loadTrackIngestById(track.trackIngestId());
+        final var ingest = ingestDao.loadTrackIngestById(track.trackIngestId()).orElseThrow();
         assertThat(ingest.state()).isEqualTo(IngestState.UPLOADED);
         try (final var stored = library.readIngestTrack(ingest)) {
             assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(flac);
@@ -192,12 +195,12 @@ class IngestControllerTest {
     void aGroupIsUploadedOnceAllItsFilesAre() {
         final var group = createGroup(request("Parachutes", "01 Don't Panic.flac", "02 Shiver.flac"));
 
-        uploadTrack(group, group.tracks().getFirst(), new byte[] {1, 2, 3})
+        uploadTrack(group.tracks().getFirst(), new byte[] {1, 2, 3})
                 .expectStatus()
                 .isOk();
         assertThat(groupState(group)).isEqualTo(IngestGroupState.CREATED);
 
-        uploadTrack(group, group.tracks().getLast(), new byte[] {1, 2, 3})
+        uploadTrack(group.tracks().getLast(), new byte[] {1, 2, 3})
                 .expectStatus()
                 .isOk();
         assertThat(groupState(group)).isEqualTo(IngestGroupState.UPLOADED);
@@ -208,11 +211,11 @@ class IngestControllerTest {
         final var group = createGroup(request("Parachutes", "song.flac"));
         final var track = group.tracks().getFirst();
         // One byte over the 10MB the tests' library accepts.
-        uploadTrack(group, track, new byte[10 * 1024 * 1024 + 1]).expectStatus().isEqualTo(413);
+        uploadTrack(track, new byte[10 * 1024 * 1024 + 1]).expectStatus().isEqualTo(413);
         assertThat(trackState(track)).isEqualTo(IngestState.UPLOADING);
         assertThat(groupState(group)).isEqualTo(IngestGroupState.CREATED);
 
-        uploadTrack(group, track, new byte[] {1, 2, 3}).expectStatus().isOk();
+        uploadTrack(track, new byte[] {1, 2, 3}).expectStatus().isOk();
 
         assertThat(trackState(track)).isEqualTo(IngestState.UPLOADED);
         assertThat(groupState(group)).isEqualTo(IngestGroupState.UPLOADED);
@@ -222,9 +225,9 @@ class IngestControllerTest {
     void aFileThatIsUploadedAlreadyIsRefused() {
         final var group = createGroup(request("Parachutes", "song.flac"));
         final var track = group.tracks().getFirst();
-        uploadTrack(group, track, new byte[] {1, 2, 3}).expectStatus().isOk();
+        uploadTrack(track, new byte[] {1, 2, 3}).expectStatus().isOk();
 
-        uploadTrack(group, track, new byte[] {4, 5, 6})
+        uploadTrack(track, new byte[] {4, 5, 6})
                 .expectStatus()
                 .isEqualTo(409)
                 .expectBody()
@@ -235,31 +238,14 @@ class IngestControllerTest {
 
     @Test
     void aFileForAGroupThatWasNeverCreatedIsRefused() {
-        api.uploadTrack(adminToken, uuidv7(), uuidv7(), new byte[] {1, 2, 3})
+        api.uploadTrack(adminToken, uuidv7(), new byte[] {1, 2, 3})
                 .expectStatus()
                 .isNotFound()
                 .expectBody()
                 .jsonPath("$.code")
                 .isEqualTo(309)
                 .jsonPath("$.reason")
-                .isEqualTo("This file isn't in an upload group you created.");
-    }
-
-    @Test
-    void aFileThatIsNotInTheGroupItIsSentToIsRefused() {
-        final var group = createGroup(request("Parachutes", "song.flac"));
-        final var other = createGroup(request("Other", "other.flac"));
-
-        api.uploadTrack(
-                        adminToken,
-                        group.groupIngestId(),
-                        other.tracks().getFirst().trackIngestId(),
-                        new byte[] {1, 2, 3})
-                .expectStatus()
-                .isNotFound()
-                .expectBody()
-                .jsonPath("$.code")
-                .isEqualTo(309);
+                .isEqualTo("There is no such file to upload.");
     }
 
     @Test
@@ -269,7 +255,7 @@ class IngestControllerTest {
         // One byte over the 10MB the tests' library accepts.
         final var flac = new byte[10 * 1024 * 1024 + 1];
 
-        uploadTrack(group, track, flac)
+        uploadTrack(track, flac)
                 .expectStatus()
                 .isEqualTo(413)
                 .expectBody()
@@ -285,7 +271,7 @@ class IngestControllerTest {
         final var group = createGroup(request("Parachutes", "song.flac"));
         final var flac = new byte[10 * 1024 * 1024];
 
-        uploadTrack(group, group.tracks().getFirst(), flac).expectStatus().isOk();
+        uploadTrack(group.tracks().getFirst(), flac).expectStatus().isOk();
 
         assertThat(trackState(group.tracks().getFirst())).isEqualTo(IngestState.UPLOADED);
     }
@@ -295,7 +281,7 @@ class IngestControllerTest {
         final var group = createGroup(request("Parachutes", "song.flac"));
         final var track = group.tracks().getFirst();
 
-        api.uploadTrackAsForm(adminToken, group.groupIngestId(), track.trackIngestId(), new byte[] {1, 2, 3})
+        api.uploadTrackAsForm(adminToken, track.trackIngestId(), new byte[] {1, 2, 3})
                 .expectStatus()
                 .isEqualTo(415)
                 .expectBody()
@@ -316,7 +302,7 @@ class IngestControllerTest {
                 .expectBody()
                 .jsonPath("$.code")
                 .isEqualTo(104);
-        api.uploadTrack(userToken, group.groupIngestId(), track.trackIngestId(), new byte[] {1, 2, 3})
+        api.uploadTrack(userToken, track.trackIngestId(), new byte[] {1, 2, 3})
                 .expectStatus()
                 .isForbidden()
                 .expectBody()
@@ -339,9 +325,8 @@ class IngestControllerTest {
                 .getResponseBody();
     }
 
-    private RestTestClient.ResponseSpec uploadTrack(
-            final IngestGroupResponse group, final TrackIngestResponse track, final byte[] file) {
-        return api.uploadTrack(adminToken, group.groupIngestId(), track.trackIngestId(), file);
+    private RestTestClient.ResponseSpec uploadTrack(final TrackIngestResponse track, final byte[] file) {
+        return api.uploadTrack(adminToken, track.trackIngestId(), file);
     }
 
     private IngestGroupState groupState(final IngestGroupResponse group) {
@@ -349,6 +334,9 @@ class IngestControllerTest {
     }
 
     private IngestState trackState(final TrackIngestResponse track) {
-        return ingestDao.loadTrackIngestById(track.trackIngestId()).state();
+        return ingestDao
+                .loadTrackIngestById(track.trackIngestId())
+                .orElseThrow()
+                .state();
     }
 }

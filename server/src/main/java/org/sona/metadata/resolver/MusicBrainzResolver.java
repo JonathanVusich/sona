@@ -9,7 +9,6 @@ import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 import static org.sona.utils.DateUtils.parsePartialDate;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,8 +70,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
             final TrackToIngest trackToIngest,
             final RawMetadata metadata,
             final Duration duration,
-            final Fingerprint fingerprint)
-            throws IOException, InterruptedException {
+            final Fingerprint fingerprint) {
         final var fingerprintMatches = lookUpFingerprint(fingerprint, duration);
         final var closeMatch = closeMatch(fingerprintMatches, duration);
         if (closeMatch != null) {
@@ -85,7 +83,7 @@ public final class MusicBrainzResolver implements MetadataResolver {
     }
 
     @Override
-    public List<TrackResolution> resolveAlbum(final List<AlbumTrack> tracks) throws IOException, InterruptedException {
+    public List<TrackResolution> resolveAlbum(final List<AlbumTrack> tracks) {
         final var options = new ArrayList<TrackOptions>();
         for (final var track : tracks) {
             options.add(trackOptions(track));

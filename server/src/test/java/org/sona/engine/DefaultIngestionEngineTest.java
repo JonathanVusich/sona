@@ -15,6 +15,7 @@ import static org.sona.model.Tables.MEDIUM;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
 import static org.sona.model.Tables.RELEASE_LABEL;
+import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -37,7 +38,6 @@ import org.sona.db.ArtistDao;
 import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
-import org.sona.db.TrackDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.format.flac.FlacWriter;
@@ -73,7 +73,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class DefaultIngestionEngineTest {
 
     @Autowired
-    private IngestionEngine engine;
+    private IngestWorker worker;
 
     @Autowired
     private Library library;
@@ -86,9 +86,6 @@ class DefaultIngestionEngineTest {
 
     @Autowired
     private UserDao userDao;
-
-    @Autowired
-    private TrackDao trackDao;
 
     @Autowired
     private ReleaseGroupDao releaseGroupDao;
@@ -106,12 +103,12 @@ class DefaultIngestionEngineTest {
     private DSLContext dsl;
 
     @Test
-    void importMatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
+    void importMatchedTrack() throws IOException, InvalidFormatException {
         final var flac = flacFile(whisperMetadata());
         // Upper-case extension on purpose: extension matching is case-insensitive.
         final var ingest = storeIngest(flac, "09 A Whisper.FLAC");
 
-        engine.processTrack(ingest);
+        worker.processPending();
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
 
@@ -169,7 +166,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void importMatchedMp3() throws IOException, InvalidFormatException, InterruptedException {
+    void importMatchedMp3() throws IOException, InvalidFormatException {
         final byte[] mp3;
         try (final var inputStream = Mp3Sample.STEREO_CBR_ID3V24.inputStream()) {
             mp3 = inputStream.readAllBytes();
@@ -178,7 +175,7 @@ class DefaultIngestionEngineTest {
 
         final var stubId = ShortRecordings.stubWhisperSearch(musicBrainz);
         try {
-            engine.processTrack(ingest);
+            worker.processPending();
         } finally {
             ShortRecordings.removeStub(musicBrainz, stubId);
         }
@@ -195,13 +192,12 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void importTracksFromOneReleaseIntoOneFolder() throws IOException, InvalidFormatException, InterruptedException {
+    void importTracksFromOneReleaseIntoOneFolder() throws IOException, InvalidFormatException {
         final var first = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
         final var second = storeIngest(flacFile(whisperMetadata()), "09 A Whisper (copy).flac");
         // The stub server is shared with other tests.
         musicBrainz.resetRequests();
-        engine.processTrack(first);
-        engine.processTrack(second);
+        worker.processPending();
 
         assertThat(loadTrack(second).mediumId()).isEqualTo(loadTrack(first).mediumId());
         assertThat(dsl.fetchCount(RELEASE)).isEqualTo(1);
@@ -212,8 +208,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void finishStoringAReleaseStoredWithoutItsLabelsAndMedia()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void finishStoringAReleaseStoredWithoutItsLabelsAndMedia() throws IOException, InvalidFormatException {
         final var artist = artistDao.upsert(new Artist(
                 uuidv7(), "Coldplay", "GB", null, 0, UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
@@ -236,7 +231,7 @@ class DefaultIngestionEngineTest {
                 UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")));
         final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
 
-        engine.processTrack(ingest);
+        worker.processPending();
 
         final var medium = dsl.selectFrom(MEDIUM)
                 .where(MEDIUM.MEDIUM_ID.eq(loadTrack(ingest).mediumId()))
@@ -254,8 +249,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void importTheRecordingItsFingerprintMatchesClosely()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void importTheRecordingItsFingerprintMatchesClosely() throws IOException, InvalidFormatException {
         // The tags say A Whisper, but AcoustID knows the audio as another recording, which wins.
         // The recording is 10:37 long.
         final var ingest = storeIngest(flacFile(whisperMetadata(Duration.ofSeconds(640))), "09 A Whisper.flac");
@@ -277,8 +271,7 @@ class DefaultIngestionEngineTest {
     // An MP3 is fingerprinted from its decoded audio as a FLAC is. This one has no tags, so only its fingerprint can
     // find its recording.
     @Test
-    void importTheRecordingAnMp3sFingerprintMatchesClosely()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void importTheRecordingAnMp3sFingerprintMatchesClosely() throws IOException, InvalidFormatException {
         final byte[] mp3;
         try (final var inputStream = Mp3Sample.HE_32KHZ.inputStream()) {
             mp3 = inputStream.readAllBytes();
@@ -304,7 +297,7 @@ class DefaultIngestionEngineTest {
 
     // AcoustID matches any fingerprint closely with Lower Your Eyelids to Die With the Sun.
     private void processMatchingFingerprintClosely(final TrackToIngest ingest)
-            throws IOException, InvalidFormatException, InterruptedException {
+            throws IOException, InvalidFormatException {
         final var stubId = UUID.randomUUID();
         // Above the stub in src/test/resources/wiremock/mappings that matches every fingerprint with nothing.
         musicBrainz.stubFor(post(urlPathEqualTo("/v2/lookup"))
@@ -314,7 +307,7 @@ class DefaultIngestionEngineTest {
                         .withHeader("Content-Type", "application/json")
                         .withBodyFile("acoustid/lower-your-eyelids-to-die-with-the-sun.json")));
         try {
-            engine.processTrack(ingest);
+            worker.processPending();
         } finally {
             // The stub server is shared with other tests.
             musicBrainz.removeStubMapping(musicBrainz.getStubMapping(stubId).getItem());
@@ -329,16 +322,17 @@ class DefaultIngestionEngineTest {
         outputStream.write(new byte[256]);
         final var ingest = storeIngest(outputStream.toByteArray(), "09 A Whisper.flac");
 
-        assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(InvalidFormatException.class);
+        worker.processPending();
+
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 
     @Test
-    void requireInputForUnmatchedTrack() throws IOException, InvalidFormatException, InterruptedException {
+    void requireInputForUnmatchedTrack() throws IOException, InvalidFormatException {
         final var flac = flacFile(newMetadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall"));
         final var ingest = storeIngest(flac, "unknown.flac");
 
-        engine.processTrack(ingest);
+        worker.processPending();
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         // The file stays in the ingest area until the user supplies metadata.
@@ -348,7 +342,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void retryOnlyTheMoveAfterItFails() throws IOException, InvalidFormatException, InterruptedException {
+    void aTrackWhoseMoveFailsIsNotInTheLibrary() throws IOException, InvalidFormatException {
         final var artist = artistDao.upsert(new Artist(
                 uuidv7(), "Coldplay", "GB", null, 0, UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
@@ -367,20 +361,11 @@ class DefaultIngestionEngineTest {
         Files.createFile(blocker);
         final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
 
-        assertThatThrownBy(() -> engine.processTrack(ingest)).isInstanceOf(IOException.class);
-        final var failed = reloadIngest(ingest);
-        assertThat(failed.state()).isEqualTo(IngestState.MOVE_FAILED);
+        worker.processPending();
+
+        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.MOVE_FAILED);
         // The track's file isn't in the library yet.
         assertThat(loadRelease().trackCount()).isZero();
-
-        Files.delete(blocker);
-        engine.processTrack(failed);
-
-        assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
-        assertThat(loadRelease().trackCount()).isEqualTo(1);
-        try (final var imported = library.trackFile(loadTrack(ingest)).getInputStream()) {
-            assertThat(imported.readAllBytes()).isEqualTo(flacFile(whisperMetadata()));
-        }
     }
 
     @Test
@@ -390,24 +375,22 @@ class DefaultIngestionEngineTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(
-                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
+                uuidv7(), IngestGroupKind.UNKNOWN, "Uploads", uploader.userId(), IngestGroupState.UPLOADED);
         ingestDao.insertGroup(group);
         final var ingest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "song.ogg", IngestState.UPLOADED);
         ingestDao.insertTrackIngest(ingest);
 
-        assertThatThrownBy(() -> engine.processTrack(ingest))
-                .isInstanceOf(InvalidFormatException.class)
-                .hasMessage("Extension ogg is not supported!");
+        worker.processPending();
+
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.FAILED);
     }
 
     @Test
-    void requireInputWhenTheAudioIsNotAsLongAsTheRecording()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void requireInputWhenTheAudioIsNotAsLongAsTheRecording() throws IOException, InvalidFormatException {
         // A Whisper is 238 seconds long, and this is a tenth of that.
         final var ingest = storeIngest(flacFile(whisperMetadata(Duration.ofSeconds(10))), "09 A Whisper.flac");
 
-        engine.processTrack(ingest);
+        worker.processPending();
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         assertThat(dsl.fetchCount(INGEST_CANDIDATE, INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId())))
@@ -415,8 +398,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void deleteTheCandidatesOfATrackOnceItIsImported()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void deleteTheCandidatesOfATrackOnceItIsImported() throws IOException, InvalidFormatException {
         final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
         final var candidate = new IngestCandidate(
                 uuidv7(),
@@ -433,7 +415,7 @@ class DefaultIngestionEngineTest {
                 9);
         ingestDao.updateCandidates(ingest.trackIngestId(), List.of(candidate));
 
-        engine.processTrack(ingest);
+        worker.processPending();
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.COMPLETED);
         assertThat(dsl.fetchCount(INGEST_CANDIDATE, INGEST_CANDIDATE.TRACK_INGEST_ID.eq(ingest.trackIngestId())))
@@ -441,8 +423,7 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void storeCandidatesWhenNoReleaseHasTheAlbumTagsTitle()
-            throws IOException, InvalidFormatException, InterruptedException {
+    void storeCandidatesWhenNoReleaseHasTheAlbumTagsTitle() throws IOException, InvalidFormatException {
         final var metadata = new RawMetadataBuilder(Duration.ofSeconds(240));
         metadata.addTag(Tag.TRACK_TITLE, new TagValue.Str("A Whisper"));
         metadata.addTag(Tag.TRACK_ARTIST, new TagValue.Str("Coldplay"));
@@ -450,9 +431,7 @@ class DefaultIngestionEngineTest {
         metadata.addTag(Tag.RELEASE_TITLE, new TagValue.Str("Parachutes"));
         final var ingest = storeIngest(flacFile(metadata.build()), "09 A Whisper.flac");
 
-        engine.processTrack(ingest);
-        // Processing it again finds the same candidates, which replace those stored.
-        engine.processTrack(reloadIngest(ingest));
+        worker.processPending();
 
         assertThat(reloadIngest(ingest).state()).isEqualTo(IngestState.INPUT_REQUIRED);
         final var candidates = dsl.selectFrom(INGEST_CANDIDATE)
@@ -509,13 +488,13 @@ class DefaultIngestionEngineTest {
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
         final var group = new IngestGroup(
-                uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.CREATED);
+                uuidv7(), IngestGroupKind.UNKNOWN, "Uploads", uploader.userId(), IngestGroupState.CREATED);
         ingestDao.insertGroup(group);
         return createAndUpload(ingestDao, library, group, fileName, flac);
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {
-        return ingestDao.loadTrackIngestById(ingest.trackIngestId());
+        return ingestDao.loadTrackIngestById(ingest.trackIngestId()).orElseThrow();
     }
 
     /**
@@ -528,6 +507,8 @@ class DefaultIngestionEngineTest {
     }
 
     private Track loadTrack(final TrackToIngest ingest) {
-        return trackDao.loadByIngest(ingest.trackIngestId());
+        return dsl.selectFrom(TRACK)
+                .where(TRACK.TRACK_INGEST_ID.eq(ingest.trackIngestId()))
+                .fetchSingleInto(Track.class);
     }
 }

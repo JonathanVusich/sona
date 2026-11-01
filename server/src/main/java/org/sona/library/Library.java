@@ -23,15 +23,14 @@ public interface Library {
      * Stores the bytes of a file the uploader listed when it created the group. The file may be sent again until it
      * has been stored, such as after a connection broke.
      *
-     * @param ingestGroupId the group the uploader created for the file
      * @param trackIngestId the ID Sona gave the file when the group was created
      * @return the ingest, now uploaded and waiting to be processed
-     * @throws org.sona.exception.IngestTrackNotFoundException if the group has no such file
+     * @throws org.sona.exception.IngestTrackNotFoundException if there is no such file
      * @throws org.sona.exception.IngestAlreadyUploadedException if the file has been stored already
      * @throws org.sona.exception.FileTooLargeException if the file is larger than {@code library.maxUploadSize}, in
-     *     which case nothing is stored
+     *     which case the file isn't uploaded
      */
-    TrackToIngest storeIngestTrack(UUID ingestGroupId, UUID trackIngestId, InputStream inputStream) throws IOException;
+    TrackToIngest storeIngestTrack(UUID trackIngestId, InputStream inputStream) throws IOException;
 
     SeekableByteChannel readIngestTrack(TrackToIngest trackIngest) throws IOException;
 
