@@ -1,7 +1,7 @@
 package org.sona.metadata.resolver;
 
-import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.sona.fingerprint.Fingerprint;
 import org.sona.metadata.RawMetadata;
@@ -15,8 +15,15 @@ public interface MetadataResolver {
      * looser one helps choose between those the tags find
      */
     TrackResolution resolveTrack(
-            TrackToIngest trackToIngest, RawMetadata metadata, Duration duration, Fingerprint fingerprint)
-            throws IOException, InterruptedException;
+            TrackToIngest trackToIngest, RawMetadata metadata, Duration duration, Fingerprint fingerprint);
+
+    /**
+     * Resolves the files of an album together, so they land on one release: the one that most of their recordings are
+     * on, rather than whichever edition suits each file alone. A file that isn't on that release needs review.
+     *
+     * @return a resolution for each track, in the order given
+     */
+    List<TrackResolution> resolveAlbum(List<AlbumTrack> tracks);
 
     /**
      * @return the release a resolved track is on, with its release group and artists

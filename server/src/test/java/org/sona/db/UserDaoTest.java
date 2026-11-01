@@ -33,11 +33,24 @@ class UserDaoTest {
     }
 
     @Test
-    void usernamesAreUnique() {
-        dao.insert(newUser("alice", UserRole.USER, AccountState.ACTIVE));
+    void aDisabledUserIsNotLoadedAsActive() {
+        final var active = newUser("alice", UserRole.USER, AccountState.ACTIVE);
+        final var disabled = newUser("bob", UserRole.USER, AccountState.DISABLED);
+        dao.insert(active);
+        dao.insert(disabled);
 
-        assertThatThrownBy(() -> dao.insert(newUser("alice", UserRole.ADMIN, AccountState.ACTIVE)))
-                .isInstanceOf(DuplicateKeyException.class);
+        assertThat(dao.loadActiveById(active.userId())).contains(active);
+        assertThat(dao.loadActiveById(disabled.userId())).isEmpty();
+    }
+
+    @Test
+    void usernamesAreUnique() {
+        final var alice = newUser("alice", UserRole.USER, AccountState.ACTIVE);
+
+        assertThat(dao.insert(alice)).isTrue();
+        assertThat(dao.insert(newUser("alice", UserRole.ADMIN, AccountState.ACTIVE)))
+                .isFalse();
+        assertThat(dao.insert(alice)).isFalse();
     }
 
     @Test

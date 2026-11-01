@@ -34,12 +34,12 @@ public enum ErrorCode {
     RELEASE_GROUP_NOT_FOUND(301, HttpStatus.NOT_FOUND, "This release group isn't in the library."),
     ARTIST_NOT_FOUND(302, HttpStatus.NOT_FOUND, "This artist isn't in the library."),
     UNSUPPORTED_FORMAT(303, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Sona can't ingest files in this format yet."),
-    INGEST_GROUP_NOT_FOUND(
-            304, HttpStatus.NOT_FOUND, "This upload group doesn't exist. Create it before uploading its files."),
     FILE_TOO_LARGE(305, HttpStatus.CONTENT_TOO_LARGE, "This file is larger than Sona accepts."),
     TRACK_NOT_FOUND(306, HttpStatus.NOT_FOUND, "This track isn't in the library."),
     PLAYLIST_NOT_FOUND(307, HttpStatus.NOT_FOUND, "This playlist doesn't exist."),
     QUEUE_ENTRY_NOT_FOUND(308, HttpStatus.NOT_FOUND, "This track isn't in your queue."),
+    INGEST_TRACK_NOT_FOUND(309, HttpStatus.NOT_FOUND, "There is no such file to upload."),
+    INGEST_ALREADY_UPLOADED(310, HttpStatus.CONFLICT, "This file has already been uploaded."),
 
     INVALID_PARAMETER(400, HttpStatus.BAD_REQUEST, "The request has a parameter or field that is missing or invalid."),
     UNSUPPORTED_CONTENT_TYPE(

@@ -4,9 +4,7 @@ import {
   ReleaseGroupType as ApiReleaseGroupType,
   type ArtistResponse,
   type ReleaseGroupSummaryResponse,
-  type TrackResponse,
 } from "./api/responses";
-import type { PickedFile } from "./audioFiles";
 
 // Mocked music library held in memory; it resets on reload. Modelled on MusicBrainz: an artist has release groups
 // (the album as an idea), a release group has releases (concrete editions), and a release has tracks.
@@ -379,10 +377,6 @@ export const artistById = (id: string) => artists().find((artist) => artist.id =
 export const groupById = (id: string) => groups().find((group) => group.id === id);
 export const releaseById = (id: string) => releases().find((release) => release.id === id);
 
-// Resolves track ids, dropping any whose release has since been removed.
-export const tracksOf = (ids: string[]) =>
-  ids.map((id) => tracks()[id]).filter((track): track is Track => track !== undefined);
-
 export const trackCount = () => Object.keys(tracks()).length;
 
 export const tracksOfRelease = (releaseId: string) =>
@@ -414,17 +408,6 @@ export interface ReleaseContext {
   artist: Artist;
 }
 
-/**
- * @returns the track's release, group and artist, or null once its release has been removed (the player keeps it)
- */
-export function trackContext(track: Track): ReleaseContext | null {
-  const release = releaseById(track.releaseId);
-  if (release === undefined) {
-    return null;
-  }
-  return releaseContext(release);
-}
-
 // A release group goes only with its last release, and an artist with their last release group (removeRelease).
 export function releaseContext(release: Release): ReleaseContext {
   const group = groupById(release.groupId);
@@ -440,35 +423,9 @@ export function releaseContext(release: Release): ReleaseContext {
 
 // Lists
 
-export const artistsByName = () => [...artists()].sort((a, b) => collator.compare(a.name, b.name));
-
-// Artist pages list albums apart from singles and EPs.
-export const isAlbum = (group: ReleaseGroup) => group.type === ReleaseGroupType.ALBUM;
-
-export const groupsByArtist = (include: (group: ReleaseGroup) => boolean) =>
-  groups()
-    .filter(include)
-    .sort(
-      (a, b) =>
-        collator.compare(artistById(a.artistId)?.name ?? "", artistById(b.artistId)?.name ?? "") ||
-        (groupYear(a.id) ?? 0) - (groupYear(b.id) ?? 0),
-    );
-
 export const recentlyAdded = () => [...groups()].sort((a, b) => b.addedAt - a.addedAt);
 
-export const notPlayedYet = () => groups().filter((group) => group.lastPlayedAt === null);
-
-// Finds a track by title, for seeding playlists.
-export const trackIdByTitle = (title: string) => Object.values(tracks()).find((track) => track.title === title)?.id;
-
 // Changes
-
-export function markPlayed(track: Track) {
-  const release = releaseById(track.releaseId);
-  if (release !== undefined) {
-    setGroups((all) => updateById(all, release.groupId, (group) => ({ ...group, lastPlayedAt: Date.now() })));
-  }
-}
 
 export function updateRelease(id: string, changes: Pick<Release, "title" | "year" | "format" | "label">) {
   setReleases((all) => updateById(all, id, (release) => ({ ...release, ...changes })));
@@ -494,69 +451,6 @@ export function removeRelease(id: string) {
   }
 }
 
-// Each folder of files becomes one release, filed under an existing artist and release group when the names match.
-export function importFiles(files: PickedFile[]) {
-  const byFolder = new Map<string, PickedFile[]>();
-  for (const picked of files) {
-    const folder = picked.path.split("/").slice(0, -1).join("/");
-    byFolder.set(folder, [...(byFolder.get(folder) ?? []), picked]);
-  }
-  for (const group of byFolder.values()) {
-    importRelease(group);
-  }
-}
-
-// Guesses tags from an "Artist/Album/01 Track.ext" layout until real metadata parsing is wired in.
-function importRelease(files: PickedFile[]) {
-  const sorted = [...files].sort((a, b) => collator.compare(a.path, b.path));
-  const parts = sorted[0].path.split("/");
-  // The artist's and album's folders come before the file's own name.
-  const artistName = parts.at(-3) ?? "Unknown artist";
-  const title = parts.at(-2) ?? "Unknown album";
-
-  const artist = artists().find((existing) => collator.compare(existing.name, artistName) === 0) ?? {
-    id: crypto.randomUUID(),
-    name: artistName,
-    country: null,
-  };
-  const group = groups().find(
-    (existing) => existing.artistId === artist.id && collator.compare(existing.title, title) === 0,
-  ) ?? {
-    id: crypto.randomUUID(),
-    artistId: artist.id,
-    title,
-    type: ReleaseGroupType.ALBUM,
-    addedAt: Date.now(),
-    lastPlayedAt: null,
-  };
-  const release: Release = {
-    id: crypto.randomUUID(),
-    groupId: group.id,
-    title,
-    year: null,
-    format: "Digital",
-    label: null,
-    country: null,
-  };
-  const newTracks = sorted.map((picked, n) => ({
-    id: crypto.randomUUID(),
-    releaseId: release.id,
-    number: n + 1,
-    title: picked.file.name.replace(/\.[^.]+$/, "").replace(/^\d{1,3}[\s.\-_]+/, ""),
-    // Real durations arrive with metadata parsing.
-    duration: 180,
-  }));
-
-  if (!artists().includes(artist)) {
-    setArtists((all) => [...all, artist]);
-  }
-  if (!groups().includes(group)) {
-    setGroups((all) => [...all, group]);
-  }
-  setReleases((all) => [...all, release]);
-  setTracks((all) => ({ ...all, ...Object.fromEntries(newTracks.map((track) => [track.id, track])) }));
-}
-
 // The mocked library as Sona's API would serve it, so pages and components take the API's types whether their data is
 // real or mocked. These conversions go when the mocked library does.
 
@@ -567,23 +461,6 @@ export function summaryResponse(group: ReleaseGroup): ReleaseGroupSummaryRespons
     type: apiType(group.type),
     firstReleaseDate: mockDate(groupYear(group.id)),
     artist: artistResponse(artistById(group.artistId)),
-  };
-}
-
-/**
- * @returns the track as a release's track list shows it, by its release's artist
- */
-export function trackResponse(track: Track): TrackResponse {
-  const context = trackContext(track);
-  if (context === null) {
-    throw new Error("Only a track still in the mocked library has a response.");
-  }
-  return {
-    trackId: track.id,
-    name: track.title,
-    duration: track.duration,
-    position: track.number,
-    artist: artistResponse(context.artist),
   };
 }
 

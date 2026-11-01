@@ -28,7 +28,7 @@ import org.sona.format.Parser;
 import org.sona.format.flac.FlacParser;
 import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
-import org.sona.metadata.RawMetadata;
+import org.sona.metadata.resolver.AlbumTrack;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
 import org.sona.metadata.resolver.ResolvedLabel;
@@ -67,41 +67,29 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     private final TrackDao trackDao;
 
     @Override
-    public void processTrack(final TrackToIngest trackToIngest)
-            throws InvalidFormatException, IOException, InterruptedException {
-        switch (trackToIngest.state()) {
-            case PENDING, INPUT_REQUIRED -> ingestTrack(trackToIngest);
-            case MOVE_FAILED -> retryMove(trackToIngest);
-            case FAILED ->
-                throw new IllegalStateException("Track %s can't be imported".formatted(trackToIngest.trackIngestId()));
-            case COMPLETED ->
-                throw new IllegalStateException(
-                        "Track %s has already been imported".formatted(trackToIngest.trackIngestId()));
-        }
+    public ParsedTrack parseTrack(final TrackToIngest trackToIngest) throws InvalidFormatException, IOException {
+        final var parser = parserFor(trackToIngest.originalFileName());
+        return parseIngestTrack(trackToIngest, parser);
     }
 
-    private void ingestTrack(final TrackToIngest trackToIngest)
-            throws InvalidFormatException, IOException, InterruptedException {
-        final Parser parser;
-        final ParsedTrack parsed;
-        try {
-            parser = parserFor(trackToIngest.originalFileName());
-            parsed = parseIngestTrack(trackToIngest, parser);
-        } catch (InvalidFormatException e) {
-            // Processing it again would fail the same way.
-            markState(trackToIngest, IngestState.FAILED);
-            throw e;
-        }
-        final var metadata = parsed.metadata();
-        switch (resolver.resolveTrack(trackToIngest, metadata, parsed.duration(), parsed.fingerprint())) {
-            case TrackResolution.Matched matched ->
-                importTrack(trackToIngest, matched.track(), parsed.duration(), parser.format());
-            case TrackResolution.NeedsReview review -> requireInput(trackToIngest, review.candidates());
-        }
+    @Override
+    public TrackResolution resolveTrack(final ParsedTrack parsed) {
+        return resolver.resolveTrack(
+                parsed.trackToIngest(), parsed.metadata(), parsed.duration(), parsed.fingerprint());
+    }
+
+    @Override
+    public List<TrackResolution> resolveAlbum(final List<ParsedTrack> parsedTracks) {
+        final var albumTracks = parsedTracks.stream()
+                .map(parsed -> new AlbumTrack(
+                        parsed.trackToIngest(), parsed.metadata(), parsed.duration(), parsed.fingerprint()))
+                .toList();
+        return resolver.resolveAlbum(albumTracks);
     }
 
     // The candidates are stored first, so whoever sees the state finds them.
-    private void requireInput(final TrackToIngest trackToIngest, final List<TrackCandidate> candidates) {
+    @Override
+    public void requireInput(final TrackToIngest trackToIngest, final List<TrackCandidate> candidates) {
         ingestDao.updateCandidates(trackToIngest.trackIngestId(), newIngestCandidates(trackToIngest, candidates));
         markState(trackToIngest, IngestState.INPUT_REQUIRED);
 
@@ -163,40 +151,19 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 case IntPcmAudio ints -> new Fingerprint(ints);
                 case FloatPcmAudio floats -> new Fingerprint(floats);
             };
-            return new ParsedTrack(parsed.metadata(), duration, fingerprint);
+            return new ParsedTrack(trackToIngest, parser.format(), parsed.metadata(), duration, fingerprint);
         }
     }
 
-    private record ParsedTrack(RawMetadata metadata, Duration duration, Fingerprint fingerprint) {}
-
-    private void importTrack(
-            final TrackToIngest trackToIngest,
-            final ResolvedTrack resolved,
-            final Duration duration,
-            final Format format)
-            throws IOException {
-        final var track = storeTrack(trackToIngest, resolved, duration, format);
-        moveIntoLibrary(trackToIngest, track);
-    }
-
-    private void retryMove(final TrackToIngest trackToIngest) throws IOException {
-        // The metadata was stored before the move failed, so only the move is retried.
-        final var track = trackDao.loadByIngest(trackToIngest.trackIngestId());
-        moveIntoLibrary(trackToIngest, track);
-    }
-
-    private void moveIntoLibrary(final TrackToIngest trackToIngest, final Track track) throws IOException {
-        try {
-            library.importTrack(trackToIngest, track.path());
-        } catch (IOException e) {
-            markState(trackToIngest, IngestState.MOVE_FAILED);
-            throw e;
-        }
+    @Override
+    public void moveTrack(final TrackToIngest trackToIngest, final Track track) throws IOException {
+        library.importTrack(trackToIngest, track.path());
         ingestDao.deleteCandidates(trackToIngest.trackIngestId());
         markState(trackToIngest, IngestState.COMPLETED);
     }
 
-    private void markState(final TrackToIngest trackToIngest, final IngestState state) {
+    @Override
+    public void markState(final TrackToIngest trackToIngest, final IngestState state) {
         ingestDao.updateState(trackToIngest.trackIngestId(), state);
         progressPublisher.publish(trackToIngest, state);
     }
@@ -207,11 +174,9 @@ public final class DefaultIngestionEngine implements IngestionEngine {
      * the rows.
      * A release or artist already stored isn't looked up again, which saves MusicBrainz requests.
      */
-    private Track storeTrack(
-            final TrackToIngest trackToIngest,
-            final ResolvedTrack resolved,
-            final Duration duration,
-            final Format format) {
+    @Override
+    public Track storeTrack(final ParsedTrack parsed, final ResolvedTrack resolved) {
+        final var trackToIngest = parsed.trackToIngest();
         // Tracks from the same MusicBrainz release share its rows, and so its library folder.
         final var release = releaseDao
                 .loadByMusicBrainzId(resolved.releaseId())
@@ -224,7 +189,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         final var artistId = resolved.artist().artistId();
         final var artist =
                 artistDao.loadByMusicBrainzId(artistId).orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
-        final var track = newTrack(trackToIngest, resolved, artist, releaseGroup, release, medium, duration, format);
+        final var track = newTrack(
+                trackToIngest, resolved, artist, releaseGroup, release, medium, parsed.duration(), parsed.format());
         trackDao.insert(track);
         return track;
     }

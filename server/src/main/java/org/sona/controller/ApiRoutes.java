@@ -103,12 +103,13 @@ public final class ApiRoutes {
     public static final String QUEUE_MODES = QUEUE + "/modes";
 
     public static final String INGEST_GROUPS = API + "/ingest-groups";
-    /**
-     * Under the ID Sona gave the group when the uploader created it.
-     */
-    public static final String INGEST_GROUP = INGEST_GROUPS + "/{groupIngestId}";
 
-    public static final String INGEST_GROUP_TRACKS = INGEST_GROUP + "/tracks";
+    public static final String INGEST_TRACKS = API + "/ingest-tracks";
+    /**
+     * Under the ID Sona gave the file when its group was created, which the file is uploaded to. The ID alone names
+     * the file, so its group isn't in the path.
+     */
+    public static final String INGEST_TRACK = INGEST_TRACKS + "/{trackIngestId}";
 
     public static final String JWKS = "/.well-known/jwks.json";
 

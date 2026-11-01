@@ -6,11 +6,11 @@ import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.ArtistNotFoundException;
 import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IncorrectPasswordException;
-import org.sona.exception.IngestGroupNotFoundException;
+import org.sona.exception.IngestAlreadyUploadedException;
+import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidCredentialsException;
 import org.sona.exception.InvalidFormatException;
 import org.sona.exception.InvalidRefreshTokenException;
-import org.sona.exception.InvalidRegistrationTokenException;
 import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.PlaylistNotFoundException;
 import org.sona.exception.QueueEntryNotFoundException;
@@ -23,6 +23,8 @@ import org.sona.exception.UnchangedPasswordException;
 import org.sona.exception.UsernameTakenException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestCookieException;
@@ -44,6 +46,24 @@ public final class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSonaException(final SonaException exception) {
         final var code = errorCode(exception);
         return errorResponse(code);
+    }
+
+    /**
+     * A registration token that is expired or forged. It is the one JWT decoded once a request reaches a controller:
+     * Spring Security's filters check access and stream tokens before.
+     */
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidJwt() {
+        return errorResponse(ErrorCode.INVALID_REGISTRATION_TOKEN);
+    }
+
+    /**
+     * An OIDC provider that refused to refresh a user's session, or couldn't be reached to: it no longer vouches for
+     * the user, who signs in again.
+     */
+    @ExceptionHandler(OAuth2AuthorizationException.class)
+    public ResponseEntity<ErrorResponse> handleProviderRefusal() {
+        return errorResponse(ErrorCode.INVALID_REFRESH_TOKEN);
     }
 
     /**
@@ -113,14 +133,14 @@ public final class ApiExceptionHandler {
             case PlaylistNotFoundException _ -> ErrorCode.PLAYLIST_NOT_FOUND;
             case QueueEntryNotFoundException _ -> ErrorCode.QUEUE_ENTRY_NOT_FOUND;
             case QueueStartOutOfRangeException _ -> ErrorCode.INVALID_PARAMETER;
-            case IngestGroupNotFoundException _ -> ErrorCode.INGEST_GROUP_NOT_FOUND;
+            case IngestTrackNotFoundException _ -> ErrorCode.INGEST_TRACK_NOT_FOUND;
+            case IngestAlreadyUploadedException _ -> ErrorCode.INGEST_ALREADY_UPLOADED;
             case FileTooLargeException _ -> ErrorCode.FILE_TOO_LARGE;
             case InvalidCredentialsException _ -> ErrorCode.INVALID_CREDENTIALS;
             case InvalidRefreshTokenException _ -> ErrorCode.INVALID_REFRESH_TOKEN;
             case IncorrectPasswordException _ -> ErrorCode.INCORRECT_CURRENT_PASSWORD;
             case UnchangedPasswordException _ -> ErrorCode.INVALID_NEW_PASSWORD;
             case PasswordManagedByProviderException _ -> ErrorCode.PASSWORD_MANAGED_BY_PROVIDER;
-            case InvalidRegistrationTokenException _ -> ErrorCode.INVALID_REGISTRATION_TOKEN;
             case AlreadyRegisteredException _ -> ErrorCode.ALREADY_REGISTERED;
             case UsernameTakenException _ -> ErrorCode.USERNAME_TAKEN;
         };

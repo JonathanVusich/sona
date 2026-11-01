@@ -1,12 +1,11 @@
 package org.sona.library;
 
-import static org.sona.utils.IDGenerator.uuidv7;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Locale;
 import java.util.UUID;
@@ -16,10 +15,11 @@ import org.apache.commons.io.input.BoundedInputStream;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.db.IngestDao;
 import org.sona.exception.FileTooLargeException;
+import org.sona.exception.IngestAlreadyUploadedException;
+import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidFormatException;
+import org.sona.exception.SonaException;
 import org.sona.format.Format;
-import org.sona.model.enums.IngestState;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -46,32 +46,22 @@ public final class DefaultLibrary implements Library {
     private final LibraryProperties config;
 
     @Override
-    public TrackToIngest storeIngestTrack(
-            final IngestGroup ingestGroup, final String filename, final InputStream inputStream)
-            throws InvalidFormatException, IOException {
-        checkFormat(filename);
-        final UUID ingestTrackId = uuidv7();
-
-        final var ingestFolder =
-                config.ingestFolder().resolve(ingestGroup.ingestGroupId().toString());
-
-        Files.createDirectories(ingestFolder);
-
-        final var ingestTarget = ingestFolder.resolve(ingestTrackId.toString());
-
-        try {
-            copyUpload(inputStream, ingestTarget);
-        } catch (IOException | FileTooLargeException e) {
-            // An upload cut short leaves part of a file, which no ingest row would ever point at.
-            Files.deleteIfExists(ingestTarget);
-            throw e;
+    public void checkIngestFormat(final String filename) throws InvalidFormatException {
+        final var extension = fileExtension(filename);
+        if (!Format.supportedExtensions().contains(extension)) {
+            throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
         }
+    }
 
+    @Override
+    public TrackToIngest storeIngestTrack(final UUID trackIngestId, final InputStream inputStream) throws IOException {
         final var trackIngest =
-                new TrackToIngest(ingestTrackId, ingestGroup.ingestGroupId(), filename, IngestState.PENDING);
+                ingestDao.updateUploading(trackIngestId).orElseThrow(() -> refusedUpload(trackIngestId));
 
-        ingestDao.insertTrackIngest(trackIngest);
-        return trackIngest;
+        final var ingestTarget = resolveIngestTrack(trackIngest);
+        Files.createDirectories(ingestTarget.getParent());
+        copyUpload(inputStream, ingestTarget);
+        return ingestDao.updateUploaded(trackIngestId);
     }
 
     @Override
@@ -113,7 +103,8 @@ public final class DefaultLibrary implements Library {
         return new FileSystemResource(resolveLibraryPath(track.path()));
     }
 
-    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it.
+    // Reads one byte past the limit at most, so a file that's too large is refused without storing all of it. An
+    // upload cut short or refused leaves part of a file, which the next upload of it replaces.
     private void copyUpload(final InputStream inputStream, final Path target) throws IOException {
         final var maxBytes = config.maxUploadSize().toBytes();
         final var bounded = BoundedInputStream.builder()
@@ -121,7 +112,7 @@ public final class DefaultLibrary implements Library {
                 .setMaxCount(maxBytes + 1)
                 .setPropagateClose(false)
                 .get();
-        final var copied = Files.copy(bounded, target);
+        final var copied = Files.copy(bounded, target, StandardCopyOption.REPLACE_EXISTING);
         if (copied > maxBytes) {
             throw new FileTooLargeException(config.maxUploadSize());
         }
@@ -131,11 +122,13 @@ public final class DefaultLibrary implements Library {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
     }
 
-    private static void checkFormat(final String filename) throws InvalidFormatException {
-        final var extension = fileExtension(filename);
-        if (!Format.supportedExtensions().contains(extension)) {
-            throw new InvalidFormatException("Extension %s is not supported!".formatted(extension));
-        }
+    // A file is sent again while its ingest is created or uploading. Once it is uploaded it may be in the middle of
+    // being matched, so the stored file mustn't be replaced.
+    private SonaException refusedUpload(final UUID trackIngestId) {
+        return ingestDao
+                .loadTrackIngestById(trackIngestId)
+                .<SonaException>map(_ -> new IngestAlreadyUploadedException(trackIngestId))
+                .orElseGet(() -> new IngestTrackNotFoundException(trackIngestId));
     }
 
     private Path resolveLibraryPath(final String libraryPath) {

@@ -3,7 +3,6 @@ package org.sona.fingerprint;
 import dev.javax.bitstream.BitOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
 import java.util.Base64;
 import java.util.List;
@@ -49,6 +48,8 @@ public final class Fingerprint {
 
     // One 32-bit sub-fingerprint per row of the chroma image the classifiers fit in, about eight a second.
     private final int[] subFingerprints;
+    // Made with the sub-fingerprints: writing through a bit stream declares IOException, as reading the audio does.
+    private final String compressed;
 
     /**
      * Decodes only as much of the audio as it needs.
@@ -58,6 +59,7 @@ public final class Fingerprint {
      */
     public Fingerprint(final IntPcmAudio audio) throws IOException, InvalidFormatException {
         this.subFingerprints = subFingerprints(new Signal(audio));
+        this.compressed = compress(subFingerprints);
     }
 
     /**
@@ -68,6 +70,7 @@ public final class Fingerprint {
      */
     public Fingerprint(final FloatPcmAudio audio) throws IOException, InvalidFormatException {
         this.subFingerprints = subFingerprints(new Signal(audio));
+        this.compressed = compress(subFingerprints);
     }
 
     private static int[] subFingerprints(final Signal signal) {
@@ -87,23 +90,23 @@ public final class Fingerprint {
      * @return the fingerprint compressed and base64-encoded, as {@code fpcalc} prints it and AcoustID takes it
      */
     public String compressed() {
+        return compressed;
+    }
+
+    private static String compress(final int[] subFingerprints) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
         // Chromaprint packs each value least significant bit first.
         final var bitStream = BitOutputStream.wrap(outputStream, ByteOrder.LITTLE_ENDIAN);
-        try {
-            writeHeader(bitStream);
-            writeGaps(bitStream, bitGaps());
-        } catch (IOException e) {
-            throw new UncheckedIOException("A ByteArrayOutputStream can't fail to write", e);
-        }
+        writeHeader(bitStream, subFingerprints.length);
+        writeGaps(bitStream, bitGaps(subFingerprints));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(outputStream.toByteArray());
     }
 
     // The algorithm, then the number of sub-fingerprints in three bytes, most significant first.
-    private void writeHeader(final BitOutputStream bitStream) throws IOException {
+    private static void writeHeader(final BitOutputStream bitStream, final int count) throws IOException {
         bitStream.writeBits(ALGORITHM, Byte.SIZE);
         for (var shift = 2 * Byte.SIZE; shift >= 0; shift -= Byte.SIZE) {
-            bitStream.writeBits(subFingerprints.length >> shift, Byte.SIZE);
+            bitStream.writeBits(count >> shift, Byte.SIZE);
         }
     }
 
@@ -136,7 +139,7 @@ public final class Fingerprint {
     }
 
     // The bits that change from each sub-fingerprint to the next, as the gaps between them, each one's list ended by 0.
-    private byte[] bitGaps() {
+    private static byte[] bitGaps(final int[] subFingerprints) {
         final var gaps = new ByteArrayOutputStream();
         var previous = 0;
         for (final var subFingerprint : subFingerprints) {

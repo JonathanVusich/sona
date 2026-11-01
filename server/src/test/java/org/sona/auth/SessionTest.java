@@ -1,9 +1,9 @@
 package org.sona.auth;
 
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.model.Tables.REFRESH_TOKEN;
 import static org.sona.model.Tables.USERS;
-import static org.sona.utils.HashUtils.sha256Hex;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.OffsetDateTime;
