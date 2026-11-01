@@ -55,9 +55,9 @@ public final class DefaultLibrary implements Library {
     @Override
     public TrackToIngest storeIngestTrack(
             final UUID ingestGroupId, final UUID ingestTrackId, final InputStream inputStream) throws IOException {
-        ingestDao
-                .updateUploading(ingestGroupId, ingestTrackId)
-                .orElseThrow(() -> refusedUpload(ingestGroupId, ingestTrackId));
+        if (!ingestDao.updateUploading(ingestGroupId, ingestTrackId)) {
+            throw refusedUpload(ingestGroupId, ingestTrackId);
+        }
 
         final var ingestFolder = config.ingestFolder().resolve(ingestGroupId.toString());
         Files.createDirectories(ingestFolder);

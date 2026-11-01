@@ -5,10 +5,10 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.IngestDao;
+import org.sona.db.UploadedGroup;
 import org.sona.exception.InvalidFormatException;
 import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
-import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -43,16 +43,16 @@ public final class DefaultIngestWorker implements IngestWorker {
 
     private void processEachPending() throws InterruptedException {
         final var groups = ingestDao.loadUploadedGroups();
-        for (final var group : groups) {
-            processGroup(group);
-            ingestDao.updateGroupState(group.ingestGroupId(), IngestGroupState.MATCHED);
+        for (final var uploaded : groups) {
+            processGroup(uploaded);
+            ingestDao.updateGroupState(uploaded.group().ingestGroupId(), IngestGroupState.MATCHED);
         }
     }
 
     // An album is matched as a whole. Loose files are matched one by one.
-    private void processGroup(final IngestGroup group) throws InterruptedException {
-        final var pending = ingestDao.loadUploadedByGroup(group.ingestGroupId());
-        switch (group.kind()) {
+    private void processGroup(final UploadedGroup uploaded) throws InterruptedException {
+        final var pending = uploaded.trackIngests();
+        switch (uploaded.group().kind()) {
             case ALBUM -> processAlbum(pending);
             case UNKNOWN -> {
                 for (final var ingest : pending) {

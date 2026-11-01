@@ -96,22 +96,25 @@ class IngestDaoTest {
         final var oldest = storeGroup(IngestGroupState.UPLOADED);
         final var newest = storeGroup(IngestGroupState.UPLOADED);
 
-        assertThat(dao.loadUploadedGroups()).containsExactly(oldest, newest);
+        assertThat(dao.loadUploadedGroups()).extracting(UploadedGroup::group).containsExactly(oldest, newest);
 
         dao.updateGroupState(oldest.ingestGroupId(), IngestGroupState.MATCHED);
 
-        assertThat(dao.loadUploadedGroups()).containsExactly(newest);
+        assertThat(dao.loadUploadedGroups()).extracting(UploadedGroup::group).containsExactly(newest);
         assertThat(dao.loadGroupById(matched.ingestGroupId())).contains(matched);
     }
 
     @Test
-    void onlyTheUploadedFilesOfAGroupAreLoadedToBeMatched() {
+    void anUploadedGroupComesWithOnlyItsFilesThatAreUploaded() {
         final var group = storeGroup(IngestGroupState.UPLOADED);
         final var uploaded = storeTrack(group, IngestState.UPLOADED);
         storeTrack(group, IngestState.FAILED);
-        storeTrack(storeGroup(IngestGroupState.UPLOADED), IngestState.UPLOADED);
+        final var other = storeGroup(IngestGroupState.UPLOADED);
+        final var otherUploaded = storeTrack(other, IngestState.UPLOADED);
 
-        assertThat(dao.loadUploadedByGroup(group.ingestGroupId())).containsExactly(uploaded);
+        assertThat(dao.loadUploadedGroups())
+                .containsExactly(
+                        new UploadedGroup(group, List.of(uploaded)), new UploadedGroup(other, List.of(otherUploaded)));
     }
 
     @Test
@@ -135,12 +138,13 @@ class IngestDaoTest {
         final var uploaded = storeTrack(group, IngestState.UPLOADED);
 
         assertThat(dao.updateUploading(group.ingestGroupId(), created.trackIngestId()))
-                .hasValueSatisfying(ingest -> assertThat(ingest.state()).isEqualTo(IngestState.UPLOADING));
+                .isTrue();
+        assertThat(dao.loadTrackIngestById(created.trackIngestId()).state()).isEqualTo(IngestState.UPLOADING);
         assertThat(dao.updateUploading(group.ingestGroupId(), created.trackIngestId()))
-                .isPresent();
+                .isTrue();
         assertThat(dao.updateUploading(group.ingestGroupId(), uploaded.trackIngestId()))
-                .isEmpty();
-        assertThat(dao.updateUploading(uuidv7(), created.trackIngestId())).isEmpty();
+                .isFalse();
+        assertThat(dao.updateUploading(uuidv7(), created.trackIngestId())).isFalse();
     }
 
     @Test

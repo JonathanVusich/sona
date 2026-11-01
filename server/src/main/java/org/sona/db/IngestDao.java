@@ -1,5 +1,7 @@
 package org.sona.db;
 
+import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.selectFrom;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
@@ -9,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
+import org.jooq.Records;
 import org.sona.mappers.IngestCandidateMapper;
 import org.sona.mappers.IngestGroupMapper;
 import org.sona.mappers.TrackToIngestMapper;
@@ -61,11 +64,17 @@ public class IngestDao {
     /**
      * @return the groups whose files are all uploaded and that haven't been matched yet, oldest first
      */
-    public List<IngestGroup> loadUploadedGroups() {
-        return dsl.selectFrom(INGEST_GROUP)
+    public List<UploadedGroup> loadUploadedGroups() {
+        final var trackIngests = multiset(selectFrom(TRACK_TO_INGEST)
+                        .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(INGEST_GROUP.INGEST_GROUP_ID))
+                        .and(TRACK_TO_INGEST.STATE.eq(IngestState.UPLOADED))
+                        .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID))
+                .convertFrom(rows -> rows.map(trackToIngestMapper::fromRecord));
+        return dsl.select(INGEST_GROUP.convertFrom(ingestGroupMapper::fromRecord), trackIngests)
+                .from(INGEST_GROUP)
                 .where(INGEST_GROUP.STATE.eq(IngestGroupState.UPLOADED))
                 .orderBy(INGEST_GROUP.INGEST_GROUP_ID)
-                .fetch(ingestGroupMapper::fromRecord);
+                .fetch(Records.mapping(UploadedGroup::new));
     }
 
     public void updateGroupState(final UUID ingestGroupId, final IngestGroupState state) {
@@ -101,41 +110,33 @@ public class IngestDao {
      * Marks the file as receiving its bytes, if it is in the group and hasn't been uploaded yet; one that is
      * uploading may be sent again.
      *
-     * @return the ingest, or nothing if the group has no such file or it has been uploaded
+     * @return whether it was marked, rather than the group having no such file or it having been uploaded
      */
-    public Optional<TrackToIngest> updateUploading(final UUID ingestGroupId, final UUID trackToIngestId) {
-        return dsl.update(TRACK_TO_INGEST)
+    public boolean updateUploading(final UUID ingestGroupId, final UUID trackToIngestId) {
+        final var updated = dsl.update(TRACK_TO_INGEST)
                 .set(TRACK_TO_INGEST.STATE, IngestState.UPLOADING)
                 .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
                 .and(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
                 .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING))
-                .returning()
-                .fetchOptional(trackToIngestMapper::fromRecord);
-    }
-
-    /**
-     * @return the group's ingests that are uploaded and waiting to be processed, oldest first
-     */
-    public List<TrackToIngest> loadUploadedByGroup(final UUID ingestGroupId) {
-        return dsl.selectFrom(TRACK_TO_INGEST)
-                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
-                .and(TRACK_TO_INGEST.STATE.eq(IngestState.UPLOADED))
-                .orderBy(TRACK_TO_INGEST.TRACK_INGEST_ID)
-                .fetch(trackToIngestMapper::fromRecord);
+                .execute();
+        return updated > 0;
     }
 
     /**
      * Marks the file uploaded, and its group too if that was the last of its files to arrive. The group is locked
-     * first, so two files finishing at once can't each see the other as still uploading.
+     * before its files are checked, so of two files finishing at once, the second sees the first's commit.
      */
     public void updateUploaded(final UUID trackToIngestId) {
-        final var ingestGroupId = loadTrackIngestById(trackToIngestId).groupIngestId();
+        final var ingestGroupId = dsl.update(TRACK_TO_INGEST)
+                .set(TRACK_TO_INGEST.STATE, IngestState.UPLOADED)
+                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .returning(TRACK_TO_INGEST.GROUP_INGEST_ID)
+                .fetchSingle(TRACK_TO_INGEST.GROUP_INGEST_ID);
         dsl.select(INGEST_GROUP.INGEST_GROUP_ID)
                 .from(INGEST_GROUP)
                 .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
                 .forUpdate()
                 .fetch();
-        updateState(trackToIngestId, IngestState.UPLOADED);
         final var stillUploading = dsl.fetchExists(dsl.selectFrom(TRACK_TO_INGEST)
                 .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
                 .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING)));
