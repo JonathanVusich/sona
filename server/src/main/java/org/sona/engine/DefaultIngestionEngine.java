@@ -90,7 +90,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     // The candidates are stored first, so whoever sees the state finds them.
     @Override
     public void requireInput(final TrackToIngest trackToIngest, final List<TrackCandidate> candidates) {
-        ingestDao.updateCandidates(trackToIngest.trackIngestId(), newIngestCandidates(trackToIngest, candidates));
+        ingestDao.replaceCandidates(trackToIngest.trackIngestId(), newIngestCandidates(trackToIngest, candidates));
         markState(trackToIngest, IngestState.INPUT_REQUIRED);
 
         // TODO: Refactor to support multiple metadata providers using plugins
@@ -164,7 +164,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
     @Override
     public void markState(final TrackToIngest trackToIngest, final IngestState state) {
-        ingestDao.updateState(trackToIngest.trackIngestId(), state);
+        ingestDao.setState(trackToIngest.trackIngestId(), state);
         progressPublisher.publish(trackToIngest, state);
     }
 

@@ -413,7 +413,7 @@ class DefaultIngestionEngineTest {
                 "Parachutes",
                 1,
                 9);
-        ingestDao.updateCandidates(ingest.trackIngestId(), List.of(candidate));
+        ingestDao.replaceCandidates(ingest.trackIngestId(), List.of(candidate));
 
         worker.processPending();
 

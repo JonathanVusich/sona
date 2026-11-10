@@ -48,7 +48,7 @@ public final class DefaultIngestWorker implements IngestWorker {
         final var groups = ingestDao.loadUploadedGroups();
         for (final var uploaded : groups) {
             processGroup(uploaded);
-            ingestDao.updateGroupState(uploaded.group().ingestGroupId(), IngestGroupState.MATCHED);
+            ingestDao.setGroupState(uploaded.group().ingestGroupId(), IngestGroupState.MATCHED);
         }
     }
 

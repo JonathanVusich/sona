@@ -28,7 +28,6 @@ public enum ErrorCode {
     PASSWORD_MANAGED_BY_PROVIDER(
             202, HttpStatus.BAD_REQUEST, "You sign in through your identity provider, so change your password there."),
     USERNAME_TAKEN(203, HttpStatus.CONFLICT, "That username is taken."),
-    ALREADY_REGISTERED(205, HttpStatus.CONFLICT, "You already have an account."),
 
     RELEASE_NOT_FOUND(300, HttpStatus.NOT_FOUND, "This release isn't in the library."),
     RELEASE_GROUP_NOT_FOUND(301, HttpStatus.NOT_FOUND, "This release group isn't in the library."),

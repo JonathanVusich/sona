@@ -203,9 +203,9 @@ class ReleaseDaoTest {
         final var release = storeRelease(artist);
         final var track = storeTrackInState(storeMedium(release, 1), artist.artistId(), 1, IngestState.UPLOADED);
 
-        ingestDao.updateState(track.trackIngestId(), IngestState.MOVE_FAILED);
+        ingestDao.setState(track.trackIngestId(), IngestState.MOVE_FAILED);
         final var failed = trackCount(release);
-        ingestDao.updateState(track.trackIngestId(), IngestState.COMPLETED);
+        ingestDao.setState(track.trackIngestId(), IngestState.COMPLETED);
         final var completed = trackCount(release);
 
         assertThat(failed).isZero();

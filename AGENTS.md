@@ -293,18 +293,38 @@ testing*): run them rather than formatting by hand. The conventions below are co
 - One DAO per feature: a feature's tables, and the joined reads of the pages that show it, share one DAO named for
   the feature (`PlaylistDao` writes `playlist` and `playlist_track`, and reads the playlists list and a playlist's
   page). Don't split them into a DAO per table and a DAO per composite read.
-- DAO methods share one set of verbs: `load…` for reads (`loadById`, `loadByMusicBrainzId`; never `find…`),
-  `insert`, `upsert` / `upsertAll`, `update…` and `delete`. A read that may find nothing returns `Optional`, and one
-  whose row must exist returns the pojo. Every DAO method has a caller in `main`: delete one when its last caller goes,
-  along with any index that only it used.
+- DAO methods are named for what they do to the DAO's main table, which their names leave out (`TrackDao.loadById`,
+  not `loadTrackById`). The feature's other tables are read only inside the main table's joined reads (`multiset`),
+  and written inside its writes (a group inserted with its files), never loaded through methods of their own; where
+  the feature changes them on their own, the method names what it does to them (`PlaylistDao.insertTracks`,
+  `setTrackPosition`). Every DAO uses the same verbs:
+  - `loadById` / `loadBy<Key>` for a whole row, `load<Shape>` for a page or a projection (`loadDetails`,
+    `loadSummaries`, `loadFirstPage` / `loadNextPage`), `load<State><Rows>` for a batch (`loadUploadedGroups`), and
+    `has…` for a boolean (`hasNoUsers`). Never `find…`, `get…` or `fetch…`. A read that may find nothing returns
+    `Optional`, and one whose row must exist returns the pojo.
+  - `insert` for a new row, which throws on a conflict, and `insertIfAbsent` for one that may already exist
+    (`on conflict do nothing`), returning whether it was stored.
+  - `upsert` / `upsertAll`.
+  - `set<Field>` to write a column, an enum state included (`setState`, `setRole`, `setPasswordHash`,
+    `setTrackPosition`), and `set<State>` for a change to one state that applies only from certain states or does
+    more than write it (`setUploading`, `setUploaded`); `mark<Flag>` to set a boolean.
+  - `replace<Rows>` to delete a set of rows and insert their replacements (`replaceCandidates`, `replaceWithTracks`).
+  - `delete` / `delete<Rows>`.
+  - A verb of the domain for an operation that isn't writing a column (`revokeFamily`, `revokeAll`).
+
+  Never `update…`, which names the statement rather than the change. A write that may find no row returns it as an
+  `Optional`. Every DAO method has a caller in `main`:
+  delete one when its last caller goes, along with any index that only it used.
 - **Query for the rows you want; never load rows and filter or check their state in Java.** The state goes in the
   `where` (`IngestDao.loadUploadedGroups`, `UserDao.loadActiveById`), not in a `filter(...)` or a `switch` over
   `state()` on rows loaded anyway, and not in a static helper that checks a loaded row. A change that only applies in
   some state, because another request can change the row meanwhile, is one conditional `update ... where state = ?
-  returning` (`IngestDao.updateUploading`, as the same file may be sent twice at once), not a load, a check and an
-  update, which two requests can both pass. Look the row up afterwards only to explain a failure. A conditional update
+  returning`, not a load, a check and an update, which two requests can both pass. Never load the row again to
+  explain why a write didn't apply: a conflict on insert is the conflict it hit (`UsernameTakenException`), and where
+  the reasons differ, the one statement tells them apart (`IngestDao.setUploading` writes the state back unchanged
+  when the file is already uploaded, and returns the row, so empty means there is none). A conditional update
   is only for rows another request can change: never one that second-guesses what the code's own callee wrote, such
-  as an `updateState(id, from, to)` guarding against overwriting the engine's own state (give the steps their own
+  as a `setState(id, from, to)` guarding against overwriting the engine's own state (give the steps their own
   methods instead; see *No try/catch below the boundary*). Each DAO call commits on its own, by design, so no
   connection is held across HTTP or file I/O. (Decisions on the identity in the request's token, such as its
   `SessionState`, are not loaded rows.)

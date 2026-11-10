@@ -43,7 +43,7 @@ class IngestDaoTest {
     }
 
     @Test
-    void updateStateSetsTheState() {
+    void setStateSetsTheState() {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
         userDao.insert(uploader);
@@ -53,7 +53,7 @@ class IngestDaoTest {
         final var trackToIngest = new TrackToIngest(uuidv7(), group.ingestGroupId(), "filename", IngestState.UPLOADED);
         dao.insertTrackIngest(trackToIngest);
 
-        dao.updateState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
+        dao.setState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
 
         assertThat(dao.loadTrackIngestById(trackToIngest.trackIngestId())
                         .orElseThrow()
@@ -81,14 +81,14 @@ class IngestDaoTest {
         final var first = storeTrack(group, IngestState.CREATED);
         final var second = storeTrack(group, IngestState.UPLOADING);
 
-        dao.updateUploaded(first.trackIngestId());
+        dao.setUploaded(first.trackIngestId());
 
         assertThat(dao.loadTrackIngestById(first.trackIngestId()).orElseThrow().state())
                 .isEqualTo(IngestState.UPLOADED);
         assertThat(dao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
                 .isEqualTo(IngestGroupState.CREATED);
 
-        dao.updateUploaded(second.trackIngestId());
+        dao.setUploaded(second.trackIngestId());
 
         assertThat(dao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
                 .isEqualTo(IngestGroupState.UPLOADED);
@@ -103,7 +103,7 @@ class IngestDaoTest {
 
         assertThat(dao.loadUploadedGroups()).extracting(UploadedGroup::group).containsExactly(oldest, newest);
 
-        dao.updateGroupState(oldest.ingestGroupId(), IngestGroupState.MATCHED);
+        dao.setGroupState(oldest.ingestGroupId(), IngestGroupState.MATCHED);
 
         assertThat(dao.loadUploadedGroups()).extracting(UploadedGroup::group).containsExactly(newest);
         assertThat(dao.loadGroupById(matched.ingestGroupId())).contains(matched);
@@ -123,17 +123,17 @@ class IngestDaoTest {
     }
 
     @Test
-    void aFileIsMarkedUploadingUntilItIsUploaded() {
+    void aFileIsSetUploadingUntilItIsUploaded() {
         final var group = storeGroup(IngestGroupState.CREATED);
         final var created = storeTrack(group, IngestState.CREATED);
         final var uploaded = storeTrack(group, IngestState.UPLOADED);
         final var uploading =
                 new TrackToIngest(created.trackIngestId(), group.ingestGroupId(), "filename", IngestState.UPLOADING);
 
-        assertThat(dao.updateUploading(created.trackIngestId())).contains(uploading);
-        assertThat(dao.updateUploading(created.trackIngestId())).contains(uploading);
-        assertThat(dao.updateUploading(uploaded.trackIngestId())).isEmpty();
-        assertThat(dao.updateUploading(uuidv7())).isEmpty();
+        assertThat(dao.setUploading(created.trackIngestId())).contains(uploading);
+        assertThat(dao.setUploading(created.trackIngestId())).contains(uploading);
+        assertThat(dao.setUploading(uploaded.trackIngestId())).contains(uploaded);
+        assertThat(dao.setUploading(uuidv7())).isEmpty();
     }
 
     @Test
@@ -141,7 +141,7 @@ class IngestDaoTest {
         final var group = storeGroup(IngestGroupState.CREATED);
         final var track = storeTrack(group, IngestState.UPLOADING);
 
-        assertThat(dao.updateUploaded(track.trackIngestId()).state()).isEqualTo(IngestState.UPLOADED);
+        assertThat(dao.setUploaded(track.trackIngestId()).state()).isEqualTo(IngestState.UPLOADED);
     }
 
     @Test

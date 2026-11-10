@@ -2,7 +2,6 @@ package org.sona.controller;
 
 import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
-import org.sona.exception.AlreadyRegisteredException;
 import org.sona.exception.ArtistNotFoundException;
 import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IncorrectPasswordException;
@@ -141,7 +140,6 @@ public final class ApiExceptionHandler {
             case IncorrectPasswordException _ -> ErrorCode.INCORRECT_CURRENT_PASSWORD;
             case UnchangedPasswordException _ -> ErrorCode.INVALID_NEW_PASSWORD;
             case PasswordManagedByProviderException _ -> ErrorCode.PASSWORD_MANAGED_BY_PROVIDER;
-            case AlreadyRegisteredException _ -> ErrorCode.ALREADY_REGISTERED;
             case UsernameTakenException _ -> ErrorCode.USERNAME_TAKEN;
         };
     }

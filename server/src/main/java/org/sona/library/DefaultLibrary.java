@@ -18,8 +18,8 @@ import org.sona.exception.FileTooLargeException;
 import org.sona.exception.IngestAlreadyUploadedException;
 import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidFormatException;
-import org.sona.exception.SonaException;
 import org.sona.format.Format;
+import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
 import org.sona.model.tables.pojos.Track;
@@ -55,13 +55,18 @@ public final class DefaultLibrary implements Library {
 
     @Override
     public TrackToIngest storeIngestTrack(final UUID trackIngestId, final InputStream inputStream) throws IOException {
-        final var trackIngest =
-                ingestDao.updateUploading(trackIngestId).orElseThrow(() -> refusedUpload(trackIngestId));
+        final var trackIngest = ingestDao
+                .setUploading(trackIngestId)
+                .orElseThrow(() -> new IngestTrackNotFoundException(trackIngestId));
+        // Once uploaded, the file may be in the middle of being matched, so the stored file mustn't be replaced.
+        if (trackIngest.state() != IngestState.UPLOADING) {
+            throw new IngestAlreadyUploadedException(trackIngestId);
+        }
 
         final var ingestTarget = resolveIngestTrack(trackIngest);
         Files.createDirectories(ingestTarget.getParent());
         copyUpload(inputStream, ingestTarget);
-        return ingestDao.updateUploaded(trackIngestId);
+        return ingestDao.setUploaded(trackIngestId);
     }
 
     @Override
@@ -120,15 +125,6 @@ public final class DefaultLibrary implements Library {
 
     private static String fileExtension(final String filename) {
         return FilenameUtils.getExtension(filename).toLowerCase(Locale.ROOT);
-    }
-
-    // A file is sent again while its ingest is created or uploading. Once it is uploaded it may be in the middle of
-    // being matched, so the stored file mustn't be replaced.
-    private SonaException refusedUpload(final UUID trackIngestId) {
-        return ingestDao
-                .loadTrackIngestById(trackIngestId)
-                .<SonaException>map(_ -> new IngestAlreadyUploadedException(trackIngestId))
-                .orElseGet(() -> new IngestTrackNotFoundException(trackIngestId));
     }
 
     private Path resolveLibraryPath(final String libraryPath) {

@@ -208,7 +208,7 @@ class OidcSignInTest {
                 .isEqualTo(409)
                 .expectBody()
                 .jsonPath("$.code")
-                .isEqualTo(205);
+                .isEqualTo(203);
     }
 
     @Test

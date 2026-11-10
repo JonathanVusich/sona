@@ -2,8 +2,6 @@ package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
 import org.sona.db.UserDao;
-import org.sona.exception.AlreadyRegisteredException;
-import org.sona.exception.SonaException;
 import org.sona.exception.UsernameTakenException;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
@@ -41,16 +39,10 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
         final var account = new Users(user.userId(), UserType.OIDC, username, user.role(), AccountState.ACTIVE);
         // IDs and usernames are unique, so the database settles two sign-ups at once.
         if (!userDao.insert(account)) {
-            throw refusedRegistration(account);
+            throw new UsernameTakenException(account.username());
         }
         userDao.insertOidcIdentity(new OidcIdentity(user.userId(), user.issuer(), user.subject()));
         return user;
-    }
-
-    private SonaException refusedRegistration(final Users account) {
-        return userDao.loadById(account.userId())
-                .<SonaException>map(_ -> new AlreadyRegisteredException())
-                .orElseGet(() -> new UsernameTakenException(account.username()));
     }
 
     /**
