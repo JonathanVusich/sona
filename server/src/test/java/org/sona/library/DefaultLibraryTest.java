@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.samples.IngestUploadUtils.createIngest;
+import static org.sona.samples.IngestUploadUtils.loadGroup;
 import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -90,8 +91,7 @@ class DefaultLibraryTest {
         assertThat(loadIngest(dsl, ingestTrack.trackIngestId()))
                 .isEqualTo(new TrackToIngest(
                         created.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.UPLOADED));
-        assertThat(ingestDao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
-                .isEqualTo(IngestGroupState.UPLOADED);
+        assertThat(loadGroup(dsl, group.ingestGroupId()).state()).isEqualTo(IngestGroupState.UPLOADED);
         try (final var stored = library.readIngestTrack(ingestTrack)) {
             assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(bytes);
         }

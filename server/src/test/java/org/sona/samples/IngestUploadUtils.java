@@ -1,5 +1,6 @@
 package org.sona.samples;
 
+import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -49,6 +50,14 @@ public class IngestUploadUtils {
             final byte[] file)
             throws IOException {
         return upload(library, createIngest(ingestDao, group, filename), file);
+    }
+
+    /**
+     * @return the group as it is stored now
+     */
+    public static IngestGroup loadGroup(final DSLContext dsl, final UUID ingestGroupId) {
+        return dsl.fetchSingle(INGEST_GROUP, INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
+                .into(IngestGroup.class);
     }
 
     /**

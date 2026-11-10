@@ -1,5 +1,6 @@
 package org.sona.engine;
 
+import java.util.UUID;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
 
@@ -11,5 +12,5 @@ public interface IngestProgressPublisher {
     /**
      * Tells the ingest's uploader that its state is now {@code state}. Call it once the state is stored.
      */
-    void publish(TrackToIngest ingest, IngestState state);
+    void publish(UUID uploaderId, TrackToIngest ingest, IngestState state);
 }

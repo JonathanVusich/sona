@@ -1,6 +1,7 @@
 package org.sona.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.samples.IngestUploadUtils.loadGroup;
 import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -70,7 +71,7 @@ class IngestDaoTest {
 
         dao.insertGroup(group, List.of(first, second));
 
-        assertThat(dao.loadGroupById(group.ingestGroupId())).contains(group);
+        assertThat(loadGroup(dsl, group.ingestGroupId())).isEqualTo(group);
         assertThat(loadIngest(dsl, first.trackIngestId())).isEqualTo(first);
         assertThat(loadIngest(dsl, second.trackIngestId())).isEqualTo(second);
     }
@@ -84,13 +85,11 @@ class IngestDaoTest {
         dao.setUploaded(first.trackIngestId());
 
         assertThat(loadIngest(dsl, first.trackIngestId()).state()).isEqualTo(IngestState.UPLOADED);
-        assertThat(dao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
-                .isEqualTo(IngestGroupState.CREATED);
+        assertThat(loadGroup(dsl, group.ingestGroupId()).state()).isEqualTo(IngestGroupState.CREATED);
 
         dao.setUploaded(second.trackIngestId());
 
-        assertThat(dao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
-                .isEqualTo(IngestGroupState.UPLOADED);
+        assertThat(loadGroup(dsl, group.ingestGroupId()).state()).isEqualTo(IngestGroupState.UPLOADED);
     }
 
     @Test
@@ -105,7 +104,7 @@ class IngestDaoTest {
         dao.setGroupState(oldest.ingestGroupId(), IngestGroupState.MATCHED);
 
         assertThat(dao.loadUploadedGroups()).extracting(UploadedGroup::group).containsExactly(newest);
-        assertThat(dao.loadGroupById(matched.ingestGroupId())).contains(matched);
+        assertThat(loadGroup(dsl, matched.ingestGroupId())).isEqualTo(matched);
     }
 
     @Test

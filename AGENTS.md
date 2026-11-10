@@ -72,9 +72,8 @@ A track is only in the library once its ingest is `COMPLETED`, as its row is sto
 pages list only those tracks, and `release.track_count` counts only them.
 
 Each row commits on its own, and the upserts are idempotent, so processing an ingest again after a failure reuses
-what was stored. A release's media are stored after the release and its labels, so a stored release without the
-track's medium is one whose ingest stopped part-way: the engine looks the release up again and stores its labels and
-media. Likewise a release group is stored before its release, and a release before its tracks, so a release with no
+what was stored. A release is stored with its labels and media in one transaction (`ReleaseDao.upsert`), so a stored
+release always has them. A release group is stored before its release, and a release before its tracks, so a release with no
 track (`release.track_count` is 0), and a group with no such release (`release_group.release_count` is 0), isn't in
 the library yet: the pages and lists leave them out.
 

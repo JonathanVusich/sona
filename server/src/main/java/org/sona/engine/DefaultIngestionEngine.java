@@ -162,8 +162,8 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
     @Override
     public void markState(final TrackToIngest trackToIngest, final IngestState state) {
-        ingestDao.setState(trackToIngest.trackIngestId(), state);
-        progressPublisher.publish(trackToIngest, state);
+        final var uploaderId = ingestDao.setState(trackToIngest.trackIngestId(), state);
+        progressPublisher.publish(uploaderId, trackToIngest, state);
     }
 
     /**
