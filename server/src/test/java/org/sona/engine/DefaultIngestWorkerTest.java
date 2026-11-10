@@ -1,6 +1,7 @@
 package org.sona.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
@@ -164,7 +165,7 @@ class DefaultIngestWorkerTest {
     private IngestGroup storeGroup(final IngestGroupKind kind) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), kind, "A Rush of Blood to the Head", uploader.userId(), IngestGroupState.CREATED);
         ingestDao.insertGroup(group);

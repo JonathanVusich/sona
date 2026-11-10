@@ -1,20 +1,20 @@
 package org.sona.auth;
 
+import org.sona.db.LocalAccount;
 import org.sona.exception.IncorrectPasswordException;
 import org.sona.exception.InvalidCredentialsException;
 import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.UnchangedPasswordException;
-import org.sona.model.tables.pojos.Users;
 
 public interface PasswordChecker {
 
     /**
      * Checks a local user's username and password when they log in.
      *
-     * @return the user
+     * @return the user, with their password
      * @throws InvalidCredentialsException if the username is unknown, the password is wrong or the account is disabled
      */
-    Users checkLogin(String username, String password);
+    LocalAccount checkLogin(String username, String password);
 
     /**
      * Changes the user's password, which ends a required password change and every session the user has.

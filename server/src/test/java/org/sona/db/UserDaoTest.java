@@ -23,123 +23,115 @@ class UserDaoTest {
     UserDao dao;
 
     @Test
-    void insertAndFind() {
-        final var user = newUser("alice", UserRole.USER, AccountState.ACTIVE);
+    void aLocalUserIsLoadedWithTheirPassword() {
+        final var account = storeLocalUser("alice", AccountState.ACTIVE, PasswordState.VALID);
 
-        dao.insert(user);
+        assertThat(dao.loadById(account.user().userId())).contains(account);
+        assertThat(dao.loadByUsername("alice")).contains(account);
+    }
 
-        assertThat(dao.loadById(user.userId())).contains(user);
-        assertThat(dao.loadByUsername("alice")).contains(user);
+    @Test
+    void anOidcUserIsLoadedWithTheirIdentity() {
+        final var user = newUser("alice", UserType.OIDC, UserRole.USER, AccountState.ACTIVE);
+        final var identity = new OidcIdentity(user.userId(), "https://id.example", "alice-id");
+
+        assertThat(dao.insertIfAbsent(user, identity)).isTrue();
+
+        assertThat(dao.loadById(user.userId())).contains(new OidcAccount(user, identity));
     }
 
     @Test
     void aDisabledUserIsNotLoadedAsActive() {
-        final var active = newUser("alice", UserRole.USER, AccountState.ACTIVE);
-        final var disabled = newUser("bob", UserRole.USER, AccountState.DISABLED);
-        dao.insert(active);
-        dao.insert(disabled);
+        final var active = storeLocalUser("alice", AccountState.ACTIVE, PasswordState.VALID);
+        final var disabled = storeLocalUser("bob", AccountState.DISABLED, PasswordState.VALID);
 
-        assertThat(dao.loadActiveById(active.userId())).contains(active);
-        assertThat(dao.loadActiveById(disabled.userId())).isEmpty();
+        assertThat(dao.loadActiveById(active.user().userId())).contains(active);
+        assertThat(dao.loadActiveById(disabled.user().userId())).isEmpty();
     }
 
     @Test
-    void usernamesAreUnique() {
-        final var alice = newUser("alice", UserRole.USER, AccountState.ACTIVE);
+    void insertIfAbsentStoresNothingForATakenIdOrUsername() {
+        final var alice = newUser("alice", UserType.OIDC, UserRole.USER, AccountState.ACTIVE);
+        final var identity = new OidcIdentity(alice.userId(), "https://id.example", "alice-id");
+        dao.insertIfAbsent(alice, identity);
+        final var sameName = newUser("alice", UserType.OIDC, UserRole.ADMIN, AccountState.ACTIVE);
 
-        assertThat(dao.insert(alice)).isTrue();
-        assertThat(dao.insert(newUser("alice", UserRole.ADMIN, AccountState.ACTIVE)))
+        assertThat(dao.insertIfAbsent(sameName, new OidcIdentity(sameName.userId(), "https://id.example", "other")))
                 .isFalse();
-        assertThat(dao.insert(alice)).isFalse();
+        assertThat(dao.insertIfAbsent(alice, new OidcIdentity(alice.userId(), "https://other.example", "alice-id")))
+                .isFalse();
+        assertThat(dao.loadById(sameName.userId())).isEmpty();
+        assertThat(dao.loadById(alice.userId())).contains(new OidcAccount(alice, identity));
+    }
+
+    @Test
+    void anOidcIdentityBelongsToOneUser() {
+        final var alice = newUser("alice", UserType.OIDC, UserRole.USER, AccountState.ACTIVE);
+        dao.insertIfAbsent(alice, new OidcIdentity(alice.userId(), "https://id.example", "alice-id"));
+        final var bob = newUser("bob", UserType.OIDC, UserRole.USER, AccountState.ACTIVE);
+        final var copy = new OidcIdentity(bob.userId(), "https://id.example", "alice-id");
+
+        assertThatThrownBy(() -> dao.insertIfAbsent(bob, copy)).isInstanceOf(DuplicateKeyException.class);
+        assertThat(dao.loadById(bob.userId())).isEmpty();
     }
 
     @Test
     void hasNoUsersUntilOneIsInserted() {
         assertThat(dao.hasNoUsers()).isTrue();
 
-        dao.insert(newUser("alice", UserRole.USER, AccountState.ACTIVE));
+        storeLocalUser("alice", AccountState.ACTIVE, PasswordState.VALID);
 
         assertThat(dao.hasNoUsers()).isFalse();
     }
 
     @Test
-    void upsertOverwritesTheUserWithTheSameUsername() {
-        final var stored = newUser("admin", UserRole.USER, AccountState.DISABLED);
-        dao.insert(stored);
+    void upsertOverwritesTheUserWithTheSameUsernameAndTheirPassword() {
+        final var stored = storeLocalUser("admin", AccountState.DISABLED, PasswordState.CHANGE_REQUIRED);
+        final var userId = stored.user().userId();
 
-        final var upserted = dao.upsert(newUser("admin", UserRole.ADMIN, AccountState.ACTIVE));
+        dao.upsert(
+                newUser("admin", UserType.LOCAL, UserRole.ADMIN, AccountState.ACTIVE),
+                "{noop}new",
+                PasswordState.VALID);
 
-        assertThat(upserted)
-                .isEqualTo(new Users(stored.userId(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE));
+        assertThat(dao.loadByUsername("admin"))
+                .contains(new LocalAccount(
+                        new Users(userId, UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE),
+                        new Password(userId, "{noop}new", PasswordState.VALID)));
     }
 
     @Test
     void setRoleChangesOnlyTheRole() {
-        final var user = newUser("alice", UserRole.USER, AccountState.ACTIVE);
-        dao.insert(user);
+        final var stored = storeLocalUser("alice", AccountState.ACTIVE, PasswordState.VALID);
+        final var userId = stored.user().userId();
 
-        dao.setRole(user.userId(), UserRole.ADMIN);
+        dao.setRole(userId, UserRole.ADMIN);
 
-        assertThat(dao.loadById(user.userId()))
-                .contains(new Users(user.userId(), UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE));
-    }
-
-    @Test
-    void upsertPasswordInsertsAndOverwrites() {
-        final var alice = storeUser("alice", UserType.LOCAL);
-        final var first = new Password(alice.userId(), "{noop}first", PasswordState.VALID);
-        final var second = new Password(alice.userId(), "{noop}second", PasswordState.CHANGE_REQUIRED);
-
-        dao.upsertPassword(first);
-        assertThat(dao.loadPassword(alice.userId())).contains(first);
-
-        dao.upsertPassword(second);
-        assertThat(dao.loadPassword(alice.userId())).contains(second);
+        assertThat(dao.loadById(userId).map(Account::user))
+                .contains(new Users(userId, UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE));
     }
 
     @Test
     void setPasswordHashEndsARequiredPasswordChange() {
-        final var alice = storeUser("alice", UserType.LOCAL);
-        dao.upsertPassword(new Password(alice.userId(), "{noop}old", PasswordState.CHANGE_REQUIRED));
+        final var stored = storeLocalUser("alice", AccountState.ACTIVE, PasswordState.CHANGE_REQUIRED);
+        final var userId = stored.user().userId();
 
-        dao.setPasswordHash(alice.userId(), "{noop}new");
+        dao.setPasswordHash(userId, "{noop}new");
 
-        assertThat(dao.loadPassword(alice.userId()))
-                .contains(new Password(alice.userId(), "{noop}new", PasswordState.VALID));
+        assertThat(dao.loadById(userId))
+                .contains(new LocalAccount(stored.user(), new Password(userId, "{noop}new", PasswordState.VALID)));
     }
 
-    @Test
-    void aUserWithoutAPasswordHasNone() {
-        assertThat(dao.loadPassword(storeUser("alice", UserType.LOCAL).userId()))
-                .isEmpty();
+    private LocalAccount storeLocalUser(
+            final String username, final AccountState state, final PasswordState passwordState) {
+        final var user = newUser(username, UserType.LOCAL, UserRole.USER, state);
+        final var password = new Password(user.userId(), "{noop}" + username, passwordState);
+        dao.insert(user, password);
+        return new LocalAccount(user, password);
     }
 
-    @Test
-    void insertAndLoadOidcIdentity() {
-        final var alice = storeUser("alice", UserType.OIDC);
-        final var identity = new OidcIdentity(alice.userId(), "https://id.example", "alice-id");
-
-        dao.insertOidcIdentity(identity);
-
-        assertThat(dao.loadOidcIdentity(alice.userId())).contains(identity);
-    }
-
-    @Test
-    void anOidcIdentityBelongsToOneUser() {
-        dao.insertOidcIdentity(
-                new OidcIdentity(storeUser("alice", UserType.OIDC).userId(), "https://id.example", "alice-id"));
-        final var copy = new OidcIdentity(storeUser("bob", UserType.OIDC).userId(), "https://id.example", "alice-id");
-
-        assertThatThrownBy(() -> dao.insertOidcIdentity(copy)).isInstanceOf(DuplicateKeyException.class);
-    }
-
-    private Users storeUser(final String username, final UserType type) {
-        final var user = new Users(uuidv7(), type, username, UserRole.USER, AccountState.ACTIVE);
-        dao.insert(user);
-        return user;
-    }
-
-    private static Users newUser(final String username, final UserRole role, final AccountState state) {
-        return new Users(uuidv7(), UserType.LOCAL, username, role, state);
+    private static Users newUser(
+            final String username, final UserType type, final UserRole role, final AccountState state) {
+        return new Users(uuidv7(), type, username, role, state);
     }
 }

@@ -2,6 +2,7 @@ package org.sona.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.LocalDate;
@@ -131,7 +132,7 @@ class ArtistDaoTest {
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);

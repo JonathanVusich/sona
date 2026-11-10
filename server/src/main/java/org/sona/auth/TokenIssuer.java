@@ -1,16 +1,17 @@
 package org.sona.auth;
 
+import org.sona.db.LocalAccount;
 import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.model.tables.pojos.Users;
 
 public interface TokenIssuer {
 
     /**
-     * Starts a new session for the user.
+     * Starts a new session for a local user, who logged in with their password.
      *
      * @return an access token and the first refresh token of the session
      */
-    Tokens startSession(Users user);
+    Tokens startSession(LocalAccount account);
 
     /**
      * Starts a new session for a user who signed in through an OIDC provider. The provider's refresh token is kept, so

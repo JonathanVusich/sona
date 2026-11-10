@@ -166,7 +166,7 @@ public class DevLibraryRunner implements ApplicationRunner {
     @Override
     public void run(final ApplicationArguments args) {
         // DevUserRunner runs first, so admin exists.
-        final var uploader = userDao.loadByUsername("admin").orElseThrow();
+        final var uploader = userDao.loadByUsername("admin").orElseThrow().user();
         final var artists = upsertArtists();
         for (final var devRelease : RELEASES) {
             final var release = storeRelease(devRelease, artists, uploader);

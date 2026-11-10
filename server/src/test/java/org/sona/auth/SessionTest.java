@@ -15,6 +15,7 @@ import org.sona.controller.ApiClient;
 import org.sona.controller.ApiRoutes;
 import org.sona.controller.response.TokenResponse;
 import org.sona.controller.response.TokenType;
+import org.sona.db.LocalAccount;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -46,14 +47,14 @@ class SessionTest {
     int port;
 
     ApiClient api;
-    Users alice;
+    LocalAccount alice;
 
     @BeforeEach
     void setUp() {
         api = new ApiClient(port);
-        alice = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.USER, AccountState.ACTIVE);
-        userDao.insert(alice);
-        userDao.upsertPassword(new Password(alice.userId(), "{noop}alice", PasswordState.VALID));
+        final var user = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.USER, AccountState.ACTIVE);
+        alice = new LocalAccount(user, new Password(user.userId(), "{noop}alice", PasswordState.VALID));
+        userDao.insert(alice.user(), alice.password());
     }
 
     @Test
@@ -83,7 +84,7 @@ class SessionTest {
 
         dsl.update(USERS)
                 .set(USERS.STATE, AccountState.DISABLED)
-                .where(USERS.USER_ID.eq(alice.userId()))
+                .where(USERS.USER_ID.eq(alice.user().userId()))
                 .execute();
 
         // The access token is trusted until it expires, and the refresh is where the account is checked again.

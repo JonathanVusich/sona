@@ -1,6 +1,7 @@
 package org.sona.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.samples.IngestUploadUtils.loadGroup;
 import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -36,7 +37,7 @@ class IngestDaoTest {
     void insertAndLoad() {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         dao.insertGroup(group);
@@ -51,7 +52,7 @@ class IngestDaoTest {
     void setStateSetsTheState() {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         dao.insertGroup(group);
@@ -151,7 +152,7 @@ class IngestDaoTest {
     private IngestGroup newGroup(final IngestGroupState state) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         return new IngestGroup(uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), state);
     }
 

@@ -1,6 +1,7 @@
 package org.sona.auth;
 
 import lombok.RequiredArgsConstructor;
+import org.sona.db.Account;
 import org.sona.db.UserDao;
 import org.sona.exception.UsernameTakenException;
 import org.sona.model.enums.AccountState;
@@ -20,7 +21,8 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
 
     @Override
     public OidcSignIn signIn(final ProviderUser providerUser, final String providerRefreshToken) {
-        final var user = userDao.loadById(providerUser.userId()).orElse(null);
+        final var user =
+                userDao.loadById(providerUser.userId()).map(Account::user).orElse(null);
         if (user == null) {
             return new OidcSignIn.RegistrationRequired(registrationTokens.issueToken(providerUser));
         }
@@ -38,10 +40,10 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
         final var user = registrationTokens.readToken(registrationToken);
         final var account = new Users(user.userId(), UserType.OIDC, username, user.role(), AccountState.ACTIVE);
         // IDs and usernames are unique, so the database settles two sign-ups at once.
-        if (!userDao.insert(account)) {
+        final var identity = new OidcIdentity(user.userId(), user.issuer(), user.subject());
+        if (!userDao.insertIfAbsent(account, identity)) {
             throw new UsernameTakenException(account.username());
         }
-        userDao.insertOidcIdentity(new OidcIdentity(user.userId(), user.issuer(), user.subject()));
         return user;
     }
 

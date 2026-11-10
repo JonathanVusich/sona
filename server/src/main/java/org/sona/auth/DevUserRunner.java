@@ -8,7 +8,6 @@ import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.enums.UserType;
-import org.sona.model.tables.pojos.Password;
 import org.sona.model.tables.pojos.Users;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -38,7 +37,7 @@ public class DevUserRunner implements ApplicationRunner {
     }
 
     private void resetUser(final String name, final UserRole role) {
-        final var user = userDao.upsert(new Users(uuidv7(), UserType.LOCAL, name, role, AccountState.ACTIVE));
-        userDao.upsertPassword(new Password(user.userId(), encoder.encode(name), PasswordState.VALID));
+        final var user = new Users(uuidv7(), UserType.LOCAL, name, role, AccountState.ACTIVE);
+        userDao.upsert(user, encoder.encode(name), PasswordState.VALID);
     }
 }

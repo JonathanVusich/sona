@@ -1,6 +1,7 @@
 package org.sona.e2e;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import com.microsoft.playwright.Page;
@@ -207,7 +208,7 @@ class PlayerE2ETest {
     private Track insertTrackRow(final String name, final int position) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);

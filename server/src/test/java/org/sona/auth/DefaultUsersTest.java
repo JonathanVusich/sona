@@ -6,6 +6,7 @@ import static org.sona.model.Tables.USERS;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
+import org.sona.db.LocalAccount;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
@@ -37,11 +38,12 @@ class DefaultUsersTest {
 
         new InitialAdminRunner(userDao, encoder).run(new DefaultApplicationArguments());
 
-        final var admin = userDao.loadByUsername("admin").orElseThrow();
-        assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
-        final var password = userDao.loadPassword(admin.userId()).orElseThrow();
-        assertThat(password.state()).isEqualTo(PasswordState.CHANGE_REQUIRED);
-        assertThat(encoder.matches("admin", password.passwordHash())).isTrue();
+        assertThat(userDao.loadByUsername("admin").orElseThrow()).isInstanceOfSatisfying(LocalAccount.class, admin -> {
+            assertThat(admin.user().role()).isEqualTo(UserRole.ADMIN);
+            assertThat(admin.password().state()).isEqualTo(PasswordState.CHANGE_REQUIRED);
+            assertThat(encoder.matches("admin", admin.password().passwordHash()))
+                    .isTrue();
+        });
     }
 
     @Test
@@ -60,13 +62,13 @@ class DefaultUsersTest {
 
         new DevUserRunner(userDao, encoder).run(new DefaultApplicationArguments());
 
-        final var admin = userDao.loadByUsername("admin").orElseThrow();
-        final var user = userDao.loadByUsername("user").orElseThrow();
+        final var admin = userDao.loadByUsername("admin").orElseThrow().user();
         assertThat(admin.role()).isEqualTo(UserRole.ADMIN);
-        assertThat(user.role()).isEqualTo(UserRole.USER);
         assertThat(admin.state()).isEqualTo(AccountState.ACTIVE);
-        final var password = userDao.loadPassword(user.userId()).orElseThrow();
-        assertThat(encoder.matches("user", password.passwordHash())).isTrue();
+        assertThat(userDao.loadByUsername("user").orElseThrow()).isInstanceOfSatisfying(LocalAccount.class, user -> {
+            assertThat(user.user().role()).isEqualTo(UserRole.USER);
+            assertThat(encoder.matches("user", user.password().passwordHash())).isTrue();
+        });
     }
 
     @Test
@@ -76,7 +78,7 @@ class DefaultUsersTest {
 
         new DevUserRunner(userDao, encoder).run(new DefaultApplicationArguments());
 
-        final var user = userDao.loadByUsername("user").orElseThrow();
+        final var user = userDao.loadByUsername("user").orElseThrow().user();
         assertThat(user.userId()).isEqualTo(existing.userId());
         assertThat(user.role()).isEqualTo(UserRole.USER);
         assertThat(user.state()).isEqualTo(AccountState.ACTIVE);

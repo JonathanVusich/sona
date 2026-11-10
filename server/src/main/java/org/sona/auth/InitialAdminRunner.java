@@ -32,9 +32,7 @@ public class InitialAdminRunner implements ApplicationRunner {
     public void run(final ApplicationArguments args) {
         if (userDao.hasNoUsers()) {
             final var admin = new Users(uuidv7(), UserType.LOCAL, "admin", UserRole.ADMIN, AccountState.ACTIVE);
-            userDao.insert(admin);
-            userDao.upsertPassword(
-                    new Password(admin.userId(), encoder.encode("admin"), PasswordState.CHANGE_REQUIRED));
+            userDao.insert(admin, new Password(admin.userId(), encoder.encode("admin"), PasswordState.CHANGE_REQUIRED));
         }
     }
 }

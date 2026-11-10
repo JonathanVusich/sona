@@ -1,6 +1,7 @@
 package org.sona.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.samples.FlacFiles.flacFile;
@@ -68,7 +69,7 @@ class IngestControllerTest {
     void setUp() {
         api = new ApiClient(port);
         admin = new Users(uuidv7(), UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(admin);
+        insertUser(userDao, admin);
         adminToken = new TestTokens(encoder).accessToken(admin.userId(), "alice", UserRole.ADMIN, SessionState.ACTIVE);
     }
 

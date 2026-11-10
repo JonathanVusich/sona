@@ -1,6 +1,7 @@
 package org.sona.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.LocalDate;
@@ -376,7 +377,7 @@ class ReleaseDaoTest {
             final Medium medium, final UUID artistId, final int position, final IngestState state) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);
