@@ -5,6 +5,7 @@ import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.samples.IngestUploadUtils.createIngest;
+import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -176,10 +177,7 @@ class DefaultIngestWorkerTest {
     }
 
     private IngestState reloadState(final TrackToIngest ingest) {
-        return ingestDao
-                .loadTrackIngestById(ingest.trackIngestId())
-                .orElseThrow()
-                .state();
+        return loadIngest(dsl, ingest.trackIngestId()).state();
     }
 
     private static RawMetadata whisperMetadata() {

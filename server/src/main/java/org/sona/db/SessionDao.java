@@ -10,11 +10,14 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.UpdateConditionStep;
 import org.sona.mappers.OidcSessionMapper;
 import org.sona.mappers.RefreshTokenMapper;
 import org.sona.model.tables.pojos.OidcSession;
 import org.sona.model.tables.pojos.RefreshToken;
+import org.sona.model.tables.records.RefreshTokenRecord;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,15 +30,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class SessionDao {
 
+    private static final Condition UNEXPIRED = REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime());
+
     private final DSLContext dsl;
     private final RefreshTokenMapper refreshTokenMapper;
     private final OidcSessionMapper oidcSessionMapper;
 
-    public void insertRefreshToken(final RefreshToken token) {
+    public void insert(final RefreshToken token) {
         dsl.insertInto(REFRESH_TOKEN).set(refreshTokenMapper.toRecord(token)).execute();
     }
 
-    public Optional<RefreshToken> loadRevokedRefreshTokenByHash(final String tokenHash) {
+    public Optional<RefreshToken> loadRevokedByHash(final String tokenHash) {
         return dsl.selectFrom(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
                 .and(REFRESH_TOKEN.REVOKED_AT.isNotNull())
@@ -49,11 +54,8 @@ public class SessionDao {
      * @return the token, now revoked, or empty if it was unknown, expired or already revoked
      */
     public Optional<RefreshToken> revokeIfValid(final String tokenHash) {
-        return dsl.update(REFRESH_TOKEN)
-                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
-                .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
-                .and(REFRESH_TOKEN.REVOKED_AT.isNull())
-                .and(REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime()))
+        return revoke(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
+                .and(UNEXPIRED)
                 .returning()
                 .fetchOptional(refreshTokenMapper::fromRecord);
     }
@@ -70,29 +72,18 @@ public class SessionDao {
                 .from(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
                 .and(REFRESH_TOKEN.REVOKED_AT.gt(replacedAfter));
-        return dsl.update(REFRESH_TOKEN)
-                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
-                .where(REFRESH_TOKEN.FAMILY_ID.in(family))
-                .and(REFRESH_TOKEN.REVOKED_AT.isNull())
-                .and(REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime()))
+        return revoke(REFRESH_TOKEN.FAMILY_ID.in(family))
+                .and(UNEXPIRED)
                 .returning()
                 .fetchOptional(refreshTokenMapper::fromRecord);
     }
 
     public void revokeFamily(final UUID familyId) {
-        dsl.update(REFRESH_TOKEN)
-                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
-                .where(REFRESH_TOKEN.FAMILY_ID.eq(familyId))
-                .and(REFRESH_TOKEN.REVOKED_AT.isNull())
-                .execute();
+        revoke(REFRESH_TOKEN.FAMILY_ID.eq(familyId)).execute();
     }
 
     public void revokeAll(final UUID userId) {
-        dsl.update(REFRESH_TOKEN)
-                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
-                .where(REFRESH_TOKEN.USER_ID.eq(userId))
-                .and(REFRESH_TOKEN.REVOKED_AT.isNull())
-                .execute();
+        revoke(REFRESH_TOKEN.USER_ID.eq(userId)).execute();
     }
 
     public Optional<OidcSession> loadOidcSession(final UUID familyId) {
@@ -115,5 +106,15 @@ public class SessionDao {
 
     public void deleteOidcSession(final UUID familyId) {
         dsl.deleteFrom(OIDC_SESSION).where(OIDC_SESSION.FAMILY_ID.eq(familyId)).execute();
+    }
+
+    /**
+     * Revokes the tokens that aren't revoked yet, now.
+     */
+    private UpdateConditionStep<RefreshTokenRecord> revoke(final Condition tokens) {
+        return dsl.update(REFRESH_TOKEN)
+                .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
+                .where(tokens)
+                .and(REFRESH_TOKEN.REVOKED_AT.isNull());
     }
 }

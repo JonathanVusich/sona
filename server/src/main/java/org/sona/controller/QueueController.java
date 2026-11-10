@@ -133,7 +133,7 @@ public class QueueController {
     @DeleteMapping(ApiRoutes.QUEUE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void clearQueue(final UserAuthentication authentication) {
-        queueDao.delete(authentication.user().userId());
+        queueDao.clear(authentication.user().userId());
     }
 
     /**
@@ -143,7 +143,7 @@ public class QueueController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateCurrentEntry(
             final UserAuthentication authentication, @RequestBody @Valid final CurrentEntryRequest request) {
-        queueDao.updateCurrentEntry(authentication.user().userId(), request.entryId())
+        queueDao.setCurrentEntry(authentication.user().userId(), request.entryId())
                 .orElseThrow(() -> new QueueEntryNotFoundException(request.entryId()));
     }
 
@@ -155,14 +155,14 @@ public class QueueController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updatePosition(
             final UserAuthentication authentication, @RequestBody @Valid final QueuePositionRequest request) {
-        queueDao.updatePositionSeconds(authentication.user().userId(), request.entryId(), request.seconds());
+        queueDao.setPositionSeconds(authentication.user().userId(), request.entryId(), request.seconds());
     }
 
     @PutMapping(ApiRoutes.QUEUE_MODES)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateModes(
             final UserAuthentication authentication, @RequestBody @Valid final QueueModesRequest request) {
-        queueDao.updateModes(authentication.user().userId(), request.shuffle(), request.repeat());
+        queueDao.setModes(authentication.user().userId(), request.shuffle(), request.repeat());
     }
 
     private QueueEntryPageResponse pageResponse(final List<QueueEntry> page, final Integer next) {

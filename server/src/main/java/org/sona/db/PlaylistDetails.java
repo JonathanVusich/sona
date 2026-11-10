@@ -8,4 +8,4 @@ import java.util.UUID;
  *
  * @param description null when the user gave it none
  */
-public record PlaylistDetails(UUID playlistId, String name, String description, List<PlaylistEntry> entries) {}
+public record PlaylistDetails(UUID playlistId, String name, String description, List<TrackSummary> entries) {}

@@ -22,8 +22,6 @@ public interface ReleaseResponseMapper {
 
     MediumResponse toResponse(MediumWithTracks medium);
 
-    @Mapping(target = "artist.artistId", source = "artistId")
-    @Mapping(target = "artist.name", source = "artistName")
     TrackResponse toResponse(TrackWithArtist track);
 
     /**

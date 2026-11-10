@@ -92,12 +92,6 @@ public class IngestDao {
                 .execute();
     }
 
-    public Optional<TrackToIngest> loadTrackIngestById(final UUID trackToIngestId) {
-        return dsl.selectFrom(TRACK_TO_INGEST)
-                .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
-                .fetchOptional(trackToIngestMapper::fromRecord);
-    }
-
     /**
      * Sets the file as receiving its bytes, if it hasn't been uploaded yet; one that is uploading may be sent again,
      * and a second request for it may be doing so meanwhile, hence the state in the update. A file already uploaded

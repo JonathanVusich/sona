@@ -5,6 +5,9 @@ import static org.jooq.impl.DSL.multiset;
 import static org.jooq.impl.DSL.noCondition;
 import static org.jooq.impl.DSL.row;
 import static org.jooq.impl.DSL.select;
+import static org.sona.db.ReleaseFields.releaseFormats;
+import static org.sona.db.ReleaseFields.releaseLabels;
+import static org.sona.db.ReleaseFields.releaseMediaWithTracks;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.RELEASE_GROUP;
@@ -35,7 +38,6 @@ public class ReleaseGroupDao {
 
     private final DSLContext dsl;
     private final ReleaseGroupMapper releaseGroupMapper;
-    private final ReleaseFields releaseFields;
 
     /**
      * Inserts the release group, or overwrites the stored one with the same MusicBrainz ID with its newer data.
@@ -43,7 +45,7 @@ public class ReleaseGroupDao {
      * @return the stored release group, which keeps its original ID if it already existed
      */
     public ReleaseGroup upsert(final ReleaseGroup releaseGroup) {
-        final var record = dsl.insertInto(RELEASE_GROUP)
+        return dsl.insertInto(RELEASE_GROUP)
                 .set(releaseGroupMapper.toRecord(releaseGroup))
                 .onConflict(RELEASE_GROUP.MUSICBRAINZ_RELEASE_GROUP_ID)
                 .doUpdate()
@@ -52,8 +54,7 @@ public class ReleaseGroupDao {
                 .set(RELEASE_GROUP.FIRST_RELEASE_DATE, excluded(RELEASE_GROUP.FIRST_RELEASE_DATE))
                 .set(RELEASE_GROUP.ARTIST_ID, excluded(RELEASE_GROUP.ARTIST_ID))
                 .returning()
-                .fetchSingle();
-        return releaseGroupMapper.fromRecord(record);
+                .fetchSingle(releaseGroupMapper::fromRecord);
     }
 
     public Optional<ReleaseGroup> loadById(final UUID releaseGroupId) {
@@ -131,7 +132,7 @@ public class ReleaseGroupDao {
      */
     // TODO: Let users choose a group's default release, which this then prefers.
     private Field<DefaultRelease> defaultRelease() {
-        return multiset(select(RELEASE.RELEASE_ID, releaseFields.releaseMediaWithTracks(RELEASE.RELEASE_ID))
+        return multiset(select(RELEASE.RELEASE_ID, releaseMediaWithTracks(RELEASE.RELEASE_ID))
                         .from(RELEASE)
                         .where(editionOfGroup())
                         .orderBy(editionOrder())
@@ -147,8 +148,8 @@ public class ReleaseGroupDao {
                                 RELEASE.DATE,
                                 RELEASE.COUNTRY,
                                 RELEASE.TRACK_COUNT,
-                                releaseFields.releaseLabels(RELEASE.RELEASE_ID),
-                                releaseFields.releaseFormats(RELEASE.RELEASE_ID))
+                                releaseLabels(RELEASE.RELEASE_ID),
+                                releaseFormats(RELEASE.RELEASE_ID))
                         .from(RELEASE)
                         .where(editionOfGroup())
                         .orderBy(editionOrder()))

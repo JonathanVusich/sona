@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
 import static org.sona.samples.IngestUploadUtils.createIngest;
+import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.UUID;
+import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.config.properties.LibraryProperties;
@@ -66,6 +68,9 @@ class DefaultLibraryTest {
     private DefaultLibrary library;
 
     @Autowired
+    private DSLContext dsl;
+
+    @Autowired
     private IngestDao ingestDao;
 
     @Autowired
@@ -82,7 +87,7 @@ class DefaultLibraryTest {
 
         final var ingestTrack = upload(library, created, bytes);
 
-        assertThat(ingestDao.loadTrackIngestById(ingestTrack.trackIngestId()).orElseThrow())
+        assertThat(loadIngest(dsl, ingestTrack.trackIngestId()))
                 .isEqualTo(new TrackToIngest(
                         created.trackIngestId(), group.ingestGroupId(), "track.flac", IngestState.UPLOADED));
         assertThat(ingestDao.loadGroupById(group.ingestGroupId()).orElseThrow().state())

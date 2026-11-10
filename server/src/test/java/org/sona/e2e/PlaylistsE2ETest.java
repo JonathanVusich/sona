@@ -248,7 +248,7 @@ class PlaylistsE2ETest {
     void anotherUsersPlaylistDoesntExistForThem(final Page page) {
         final var bob = new TestUsers(userDao, encoder).createUser("bob", UserRole.USER);
         final var bobs = new Playlist(uuidv7(), bob.userId(), "Bob's", null, 0);
-        playlistDao.insert(bobs);
+        playlistDao.insert(bobs, List.of());
         logIn(page);
         final var playlistPage = new PlaylistPage(page);
 
@@ -266,11 +266,7 @@ class PlaylistsE2ETest {
 
     private Playlist insertPlaylist(final String name, final Track... tracks) {
         final var playlist = new Playlist(uuidv7(), alice.userId(), name, null, 0);
-        playlistDao.insert(playlist);
-        if (tracks.length > 0) {
-            final var trackIds = Arrays.stream(tracks).map(Track::trackId).toList();
-            playlistDao.insertTracks(alice.userId(), playlist.playlistId(), trackIds);
-        }
+        playlistDao.insert(playlist, Arrays.stream(tracks).map(Track::trackId).toList());
         return playlist;
     }
 

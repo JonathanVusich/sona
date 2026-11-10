@@ -18,6 +18,7 @@ import static org.sona.model.Tables.RELEASE_LABEL;
 import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
+import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -494,7 +495,7 @@ class DefaultIngestionEngineTest {
     }
 
     private TrackToIngest reloadIngest(final TrackToIngest ingest) {
-        return ingestDao.loadTrackIngestById(ingest.trackIngestId()).orElseThrow();
+        return loadIngest(dsl, ingest.trackIngestId());
     }
 
     /**

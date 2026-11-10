@@ -13,15 +13,14 @@ import static org.jooq.impl.DSL.selectOne;
 import static org.jooq.impl.DSL.unnest;
 import static org.jooq.impl.DSL.val;
 import static org.jooq.impl.DSL.when;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.model.Tables.MEDIUM;
+import static org.sona.db.TrackFields.inLibrary;
+import static org.sona.db.TrackFields.trackSummary;
 import static org.sona.model.Tables.PLAYLIST;
 import static org.sona.model.Tables.PLAYLIST_TRACK;
 import static org.sona.model.Tables.QUEUE;
 import static org.sona.model.Tables.QUEUE_TRACK;
 import static org.sona.model.Tables.RELEASE;
 import static org.sona.model.Tables.TRACK;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,22 +28,19 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record10;
 import org.jooq.Record2;
+import org.jooq.Record3;
 import org.jooq.Records;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
-import org.jooq.SelectOnConditionStep;
+import org.jooq.SelectJoinStep;
 import org.jooq.Table;
 import org.sona.exception.PlaylistNotFoundException;
 import org.sona.exception.QueueStartOutOfRangeException;
 import org.sona.exception.ReleaseNotFoundException;
 import org.sona.exception.TrackNotFoundException;
-import org.sona.mappers.QueueMapper;
-import org.sona.model.enums.IngestState;
 import org.sona.model.enums.RepeatMode;
 import org.sona.model.enums.ShuffleMode;
-import org.sona.model.tables.pojos.Queue;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,8 +66,9 @@ public class QueueDao {
      */
     private static final int PLAY_ORDER_COLUMN = 2;
 
+    private static final Field<Long> NEXT_VERSION = QUEUE.VERSION.plus(1);
+
     private final DSLContext dsl;
-    private final QueueMapper queueMapper;
 
     /**
      * @return the user's queue without its entries, but with the current one, an empty queue if they have never
@@ -95,7 +92,7 @@ public class QueueDao {
      * @return the entries that play after it, in play order
      */
     public List<QueueEntry> loadEntriesAfter(final UUID userId, final int playOrder, final int size) {
-        final var anchor = loadShuffleAnchor(userId);
+        final var anchor = shuffleAnchor(userId);
         final var queued = selectPageEntries(userId, ShuffleMode.OFF, QUEUE_TRACK.POSITION)
                 .and(QUEUE_TRACK.POSITION.gt(playOrder))
                 .orderBy(QUEUE_TRACK.POSITION)
@@ -123,7 +120,7 @@ public class QueueDao {
      * @return the entries that play before it, the nearest first
      */
     public List<QueueEntry> loadEntriesBefore(final UUID userId, final int playOrder, final int size) {
-        final var anchor = loadShuffleAnchor(userId);
+        final var anchor = shuffleAnchor(userId);
         final var queued = selectPageEntries(userId, ShuffleMode.OFF, QUEUE_TRACK.POSITION)
                 .and(QUEUE_TRACK.POSITION.lt(playOrder))
                 .orderBy(QUEUE_TRACK.POSITION.desc())
@@ -156,14 +153,23 @@ public class QueueDao {
      * @throws QueueStartOutOfRangeException if there is no track at {@code startIndex}
      */
     public QueueDetails replaceWithTracks(final UUID userId, final List<UUID> trackIds, final int startIndex) {
-        requireInLibrary(trackIds);
         // The tracks given, numbered in the order given.
         final var given = unnest(trackIds.toArray(UUID[]::new)).withOrdinality().as("given", "track_id", "given_order");
-        final var tracks = select(
-                        given.field("track_id", UUID.class),
-                        given.field("given_order", Long.class).cast(Integer.class))
-                .from(given);
-        return replaceFrom(userId, tracks, startIndex);
+        final var trackId = given.field("track_id", UUID.class);
+        final var order = given.field("given_order", Long.class);
+        dsl.select(trackId)
+                .from(given)
+                .whereNotExists(selectOne()
+                        .from(TRACK)
+                        .where(TRACK.TRACK_ID.eq(trackId))
+                        .and(inLibrary(TRACK)))
+                .orderBy(order)
+                .limit(1)
+                .fetchOptional(trackId)
+                .ifPresent(missing -> {
+                    throw new TrackNotFoundException(missing);
+                });
+        return replaceFrom(userId, select(trackId, order.cast(Integer.class)).from(given), startIndex);
     }
 
     /**
@@ -192,14 +198,11 @@ public class QueueDao {
         if (!dsl.fetchExists(RELEASE, inLibrary)) {
             throw new ReleaseNotFoundException(releaseId);
         }
-        final var tracks = select(TRACK.TRACK_ID, rowNumber().over(orderBy(MEDIUM.POSITION, TRACK.POSITION)))
+        final var medium = TRACK.medium();
+        final var tracks = select(TRACK.TRACK_ID, rowNumber().over(orderBy(medium.POSITION, TRACK.POSITION)))
                 .from(TRACK)
-                .join(MEDIUM)
-                .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
-                .join(TRACK_TO_INGEST)
-                .on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
-                .where(MEDIUM.RELEASE_ID.eq(releaseId))
-                .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED));
+                .where(medium.RELEASE_ID.eq(releaseId))
+                .and(inLibrary(TRACK));
         return replaceFrom(userId, tracks, startIndex);
     }
 
@@ -208,11 +211,11 @@ public class QueueDao {
      *
      * @return the queue's new version, if the entry is in the user's queue
      */
-    public Optional<Long> updateCurrentEntry(final UUID userId, final UUID entryId) {
+    public Optional<Long> setCurrentEntry(final UUID userId, final UUID entryId) {
         return dsl.update(QUEUE)
                 .set(QUEUE.CURRENT_ENTRY_ID, entryId)
                 .set(QUEUE.POSITION_SECONDS, 0)
-                .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
+                .set(QUEUE.VERSION, NEXT_VERSION)
                 .where(QUEUE.USER_ID.eq(userId))
                 .andExists(selectOne()
                         .from(QUEUE_TRACK)
@@ -226,10 +229,10 @@ public class QueueDao {
      * Records how far into the entry the player is. A report for an entry that isn't the current one is out of date,
      * as the player has moved on since, and is left out.
      */
-    public void updatePositionSeconds(final UUID userId, final UUID entryId, final int seconds) {
+    public void setPositionSeconds(final UUID userId, final UUID entryId, final int seconds) {
         dsl.update(QUEUE)
                 .set(QUEUE.POSITION_SECONDS, seconds)
-                .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
+                .set(QUEUE.VERSION, NEXT_VERSION)
                 .where(QUEUE.USER_ID.eq(userId))
                 .and(QUEUE.CURRENT_ENTRY_ID.eq(entryId))
                 .execute();
@@ -239,13 +242,13 @@ public class QueueDao {
      * Turning shuffle on starts the shuffled order from the current entry, and turning it off goes back to the order
      * the entries were queued in. Both orders are kept with the entries, so no entry changes.
      */
-    public void updateModes(final UUID userId, final ShuffleMode shuffle, final RepeatMode repeat) {
+    public void setModes(final UUID userId, final ShuffleMode shuffle, final RepeatMode repeat) {
         lockQueue(userId);
         dsl.update(QUEUE)
                 .set(QUEUE.SHUFFLE, shuffle)
                 .set(QUEUE.REPEAT, repeat)
-                .set(QUEUE.SHUFFLE_ANCHOR, shuffleAnchor(shuffle))
-                .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
+                .set(QUEUE.SHUFFLE_ANCHOR, anchorOnceSet(shuffle))
+                .set(QUEUE.VERSION, NEXT_VERSION)
                 .where(QUEUE.USER_ID.eq(userId))
                 .execute();
     }
@@ -253,44 +256,25 @@ public class QueueDao {
     /**
      * Empties the queue. Its shuffle and repeat modes stay as they are.
      */
-    public void delete(final UUID userId) {
+    public void clear(final UUID userId) {
         dsl.update(QUEUE)
                 .setNull(QUEUE.CURRENT_ENTRY_ID)
                 .set(QUEUE.POSITION_SECONDS, 0)
                 .set(QUEUE.SHUFFLE_ANCHOR, 1)
-                .set(QUEUE.VERSION, QUEUE.VERSION.plus(1))
+                .set(QUEUE.VERSION, NEXT_VERSION)
                 .where(QUEUE.USER_ID.eq(userId))
                 .execute();
         dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
     }
 
     /**
-     * The entries' columns and joins, for the caller to filter and order.
+     * The entries' columns, for the caller to filter and order.
      *
      * @param playOrder where each entry plays
      */
-    private SelectOnConditionStep<Record10<UUID, Integer, UUID, String, Integer, Integer, UUID, String, UUID, String>>
-            selectEntries(final Field<Integer> playOrder) {
-        return dsl.select(
-                        QUEUE_TRACK.QUEUE_TRACK_ID,
-                        playOrder,
-                        TRACK.TRACK_ID,
-                        TRACK.NAME,
-                        TRACK.DURATION,
-                        TRACK.POSITION,
-                        ARTIST.ARTIST_ID,
-                        ARTIST.NAME,
-                        RELEASE.RELEASE_ID,
-                        RELEASE.NAME)
-                .from(QUEUE_TRACK)
-                .join(TRACK)
-                .on(TRACK.TRACK_ID.eq(QUEUE_TRACK.TRACK_ID))
-                .join(ARTIST)
-                .on(ARTIST.ARTIST_ID.eq(TRACK.ARTIST_ID))
-                .join(MEDIUM)
-                .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
-                .join(RELEASE)
-                .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID));
+    private SelectJoinStep<Record3<UUID, Integer, TrackSummary>> selectEntries(final Field<Integer> playOrder) {
+        return dsl.select(QUEUE_TRACK.QUEUE_TRACK_ID, playOrder, trackSummary(QUEUE_TRACK.track()))
+                .from(QUEUE_TRACK);
     }
 
     /**
@@ -298,8 +282,8 @@ public class QueueDao {
      * read once for the statement rather than joined, so a branch for the other mode is dropped without reading any
      * entry.
      */
-    private SelectConditionStep<Record10<UUID, Integer, UUID, String, Integer, Integer, UUID, String, UUID, String>>
-            selectPageEntries(final UUID userId, final ShuffleMode shuffle, final Field<Integer> playOrder) {
+    private SelectConditionStep<Record3<UUID, Integer, TrackSummary>> selectPageEntries(
+            final UUID userId, final ShuffleMode shuffle, final Field<Integer> playOrder) {
         final var queueShuffle = field(select(QUEUE.SHUFFLE).from(QUEUE).where(QUEUE.USER_ID.eq(userId)));
         return selectEntries(playOrder).where(QUEUE_TRACK.USER_ID.eq(userId)).and(queueShuffle.eq(shuffle));
     }
@@ -307,7 +291,7 @@ public class QueueDao {
     /**
      * @return the queue's shuffle anchor, read once for the statement
      */
-    private static Field<Integer> loadShuffleAnchor(final UUID userId) {
+    private static Field<Integer> shuffleAnchor(final UUID userId) {
         return field(select(QUEUE.SHUFFLE_ANCHOR).from(QUEUE).where(QUEUE.USER_ID.eq(userId)));
     }
 
@@ -324,7 +308,7 @@ public class QueueDao {
     /**
      * @return the anchor the queue has once it is set to the mode: turning shuffle on anchors it at the current entry
      */
-    private static Field<Integer> shuffleAnchor(final ShuffleMode shuffle) {
+    private static Field<Integer> anchorOnceSet(final ShuffleMode shuffle) {
         return switch (shuffle) {
             case OFF -> QUEUE.SHUFFLE_ANCHOR;
             case ON -> {
@@ -350,12 +334,16 @@ public class QueueDao {
     /**
      * Creates the user's queue if they have none, and locks it until the transaction ends.
      */
-    private Queue lockQueue(final UUID userId) {
+    private void lockQueue(final UUID userId) {
         dsl.insertInto(QUEUE, QUEUE.USER_ID)
                 .values(userId)
                 .onConflictDoNothing()
                 .execute();
-        return dsl.selectFrom(QUEUE).where(QUEUE.USER_ID.eq(userId)).forUpdate().fetchSingle(queueMapper::fromRecord);
+        dsl.select(QUEUE.USER_ID)
+                .from(QUEUE)
+                .where(QUEUE.USER_ID.eq(userId))
+                .forUpdate()
+                .execute();
     }
 
     /**
@@ -365,20 +353,31 @@ public class QueueDao {
             final UUID userId, final Select<Record2<UUID, Integer>> tracks, final int startIndex) {
         lockQueue(userId);
         dsl.deleteFrom(QUEUE_TRACK).where(QUEUE_TRACK.USER_ID.eq(userId)).execute();
-        insertEntries(userId, tracks.asTable("source", "track_id", "position"), startIndex);
-        final var startEntryId = loadEntryId(userId, startIndex);
-        updateCurrentEntry(userId, startEntryId);
+        final var queued = insertEntries(userId, tracks.asTable("source", "track_id", "position"), startIndex);
+        if (startIndex >= queued) {
+            throw new QueueStartOutOfRangeException(startIndex);
+        }
+        final var startEntry = field(select(QUEUE_TRACK.QUEUE_TRACK_ID)
+                .from(QUEUE_TRACK)
+                .where(QUEUE_TRACK.USER_ID.eq(userId))
+                .and(QUEUE_TRACK.POSITION.eq(startIndex + 1)));
         dsl.update(QUEUE)
+                .set(QUEUE.CURRENT_ENTRY_ID, startEntry)
+                .set(QUEUE.POSITION_SECONDS, 0)
                 .set(QUEUE.SHUFFLE_ANCHOR, 1)
+                .set(QUEUE.VERSION, NEXT_VERSION)
                 .where(QUEUE.USER_ID.eq(userId))
                 .execute();
         return loadDetails(userId);
     }
 
-    private void insertEntries(final UUID userId, final Table<Record2<UUID, Integer>> tracks, final int startIndex) {
+    /**
+     * @return how many entries were queued
+     */
+    private int insertEntries(final UUID userId, final Table<Record2<UUID, Integer>> tracks, final int startIndex) {
         final var trackId = tracks.field("track_id", UUID.class);
         final var position = tracks.field("position", Integer.class);
-        dsl.insertInto(
+        return dsl.insertInto(
                         QUEUE_TRACK,
                         QUEUE_TRACK.QUEUE_TRACK_ID,
                         QUEUE_TRACK.USER_ID,
@@ -396,37 +395,9 @@ public class QueueDao {
     }
 
     /**
-     * @return the entry queued at the position, from 0
-     */
-    private UUID loadEntryId(final UUID userId, final int index) {
-        return dsl.select(QUEUE_TRACK.QUEUE_TRACK_ID)
-                .from(QUEUE_TRACK)
-                .where(QUEUE_TRACK.USER_ID.eq(userId))
-                .and(QUEUE_TRACK.POSITION.eq(index + 1))
-                .fetchOptional(QUEUE_TRACK.QUEUE_TRACK_ID)
-                .orElseThrow(() -> new QueueStartOutOfRangeException(index));
-    }
-
-    /**
      * @return a random order of the entries, with the start first so that shuffling a queue plays it first
      */
     private static Field<Integer> shuffleOrder(final Field<Integer> position, final int startIndex) {
         return rowNumber().over(orderBy(when(position.eq(startIndex + 1), 0).otherwise(1), rand()));
-    }
-
-    private void requireInLibrary(final List<UUID> trackIds) {
-        final var inLibrary = dsl.select(TRACK.TRACK_ID)
-                .from(TRACK)
-                .join(TRACK_TO_INGEST)
-                .on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
-                .where(TRACK.TRACK_ID.in(trackIds))
-                .and(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
-                .fetchSet(TRACK.TRACK_ID);
-        trackIds.stream()
-                .filter(trackId -> !inLibrary.contains(trackId))
-                .findFirst()
-                .ifPresent(trackId -> {
-                    throw new TrackNotFoundException(trackId);
-                });
     }
 }

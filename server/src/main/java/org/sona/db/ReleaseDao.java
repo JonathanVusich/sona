@@ -1,6 +1,8 @@
 package org.sona.db;
 
 import static org.jooq.impl.DSL.excluded;
+import static org.sona.db.ReleaseFields.releaseLabels;
+import static org.sona.db.ReleaseFields.releaseMediaWithTracks;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.LABEL;
 import static org.sona.model.Tables.MEDIUM;
@@ -38,7 +40,6 @@ public class ReleaseDao {
     private final LabelMapper labelMapper;
     private final ReleaseLabelMapper releaseLabelMapper;
     private final MediumMapper mediumMapper;
-    private final ReleaseFields releaseFields;
 
     /**
      * Inserts the release, or overwrites the stored one with the same MusicBrainz ID with its newer data.
@@ -46,7 +47,7 @@ public class ReleaseDao {
      * @return the stored release, which keeps its original ID if it already existed
      */
     public Release upsert(final Release release) {
-        final var record = dsl.insertInto(RELEASE)
+        return dsl.insertInto(RELEASE)
                 .set(releaseMapper.toRecord(release))
                 .onConflict(RELEASE.MUSICBRAINZ_RELEASE_ID)
                 .doUpdate()
@@ -56,8 +57,7 @@ public class ReleaseDao {
                 .set(RELEASE.RELEASE_GROUP_ID, excluded(RELEASE.RELEASE_GROUP_ID))
                 .set(RELEASE.ARTIST_ID, excluded(RELEASE.ARTIST_ID))
                 .returning()
-                .fetchSingle();
-        return releaseMapper.fromRecord(record);
+                .fetchSingle(releaseMapper::fromRecord);
     }
 
     public Optional<Release> loadByMusicBrainzId(final UUID musicbrainzReleaseId) {
@@ -79,8 +79,8 @@ public class ReleaseDao {
                         RELEASE.RELEASE_GROUP_ID,
                         ARTIST.ARTIST_ID,
                         ARTIST.NAME,
-                        releaseFields.releaseLabels(RELEASE.RELEASE_ID),
-                        releaseFields.releaseMediaWithTracks(RELEASE.RELEASE_ID))
+                        releaseLabels(RELEASE.RELEASE_ID),
+                        releaseMediaWithTracks(RELEASE.RELEASE_ID))
                 .from(RELEASE)
                 .join(ARTIST)
                 .on(ARTIST.ARTIST_ID.eq(RELEASE.ARTIST_ID))
