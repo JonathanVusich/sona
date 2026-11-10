@@ -229,8 +229,21 @@ class ArtistsE2ETest {
             final Artist artist, final String name, final ReleaseGroupType type, final LocalDate firstReleaseDate) {
         final var group = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), name, type, firstReleaseDate, artist.artistId(), 0, uuidv7()));
-        return releaseDao.upsert(new Release(
-                uuidv7(), name, null, firstReleaseDate, "GB", 0, group.releaseGroupId(), artist.artistId(), uuidv7()));
+        return releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                name,
+                                null,
+                                firstReleaseDate,
+                                "GB",
+                                0,
+                                group.releaseGroupId(),
+                                artist.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
     }
 
     /**
@@ -242,7 +255,8 @@ class ArtistsE2ETest {
 
     private void insertTrackInState(final Release release, final IngestState state) {
         final var medium = releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .media()
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);

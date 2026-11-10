@@ -21,7 +21,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
@@ -52,13 +51,13 @@ class ReleaseDaoTest {
     void upsertInsertsNewRelease() {
         final var release = newRelease("A Rush of Blood to the Head", releaseGroupId(), uuidv7());
 
-        assertThat(dao.upsert(release)).isEqualTo(release);
+        assertThat(upsert(release)).isEqualTo(release);
     }
 
     @Test
     void upsertOverwritesReleaseWithSameMusicBrainzId() {
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsert(new Release(
+        final var stored = upsert(new Release(
                 uuidv7(),
                 "Old Name",
                 null,
@@ -70,7 +69,7 @@ class ReleaseDaoTest {
                 musicbrainzId));
         final var newReleaseGroupId = releaseGroupId();
 
-        final var refreshed = dao.upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
+        final var refreshed = upsert(newRelease("New Name", newReleaseGroupId, musicbrainzId));
 
         assertThat(refreshed)
                 .isEqualTo(new Release(
@@ -90,18 +89,18 @@ class ReleaseDaoTest {
         final var musicbrainzId = uuidv7();
         final var first = releaseGroupId();
         final var second = releaseGroupId();
-        final var original = dao.upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
+        final var original = upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
         final var withoutTrack = releaseCount(first);
         insertTrack(original);
         insertTrack(original);
         // Not in the library, as it has no track.
-        dao.upsert(newRelease("A Rush of Blood to the Head (Japan)", first, uuidv7()));
+        upsert(newRelease("A Rush of Blood to the Head (Japan)", first, uuidv7()));
         // Upserted again, as a retried ingest does.
-        dao.upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
+        upsert(newRelease("A Rush of Blood to the Head", first, musicbrainzId));
         final var withTracks = releaseCount(first);
 
         // MusicBrainz puts the release in another group now.
-        dao.upsert(newRelease("A Rush of Blood to the Head", second, musicbrainzId));
+        upsert(newRelease("A Rush of Blood to the Head", second, musicbrainzId));
 
         assertThat(withoutTrack).isZero();
         assertThat(withTracks).isEqualTo(1);
@@ -114,8 +113,8 @@ class ReleaseDaoTest {
         final var first = newRelease("Bootleg", releaseGroupId(), null);
         final var second = newRelease("Bootleg", releaseGroupId(), null);
 
-        assertThat(dao.upsert(first)).isEqualTo(first);
-        assertThat(dao.upsert(second)).isEqualTo(second);
+        assertThat(upsert(first)).isEqualTo(first);
+        assertThat(upsert(second)).isEqualTo(second);
     }
 
     @Test
@@ -227,62 +226,67 @@ class ReleaseDaoTest {
     }
 
     @Test
-    void upsertLabelsInsertsNewLabels() {
-        final var labels =
-                List.of(new Label(uuidv7(), "Parlophone", uuidv7()), new Label(uuidv7(), "Capitol", uuidv7()));
+    void upsertStoresTheMediaInOrderOnTheStoredRelease() {
+        final var musicbrainzId = uuidv7();
+        final var stored = upsert(newRelease("A Rush of Blood to the Head", releaseGroupId(), musicbrainzId));
+        final var again = newRelease("A Rush of Blood to the Head", releaseGroupId(), musicbrainzId);
+        final var dvd = new Medium(uuidv7(), again.releaseId(), 2, "DVD");
+        final var cd = new Medium(uuidv7(), again.releaseId(), 1, "CD");
 
-        assertThat(dao.upsertLabels(labels)).containsExactlyInAnyOrderElementsOf(labels);
+        final var refreshed = dao.upsert(again, List.of(), List.of(dvd, cd));
+
+        assertThat(refreshed.media())
+                .containsExactly(
+                        new Medium(cd.mediumId(), stored.releaseId(), 1, "CD"),
+                        new Medium(dvd.mediumId(), stored.releaseId(), 2, "DVD"));
     }
 
     @Test
-    void upsertLabelsOverwritesLabelsWithSameMusicBrainzIdAndInsertsTheRest() {
+    void upsertOverwritesMediaAtTheSamePositionAndInsertsTheRest() {
+        final var release = storeRelease(storeArtist("Coldplay"));
+        final var stored = storeMedium(release, 1);
+        final var dvd = new Medium(uuidv7(), release.releaseId(), 2, "DVD");
+
+        final var refreshed =
+                dao.upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 1, "SACD"), dvd));
+
+        assertThat(refreshed.media())
+                .containsExactly(new Medium(stored.mediumId(), release.releaseId(), 1, "SACD"), dvd);
+    }
+
+    @Test
+    void upsertOverwritesLabelsWithSameMusicBrainzIdAndLinksThemOnce() {
+        final var release = storeRelease(storeArtist("Coldplay"));
+        insertTrack(release);
         final var musicbrainzId = uuidv7();
-        final var stored = dao.upsertLabels(List.of(new Label(uuidv7(), "Old Name", musicbrainzId)))
-                .getFirst();
+        final var stored = new Label(uuidv7(), "Old Name", musicbrainzId);
+        dao.upsert(release, List.of(stored), List.of());
         final var capitol = new Label(uuidv7(), "Capitol", uuidv7());
 
-        final var refreshed = dao.upsertLabels(List.of(new Label(uuidv7(), "New Name", musicbrainzId), capitol));
+        dao.upsert(release, List.of(new Label(uuidv7(), "New Name", musicbrainzId), capitol), List.of());
 
-        assertThat(refreshed)
-                .containsExactlyInAnyOrder(new Label(stored.labelId(), "New Name", musicbrainzId), capitol);
+        assertThat(dao.loadDetails(release.releaseId()).orElseThrow().labels())
+                .containsExactly(
+                        new LabelSummary(capitol.labelId(), "Capitol"), new LabelSummary(stored.labelId(), "New Name"));
     }
 
     @Test
-    void upsertLabelsOfNoLabelsStoresNothing() {
-        assertThat(dao.upsertLabels(List.of())).isEmpty();
+    void loadByMusicBrainzIdReadsTheReleaseWithItsMediaInOrder() {
+        final var release = storeRelease(storeArtist("Coldplay"));
+        final var dvd = storeMedium(release, 2);
+        final var cd = storeMedium(release, 1);
+
+        assertThat(dao.loadByMusicBrainzId(release.musicbrainzReleaseId()))
+                .contains(new ReleaseWithMedia(release, List.of(cd, dvd)));
     }
 
     @Test
-    void upsertMediaInsertsNewMedia() {
-        final var releaseId = storeRelease(storeArtist("Coldplay")).releaseId();
-        final var media = List.of(new Medium(uuidv7(), releaseId, 1, "CD"), new Medium(uuidv7(), releaseId, 2, "DVD"));
-
-        assertThat(dao.upsertMedia(media)).containsExactlyInAnyOrderElementsOf(media);
+    void loadByMusicBrainzIdFindsNoUnknownRelease() {
+        assertThat(dao.loadByMusicBrainzId(uuidv7())).isEmpty();
     }
 
-    @Test
-    void upsertMediaOverwritesMediaAtTheSamePositionAndInsertsTheRest() {
-        final var releaseId = storeRelease(storeArtist("Coldplay")).releaseId();
-        final var stored = dao.upsertMedia(List.of(new Medium(uuidv7(), releaseId, 1, null)))
-                .getFirst();
-        final var dvd = new Medium(uuidv7(), releaseId, 2, "DVD");
-
-        final var refreshed = dao.upsertMedia(List.of(new Medium(uuidv7(), releaseId, 1, "CD"), dvd));
-
-        assertThat(refreshed).containsExactlyInAnyOrder(new Medium(stored.mediumId(), releaseId, 1, "CD"), dvd);
-    }
-
-    @Test
-    void loadMediumByPositionFindsTheReleasesMediumAtThatPosition() {
-        final var artist = storeArtist("Coldplay");
-        final var releaseId = storeRelease(artist).releaseId();
-        final var cd = new Medium(uuidv7(), releaseId, 1, "CD");
-        final var dvd = new Medium(uuidv7(), releaseId, 2, "DVD");
-        dao.upsertMedia(
-                List.of(cd, dvd, new Medium(uuidv7(), storeRelease(artist).releaseId(), 2, "Vinyl")));
-
-        assertThat(dao.loadMediumByPosition(releaseId, 2)).contains(dvd);
-        assertThat(dao.loadMediumByPosition(releaseId, 3)).isEmpty();
+    private Release upsert(final Release release) {
+        return dao.upsert(release, List.of(), List.of()).release();
     }
 
     private int releaseCount(final UUID releaseGroupId) {
@@ -292,6 +296,7 @@ class ReleaseDaoTest {
     private int trackCount(final Release release) {
         return dao.loadByMusicBrainzId(release.musicbrainzReleaseId())
                 .orElseThrow()
+                .release()
                 .trackCount();
     }
 
@@ -332,7 +337,7 @@ class ReleaseDaoTest {
     private Release storeRelease(final Artist artist) {
         final var releaseGroup = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), "A Rush of Blood to the Head", null, null, artist.artistId(), 0, uuidv7()));
-        return dao.upsert(new Release(
+        return upsert(new Release(
                 uuidv7(),
                 "A Rush of Blood to the Head",
                 null,
@@ -345,14 +350,14 @@ class ReleaseDaoTest {
     }
 
     private Label storeLabel(final Release release, final String name) {
-        final var label =
-                dao.upsertLabels(List.of(new Label(uuidv7(), name, uuidv7()))).getFirst();
-        dao.upsertReleaseLabels(List.of(new ReleaseLabel(release.releaseId(), label.labelId())));
+        final var label = new Label(uuidv7(), name, uuidv7());
+        dao.upsert(release, List.of(label), List.of());
         return label;
     }
 
     private Medium storeMedium(final Release release, final int position) {
-        return dao.upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), position, "CD")))
+        return dao.upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), position, "CD")))
+                .media()
                 .getFirst();
     }
 

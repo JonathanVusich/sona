@@ -341,21 +341,27 @@ class PlaylistControllerTest {
     private Release insertRelease(final String name) {
         final var releaseGroup =
                 releaseGroupDao.upsert(new ReleaseGroup(uuidv7(), name, null, null, coldplay.artistId(), 0, uuidv7()));
-        return releaseDao.upsert(new Release(
-                uuidv7(),
-                name,
-                null,
-                LocalDate.of(2000, 7, 10),
-                "GB",
-                0,
-                releaseGroup.releaseGroupId(),
-                coldplay.artistId(),
-                uuidv7()));
+        return releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                name,
+                                null,
+                                LocalDate.of(2000, 7, 10),
+                                "GB",
+                                0,
+                                releaseGroup.releaseGroupId(),
+                                coldplay.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
     }
 
     private Medium insertMedium(final Release release) {
         return releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .media()
                 .getFirst();
     }
 

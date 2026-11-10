@@ -1,6 +1,5 @@
 package org.sona.library;
 
-import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.sona.utils.IDGenerator.uuidv5;
 import static org.sona.utils.IDGenerator.uuidv7;
@@ -30,7 +29,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
@@ -198,7 +196,7 @@ public class DevLibraryRunner implements ApplicationRunner {
                 artistId,
                 0,
                 musicBrainzId("release-group", devGroup.name())));
-        final var release = releaseDao.upsert(new Release(
+        final var release = new Release(
                 uuidv7(),
                 devRelease.name(),
                 null,
@@ -207,38 +205,26 @@ public class DevLibraryRunner implements ApplicationRunner {
                 0,
                 releaseGroup.releaseGroupId(),
                 artistId,
-                musicBrainzId("release", devRelease.name())));
-        upsertLabels(release, devRelease.labels());
-        final var media = upsertMedia(release, devRelease.media());
-        // Tracks are only inserted, so a release that has them was stored by an earlier start.
-        if (release.trackCount() == 0) {
-            insertTracks(devRelease.media(), media, artists, uploader);
-        }
-        return release;
-    }
-
-    private void upsertLabels(final Release release, final List<String> names) {
-        final var labels = releaseDao.upsertLabels(names.stream()
+                musicBrainzId("release", devRelease.name()));
+        final var labels = devRelease.labels().stream()
                 .map(name -> new Label(uuidv7(), name, musicBrainzId("label", name)))
-                .toList());
-        releaseDao.upsertReleaseLabels(labels.stream()
-                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
-                .toList());
+                .toList();
+        final var stored = releaseDao.upsert(release, labels, newMedia(release, devRelease.media()));
+        // Tracks are only inserted, so a release that has them was stored by an earlier start.
+        if (stored.release().trackCount() == 0) {
+            insertTracks(devRelease.media(), stored.media(), artists, uploader);
+        }
+        return stored.release();
     }
 
-    /**
-     * @return the stored media in order, as the upsert returns them in none
-     */
-    private List<Medium> upsertMedia(final Release release, final List<DevMedium> devMedia) {
-        final var media = IntStream.range(0, devMedia.size())
+    private static List<Medium> newMedia(final Release release, final List<DevMedium> devMedia) {
+        return IntStream.range(0, devMedia.size())
                 .mapToObj(index -> new Medium(
                         uuidv7(),
                         release.releaseId(),
                         index + 1,
                         devMedia.get(index).format()))
                 .toList();
-        final var stored = releaseDao.upsertMedia(media);
-        return stored.stream().sorted(comparingInt(Medium::position)).toList();
     }
 
     private void insertTracks(

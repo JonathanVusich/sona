@@ -17,6 +17,7 @@ import org.sona.db.ArtistDao;
 import org.sona.db.IngestDao;
 import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
+import org.sona.db.ReleaseWithMedia;
 import org.sona.db.TrackDao;
 import org.sona.exception.InvalidFormatException;
 import org.sona.fingerprint.Fingerprint;
@@ -31,8 +32,6 @@ import org.sona.library.Library;
 import org.sona.metadata.resolver.AlbumTrack;
 import org.sona.metadata.resolver.MetadataResolver;
 import org.sona.metadata.resolver.ResolvedArtist;
-import org.sona.metadata.resolver.ResolvedLabel;
-import org.sona.metadata.resolver.ResolvedMedium;
 import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackCandidate;
@@ -44,7 +43,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
@@ -170,22 +168,21 @@ public final class DefaultIngestionEngine implements IngestionEngine {
 
     /**
      * Stores the track together with the artist, release group, release and medium rows it references. Each row
-     * commits on its own: the upserts are idempotent, so if the track insert fails, processing the ingest again reuses
-     * the rows.
+     * commits on its own, a release with its labels and media: the upserts are idempotent, so if the track insert
+     * fails, processing the ingest again reuses the rows.
      * A release or artist already stored isn't looked up again, which saves MusicBrainz requests.
      */
     @Override
     public Track storeTrack(final ParsedTrack parsed, final ResolvedTrack resolved) {
         final var trackToIngest = parsed.trackToIngest();
         // Tracks from the same MusicBrainz release share its rows, and so its library folder.
-        final var release = releaseDao
+        final var stored = releaseDao
                 .loadByMusicBrainzId(resolved.releaseId())
                 .orElseGet(() -> storeRelease(resolver.resolveRelease(resolved.releaseId())));
+        final var release = stored.release();
         final var releaseGroup =
                 releaseGroupDao.loadById(release.releaseGroupId()).orElseThrow();
-        final var medium = releaseDao
-                .loadMediumByPosition(release.releaseId(), resolved.discNumber())
-                .orElseGet(() -> completeRelease(release, resolved));
+        final var medium = trackMedium(stored, resolved.discNumber());
         final var artistId = resolved.artist().artistId();
         final var artist =
                 artistDao.loadByMusicBrainzId(artistId).orElseGet(() -> upsertArtist(resolver.resolveArtist(artistId)));
@@ -195,7 +192,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
         return track;
     }
 
-    private Release storeRelease(final ResolvedRelease resolved) {
+    private ReleaseWithMedia storeRelease(final ResolvedRelease resolved) {
         final var group = resolved.releaseGroup();
         final var groupArtist = upsertArtist(group.artist());
         final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
@@ -207,7 +204,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 0,
                 group.releaseGroupId()));
         final var releaseArtist = upsertArtist(resolved.artist());
-        final var release = releaseDao.upsert(new Release(
+        final var release = new Release(
                 uuidv7(),
                 resolved.title(),
                 null,
@@ -216,48 +213,25 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 0,
                 releaseGroup.releaseGroupId(),
                 releaseArtist.artistId(),
-                resolved.releaseId()));
-        storeReleaseParts(release, resolved);
-        return release;
-    }
-
-    /**
-     * Stores the release's labels and then its media. The media go last: a stored release without them is one whose
-     * ingest stopped part-way, which {@link #completeRelease} finishes.
-     */
-    private List<Medium> storeReleaseParts(final Release release, final ResolvedRelease resolved) {
-        storeLabels(release, resolved.labels());
-        return storeMedia(release, resolved.media());
-    }
-
-    private void storeLabels(final Release release, final List<ResolvedLabel> resolvedLabels) {
-        final var labels = releaseDao.upsertLabels(resolvedLabels.stream()
+                resolved.releaseId());
+        final var labels = resolved.labels().stream()
                 .map(label -> new Label(uuidv7(), label.name(), label.labelId()))
-                .toList());
-        releaseDao.upsertReleaseLabels(labels.stream()
-                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
-                .toList());
+                .toList();
+        final var media = resolved.media().stream()
+                .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
+                .toList();
+        return releaseDao.upsert(release, labels, media);
     }
 
     /**
-     * Finishes storing a release whose ingest stopped before its media were stored, so its labels may be missing too:
-     * looks it up again and stores its labels and media. Both upserts are idempotent.
-     *
-     * @return the track's medium
+     * @return the medium of the release the track is on
      */
-    private Medium completeRelease(final Release release, final ResolvedTrack resolved) {
-        final var media = storeReleaseParts(release, resolver.resolveRelease(resolved.releaseId()));
-        return media.stream()
-                .filter(medium -> medium.position() == resolved.discNumber())
+    private static Medium trackMedium(final ReleaseWithMedia release, final int discNumber) {
+        return release.media().stream()
+                .filter(medium -> medium.position() == discNumber)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "Release %s has no medium %d".formatted(release.releaseId(), resolved.discNumber())));
-    }
-
-    private List<Medium> storeMedia(final Release release, final List<ResolvedMedium> media) {
-        return releaseDao.upsertMedia(media.stream()
-                .map(medium -> new Medium(uuidv7(), release.releaseId(), medium.position(), medium.format()))
-                .toList());
+                .orElseThrow(() -> new IllegalStateException("Release %s has no medium %d"
+                        .formatted(release.release().releaseId(), discNumber)));
     }
 
     private Artist upsertArtist(final ResolvedArtist artist) {

@@ -34,7 +34,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
@@ -85,30 +84,37 @@ class ReleaseControllerTest {
         final var keane = artistDao.upsert(new Artist(uuidv7(), "Keane", "GB", null, 0, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), "Britpop", null, null, various.artistId(), 0, uuidv7()));
-        final var release = releaseDao.upsert(new Release(
-                uuidv7(),
-                "Britpop",
-                null,
-                LocalDate.of(2002, 8, 26),
-                "GB",
-                0,
-                releaseGroup.releaseGroupId(),
-                various.artistId(),
-                uuidv7()));
-        final var parlophone = releaseDao
-                .upsertLabels(List.of(new Label(uuidv7(), "Parlophone", uuidv7())))
-                .getFirst();
-        releaseDao.upsertReleaseLabels(List.of(new ReleaseLabel(release.releaseId(), parlophone.labelId())));
+        final var release = releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                "Britpop",
+                                null,
+                                LocalDate.of(2002, 8, 26),
+                                "GB",
+                                0,
+                                releaseGroup.releaseGroupId(),
+                                various.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
+        final var parlophone = new Label(uuidv7(), "Parlophone", uuidv7());
+        releaseDao.upsert(release, List.of(parlophone), List.of());
         final var disc1 = releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .media()
                 .getFirst();
         final var disc2 = releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 2, "CD")))
+                .media()
                 .getFirst();
         final var yellow = insertTrack(disc1, coldplay, "Yellow");
         final var somewhereOnlyWeKnow = insertTrack(disc2, keane, "Somewhere Only We Know");
         // None of its tracks is in the library.
-        releaseDao.upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 3, "DVD")));
+        releaseDao
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 3, "DVD")))
+                .media();
 
         final var response = api.getWithToken(ApiRoutes.RELEASES + "/" + release.releaseId(), token)
                 .expectStatus()
