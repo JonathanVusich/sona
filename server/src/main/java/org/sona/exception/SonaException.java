@@ -13,15 +13,14 @@ public abstract sealed class SonaException extends RuntimeException
                 PlaylistNotFoundException,
                 QueueEntryNotFoundException,
                 QueueStartOutOfRangeException,
-                IngestGroupNotFoundException,
+                IngestTrackNotFoundException,
+                IngestAlreadyUploadedException,
                 FileTooLargeException,
                 InvalidCredentialsException,
                 InvalidRefreshTokenException,
                 IncorrectPasswordException,
                 UnchangedPasswordException,
                 PasswordManagedByProviderException,
-                InvalidRegistrationTokenException,
-                AlreadyRegisteredException,
                 UsernameTakenException {
 
     protected SonaException(final String message) {

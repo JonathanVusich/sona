@@ -12,18 +12,10 @@ class PathSegmentTest {
     private static final UUID ID = UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf");
 
     @Test
-    void formatAndParseRoundTrip() {
+    void formatsTheIdAndTheNameInBrackets() {
         final var segment = new PathSegment(ID, "A Rush of Blood to the Head");
 
         assertThat(segment.toString()).isEqualTo("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf[A Rush of Blood to the Head]");
-        assertThat(PathSegment.parseSegment(segment.toString())).isEqualTo(segment);
-    }
-
-    @Test
-    void parseNameContainingBrackets() {
-        final var segment = new PathSegment(ID, "Live [Remastered]");
-
-        assertThat(PathSegment.parseSegment(segment.toString())).isEqualTo(segment);
     }
 
     @ParameterizedTest

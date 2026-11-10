@@ -20,6 +20,8 @@ export const ApiRoutes = {
   PLAYLIST_TRACK_POSITION: "/position",
   PLAYS: "/api/plays",
   INGEST_GROUPS: "/api/ingest-groups",
+  // Followed by a file's ID, which the file is uploaded to.
+  INGEST_TRACKS: "/api/ingest-tracks",
   // STOMP over WebSocket.
   SOCKET: "/api/socket",
   // Where an uploader subscribes for each new state of the ingests in the groups they created.

@@ -26,12 +26,6 @@ public class TrackDao {
         dsl.insertInto(TRACK).set(mapper.toRecord(track)).execute();
     }
 
-    public Track loadByIngest(final UUID trackIngestId) {
-        return dsl.selectFrom(TRACK)
-                .where(TRACK.TRACK_INGEST_ID.eq(trackIngestId))
-                .fetchSingle(mapper::fromRecord);
-    }
-
     /**
      * @return the track, if it's in the library: a track is only once its ingest completes, as its row is stored
      * before its file is moved there

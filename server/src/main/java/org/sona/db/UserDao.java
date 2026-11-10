@@ -12,6 +12,7 @@ import org.jooq.DSLContext;
 import org.sona.mappers.OidcIdentityMapper;
 import org.sona.mappers.PasswordMapper;
 import org.sona.mappers.UsersMapper;
+import org.sona.model.enums.AccountState;
 import org.sona.model.enums.PasswordState;
 import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.OidcIdentity;
@@ -38,6 +39,16 @@ public class UserDao {
         return dsl.selectFrom(USERS).where(USERS.USER_ID.eq(userId)).fetchOptional(usersMapper::fromRecord);
     }
 
+    /**
+     * @return the user, unless their account is disabled
+     */
+    public Optional<Users> loadActiveById(final UUID userId) {
+        return dsl.selectFrom(USERS)
+                .where(USERS.USER_ID.eq(userId))
+                .and(USERS.STATE.eq(AccountState.ACTIVE))
+                .fetchOptional(usersMapper::fromRecord);
+    }
+
     public Optional<Users> loadByUsername(final String username) {
         return dsl.selectFrom(USERS).where(USERS.USERNAME.eq(username)).fetchOptional(usersMapper::fromRecord);
     }
@@ -46,8 +57,15 @@ public class UserDao {
         return !dsl.fetchExists(USERS);
     }
 
-    public void insert(final Users user) {
-        dsl.insertInto(USERS).set(usersMapper.toRecord(user)).execute();
+    /**
+     * @return whether the user was inserted, rather than their ID or username being taken
+     */
+    public boolean insert(final Users user) {
+        return dsl.insertInto(USERS)
+                        .set(usersMapper.toRecord(user))
+                        .onConflictDoNothing()
+                        .execute()
+                > 0;
     }
 
     /**

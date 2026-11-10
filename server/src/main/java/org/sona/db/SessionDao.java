@@ -35,9 +35,10 @@ public class SessionDao {
         dsl.insertInto(REFRESH_TOKEN).set(refreshTokenMapper.toRecord(token)).execute();
     }
 
-    public Optional<RefreshToken> loadRefreshTokenByHash(final String tokenHash) {
+    public Optional<RefreshToken> loadRevokedRefreshTokenByHash(final String tokenHash) {
         return dsl.selectFrom(REFRESH_TOKEN)
                 .where(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
+                .and(REFRESH_TOKEN.REVOKED_AT.isNotNull())
                 .fetchOptional(refreshTokenMapper::fromRecord);
     }
 

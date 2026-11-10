@@ -42,7 +42,7 @@ class SessionDaoTest {
 
         assertThat(revoked.refreshTokenId()).isEqualTo(token.refreshTokenId());
         assertThat(revoked.revokedAt()).isNotNull();
-        assertThat(dao.loadRefreshTokenByHash("valid")).contains(revoked);
+        assertThat(dao.loadRevokedRefreshTokenByHash("valid")).contains(revoked);
     }
 
     @Test

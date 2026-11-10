@@ -153,7 +153,11 @@ function uploadedStatus(upload: FileUpload): string {
 
 function ingestStatus(state: IngestState): string {
   switch (state) {
-    case IngestState.PENDING:
+    case IngestState.CREATED:
+      return "Waiting";
+    case IngestState.UPLOADING:
+      return "Uploading";
+    case IngestState.UPLOADED:
       return "Waiting to be matched";
     case IngestState.INPUT_REQUIRED:
       return "No match found";

@@ -1,10 +1,10 @@
 package org.sona.auth;
 
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.sona.auth.SonaJwtConverter.ISSUER;
 import static org.sona.auth.SonaJwtConverter.ROLE_CLAIM;
 import static org.sona.auth.SonaJwtConverter.STATE_CLAIM;
 import static org.sona.auth.SonaJwtConverter.USERNAME_CLAIM;
-import static org.sona.utils.HashUtils.sha256Hex;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.security.SecureRandom;
@@ -19,7 +19,6 @@ import org.sona.config.properties.AuthProperties;
 import org.sona.db.SessionDao;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidRefreshTokenException;
-import org.sona.model.enums.AccountState;
 import org.sona.model.tables.pojos.OidcSession;
 import org.sona.model.tables.pojos.Password;
 import org.sona.model.tables.pojos.RefreshToken;
@@ -76,9 +75,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
             throw new InvalidRefreshTokenException();
         }
         // Checked here because access tokens are trusted as they are until they expire.
-        final var user = userDao.loadById(used.userId())
-                .filter(found -> found.state() == AccountState.ACTIVE)
-                .orElse(null);
+        final var user = userDao.loadActiveById(used.userId()).orElse(null);
         if (user == null || !stillAllowed(user, used.familyId())) {
             endFamily(used.familyId());
             throw new InvalidRefreshTokenException();
@@ -162,10 +159,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        sessionDao
-                .loadRefreshTokenByHash(tokenHash)
-                .filter(token -> token.revokedAt() != null)
-                .ifPresent(token -> endFamily(token.familyId()));
+        sessionDao.loadRevokedRefreshTokenByHash(tokenHash).ifPresent(token -> endFamily(token.familyId()));
     }
 
     private static String randomToken() {
