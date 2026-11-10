@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.IOException;
@@ -91,11 +92,7 @@ class IngestControllerTest {
                         admin.userId(),
                         IngestGroupState.CREATED));
         for (final var track : created.tracks()) {
-            assertThat(ingestDao
-                            .loadTrackIngestById(track.trackIngestId())
-                            .orElseThrow()
-                            .state())
-                    .isEqualTo(IngestState.CREATED);
+            assertThat(loadIngest(dsl, track.trackIngestId()).state()).isEqualTo(IngestState.CREATED);
         }
     }
 
@@ -184,7 +181,7 @@ class IngestControllerTest {
         assertThat(response.groupIngestId()).isEqualTo(group.groupIngestId());
         assertThat(response.originalFileName()).isEqualTo("09 A Whisper.flac");
         assertThat(response.state()).isEqualTo(IngestState.UPLOADED);
-        final var ingest = ingestDao.loadTrackIngestById(track.trackIngestId()).orElseThrow();
+        final var ingest = loadIngest(dsl, track.trackIngestId());
         assertThat(ingest.state()).isEqualTo(IngestState.UPLOADED);
         try (final var stored = library.readIngestTrack(ingest)) {
             assertThat(Channels.newInputStream(stored).readAllBytes()).isEqualTo(flac);
@@ -334,9 +331,6 @@ class IngestControllerTest {
     }
 
     private IngestState trackState(final TrackIngestResponse track) {
-        return ingestDao
-                .loadTrackIngestById(track.trackIngestId())
-                .orElseThrow()
-                .state();
+        return loadIngest(dsl, track.trackIngestId()).state();
     }
 }

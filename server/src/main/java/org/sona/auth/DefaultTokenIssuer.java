@@ -103,7 +103,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
         final var refreshToken = randomToken();
         final var expiresAt =
                 Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
-        sessionDao.insertRefreshToken(
+        sessionDao.insert(
                 new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
         return new Tokens(accessToken(user), refreshToken);
     }
@@ -159,7 +159,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        sessionDao.loadRevokedRefreshTokenByHash(tokenHash).ifPresent(token -> endFamily(token.familyId()));
+        sessionDao.loadRevokedByHash(tokenHash).ifPresent(token -> endFamily(token.familyId()));
     }
 
     private static String randomToken() {

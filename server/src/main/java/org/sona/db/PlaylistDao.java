@@ -1,6 +1,8 @@
 package org.sona.db;
 
-import static org.jooq.impl.DSL.max;
+import static org.jooq.impl.DSL.field;
+import static org.jooq.impl.DSL.greatest;
+import static org.jooq.impl.DSL.least;
 import static org.jooq.impl.DSL.min;
 import static org.jooq.impl.DSL.multiset;
 import static org.jooq.impl.DSL.orderBy;
@@ -9,34 +11,32 @@ import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectOne;
 import static org.jooq.impl.DSL.unnest;
 import static org.jooq.impl.DSL.val;
-import static org.sona.model.Tables.ARTIST;
-import static org.sona.model.Tables.MEDIUM;
+import static org.jooq.impl.DSL.when;
+import static org.sona.db.TrackFields.inLibrary;
+import static org.sona.db.TrackFields.trackSummary;
 import static org.sona.model.Tables.PLAYLIST;
 import static org.sona.model.Tables.PLAYLIST_TRACK;
-import static org.sona.model.Tables.RELEASE;
-import static org.sona.model.Tables.RELEASE_GROUP;
 import static org.sona.model.Tables.TRACK;
-import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Records;
 import org.sona.mappers.PlaylistMapper;
-import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Playlist;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Users' playlists and the tracks on them. Each user sees only their own, so every method that finds a playlist takes
- * the user, and finds nothing for a playlist of someone else's. The reads convert every table they select to its pojo
- * by its table's mapper as it's read, so the composite mappers build their results from pojos only.
+ * the user, and finds nothing for a playlist of someone else's. A playlist's row is locked for each change to its
+ * tracks, so changes made at the same time take positions one after the other. Positions run from 1 without gaps, so
+ * the playlist's track count is its last position, and they are unique only at commit, so the tracks a change shifts
+ * can pass through each other's positions on the way.
  */
 @Component
 @RequiredArgsConstructor
@@ -50,8 +50,12 @@ public class PlaylistDao {
     private final DSLContext dsl;
     private final PlaylistMapper playlistMapper;
 
-    public void insert(final Playlist playlist) {
+    /**
+     * Stores the playlist with the tracks on it, as {@link #insertTracks} adds them.
+     */
+    public void insert(final Playlist playlist, final List<UUID> trackIds) {
         dsl.insertInto(PLAYLIST).set(playlistMapper.toRecord(playlist)).execute();
+        appendTracks(playlist.playlistId(), 0, trackIds);
     }
 
     /**
@@ -77,10 +81,12 @@ public class PlaylistDao {
     }
 
     /**
+     * Sets the playlist's name and description.
+     *
      * @param description null for none
      * @return the playlist as it is now, if the user has it
      */
-    public Optional<Playlist> updateDetails(
+    public Optional<Playlist> rename(
             final UUID userId, final UUID playlistId, final String name, final String description) {
         return dsl.update(PLAYLIST)
                 .set(PLAYLIST.NAME, name)
@@ -111,8 +117,7 @@ public class PlaylistDao {
      * @return how many tracks were added, if the user has the playlist
      */
     public Optional<Integer> insertTracks(final UUID userId, final UUID playlistId, final List<UUID> trackIds) {
-        final var distinctTrackIds = trackIds.stream().distinct().toList();
-        return lockPlaylist(userId, playlistId).map(_ -> appendTracks(playlistId, distinctTrackIds));
+        return lockPlaylist(userId, playlistId).map(trackCount -> appendTracks(playlistId, trackCount, trackIds));
     }
 
     /**
@@ -131,7 +136,7 @@ public class PlaylistDao {
      * @param position from 1; past the end puts the track last
      * @return how many tracks were moved, none or one, if the user has the playlist
      */
-    public Optional<Integer> updateTrackPosition(
+    public Optional<Integer> setTrackPosition(
             final UUID userId, final UUID playlistId, final UUID trackId, final int position) {
         return lockPlaylist(userId, playlistId)
                 .map(trackCount -> moveTrack(playlistId, trackId, Math.min(position, trackCount)));
@@ -147,51 +152,26 @@ public class PlaylistDao {
                 .orderBy(PLAYLIST_TRACK.POSITION)
                 .limit(COVER_TRACKS)
                 .asTable("first_tracks");
-        final var trackId = firstTracks.field(PLAYLIST_TRACK.TRACK_ID);
-        final var position = firstTracks.field(PLAYLIST_TRACK.POSITION);
-        return multiset(select(RELEASE_GROUP.NAME)
+        final var releaseGroup = TRACK.medium().release().releaseGroup();
+        return multiset(select(releaseGroup.NAME)
                         .from(firstTracks)
                         .join(TRACK)
-                        .on(TRACK.TRACK_ID.eq(trackId))
-                        .join(MEDIUM)
-                        .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
-                        .join(RELEASE)
-                        .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID))
-                        .join(RELEASE_GROUP)
-                        .on(RELEASE_GROUP.RELEASE_GROUP_ID.eq(RELEASE.RELEASE_GROUP_ID))
-                        .groupBy(RELEASE_GROUP.RELEASE_GROUP_ID, RELEASE_GROUP.NAME)
-                        .orderBy(min(position))
+                        .on(TRACK.TRACK_ID.eq(firstTracks.field(PLAYLIST_TRACK.TRACK_ID)))
+                        .groupBy(releaseGroup.RELEASE_GROUP_ID, releaseGroup.NAME)
+                        .orderBy(min(firstTracks.field(PLAYLIST_TRACK.POSITION)))
                         .limit(COVER_SIZE))
                 .convertFrom(names -> names.map(Record1::value1));
     }
 
-    private Field<List<PlaylistEntry>> entries() {
-        return multiset(select(
-                                TRACK.TRACK_ID,
-                                TRACK.NAME,
-                                TRACK.DURATION,
-                                TRACK.POSITION,
-                                ARTIST.ARTIST_ID,
-                                ARTIST.NAME,
-                                RELEASE.RELEASE_ID,
-                                RELEASE.NAME)
+    private static Field<List<TrackSummary>> entries() {
+        return multiset(select(trackSummary(PLAYLIST_TRACK.track()))
                         .from(PLAYLIST_TRACK)
-                        .join(TRACK)
-                        .on(TRACK.TRACK_ID.eq(PLAYLIST_TRACK.TRACK_ID))
-                        .join(ARTIST)
-                        .on(ARTIST.ARTIST_ID.eq(TRACK.ARTIST_ID))
-                        .join(MEDIUM)
-                        .on(MEDIUM.MEDIUM_ID.eq(TRACK.MEDIUM_ID))
-                        .join(RELEASE)
-                        .on(RELEASE.RELEASE_ID.eq(MEDIUM.RELEASE_ID))
                         .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(PLAYLIST.PLAYLIST_ID))
                         .orderBy(PLAYLIST_TRACK.POSITION))
-                .convertFrom(entries -> entries.map(Records.mapping(PlaylistEntry::new)));
+                .convertFrom(entries -> entries.map(Record1::value1));
     }
 
     /**
-     * Locked, so changes to one playlist made at the same time take positions one after the other.
-     *
      * @return how many tracks the playlist has, if the user has it
      */
     private Optional<Integer> lockPlaylist(final UUID userId, final UUID playlistId) {
@@ -203,80 +183,60 @@ public class PlaylistDao {
                 .fetchOptional(PLAYLIST.TRACK_COUNT);
     }
 
-    private int appendTracks(final UUID playlistId, final List<UUID> trackIds) {
-        if (trackIds.isEmpty()) {
-            return 0;
-        }
-        final var lastPosition = dsl.select(max(PLAYLIST_TRACK.POSITION))
-                .from(PLAYLIST_TRACK)
-                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .fetchOptional(0, Integer.class)
-                .orElse(0);
-        // The tracks given, numbered in the order given.
-        final var given = unnest(trackIds.toArray(UUID[]::new)).withOrdinality().as("given", "track_id", "given_order");
-        final var givenTrackId = given.field("track_id", UUID.class);
-        final var givenOrder = given.field("given_order", Long.class);
+    private int appendTracks(final UUID playlistId, final int trackCount, final List<UUID> trackIds) {
+        // The tracks given, each once, numbered in the order given.
+        final var given = unnest(trackIds.stream().distinct().toArray(UUID[]::new))
+                .withOrdinality()
+                .as("given", "track_id", "given_order");
         final var alreadyOn = selectOne()
                 .from(PLAYLIST_TRACK)
                 .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
                 .and(PLAYLIST_TRACK.TRACK_ID.eq(TRACK.TRACK_ID));
-        final var position = val(lastPosition).plus(rowNumber().over(orderBy(givenOrder)));
+        final var position = val(trackCount).plus(rowNumber().over(orderBy(given.field("given_order", Long.class))));
         return dsl.insertInto(
                         PLAYLIST_TRACK, PLAYLIST_TRACK.PLAYLIST_ID, PLAYLIST_TRACK.TRACK_ID, PLAYLIST_TRACK.POSITION)
                 .select(select(val(playlistId), TRACK.TRACK_ID, position)
                         .from(given)
                         .join(TRACK)
-                        .on(TRACK.TRACK_ID.eq(givenTrackId))
-                        .join(TRACK_TO_INGEST)
-                        .on(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(TRACK.TRACK_INGEST_ID))
-                        .where(TRACK_TO_INGEST.STATE.eq(IngestState.COMPLETED))
+                        .on(TRACK.TRACK_ID.eq(given.field("track_id", UUID.class)))
+                        .where(inLibrary(TRACK))
                         .andNotExists(alreadyOn))
                 .execute();
     }
 
     private int removeTrack(final UUID playlistId, final UUID trackId) {
-        final var removedPosition = dsl.deleteFrom(PLAYLIST_TRACK)
+        final var removed = dsl.deleteFrom(PLAYLIST_TRACK)
                 .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
                 .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId))
                 .returning(PLAYLIST_TRACK.POSITION)
-                .fetchOptional(PLAYLIST_TRACK.POSITION)
-                .orElse(null);
-        if (removedPosition == null) {
-            return 0;
-        }
-        shiftPositions(playlistId, PLAYLIST_TRACK.POSITION.gt(removedPosition), -1);
-        return 1;
+                .fetchOptional(PLAYLIST_TRACK.POSITION);
+        removed.ifPresent(position -> dsl.update(PLAYLIST_TRACK)
+                .set(PLAYLIST_TRACK.POSITION, PLAYLIST_TRACK.POSITION.minus(1))
+                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
+                .and(PLAYLIST_TRACK.POSITION.gt(position))
+                .execute());
+        return removed.isPresent() ? 1 : 0;
     }
 
+    /**
+     * Moves the track, and the tracks between its position and the target, in one statement: those it passes on the
+     * way up move down one, and those it passes on the way down move up one.
+     */
     private int moveTrack(final UUID playlistId, final UUID trackId, final int target) {
-        final var current = dsl.select(PLAYLIST_TRACK.POSITION)
+        final var position = PLAYLIST_TRACK.POSITION;
+        final var current = field(select(position)
                 .from(PLAYLIST_TRACK)
                 .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId))
-                .fetchOptional(PLAYLIST_TRACK.POSITION)
-                .orElse(null);
-        if (current == null) {
-            return 0;
-        }
-        if (target < current) {
-            shiftPositions(playlistId, PLAYLIST_TRACK.POSITION.between(target, current - 1), 1);
-        } else if (target > current) {
-            shiftPositions(playlistId, PLAYLIST_TRACK.POSITION.between(current + 1, target), -1);
-        }
-        dsl.update(PLAYLIST_TRACK)
-                .set(PLAYLIST_TRACK.POSITION, target)
+                .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId)));
+        final var moved = dsl.update(PLAYLIST_TRACK)
+                .set(
+                        position,
+                        when(PLAYLIST_TRACK.TRACK_ID.eq(trackId), val(target))
+                                .when(position.lt(current), position.plus(1))
+                                .otherwise(position.minus(1)))
                 .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId))
+                .and(position.between(least(current, val(target)), greatest(current, val(target))))
                 .execute();
-        return 1;
-    }
-
-    // Positions are unique only at commit, so tracks can pass through each other's positions on the way.
-    private void shiftPositions(final UUID playlistId, final Condition positions, final int offset) {
-        dsl.update(PLAYLIST_TRACK)
-                .set(PLAYLIST_TRACK.POSITION, PLAYLIST_TRACK.POSITION.plus(offset))
-                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .and(positions)
-                .execute();
+        return moved > 0 ? 1 : 0;
     }
 }

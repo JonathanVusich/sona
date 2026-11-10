@@ -52,7 +52,7 @@ public class DefaultAccountRegistrar implements AccountRegistrar {
         if (user.role() == role) {
             return user;
         }
-        userDao.updateRole(user.userId(), role);
+        userDao.setRole(user.userId(), role);
         return new Users(user.userId(), user.type(), user.username(), role, user.state());
     }
 }

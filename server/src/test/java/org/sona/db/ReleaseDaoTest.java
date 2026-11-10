@@ -322,7 +322,11 @@ class ReleaseDaoTest {
 
     private static TrackWithArtist trackWithArtist(final Track track, final Artist artist) {
         return new TrackWithArtist(
-                track.trackId(), track.name(), track.duration(), track.position(), artist.artistId(), artist.name());
+                track.trackId(),
+                track.name(),
+                track.duration(),
+                track.position(),
+                new TrackArtist(artist.artistId(), artist.name()));
     }
 
     private Release storeRelease(final Artist artist) {

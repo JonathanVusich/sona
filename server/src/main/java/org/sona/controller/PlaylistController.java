@@ -64,8 +64,7 @@ public class PlaylistController {
             final UserAuthentication authentication, @RequestBody @Valid final CreatePlaylistRequest request) {
         final var userId = authentication.user().userId();
         final var playlist = new Playlist(uuidv7(), userId, request.name(), request.description(), 0);
-        playlistDao.insert(playlist);
-        playlistDao.insertTracks(userId, playlist.playlistId(), request.trackIds());
+        playlistDao.insert(playlist, request.trackIds());
         return new CreatedPlaylistResponse(playlist.playlistId());
     }
 
@@ -76,7 +75,7 @@ public class PlaylistController {
             @PathVariable final UUID playlistId,
             @RequestBody @Valid final PlaylistDetailsRequest request) {
         playlistDao
-                .updateDetails(authentication.user().userId(), playlistId, request.name(), request.description())
+                .rename(authentication.user().userId(), playlistId, request.name(), request.description())
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
 
@@ -117,7 +116,7 @@ public class PlaylistController {
             @PathVariable final UUID trackId,
             @RequestBody @Valid final MoveTrackRequest request) {
         playlistDao
-                .updateTrackPosition(authentication.user().userId(), playlistId, trackId, request.position())
+                .setTrackPosition(authentication.user().userId(), playlistId, trackId, request.position())
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
     }
 

@@ -74,11 +74,11 @@ class UserDaoTest {
     }
 
     @Test
-    void updateRoleChangesOnlyTheRole() {
+    void setRoleChangesOnlyTheRole() {
         final var user = newUser("alice", UserRole.USER, AccountState.ACTIVE);
         dao.insert(user);
 
-        dao.updateRole(user.userId(), UserRole.ADMIN);
+        dao.setRole(user.userId(), UserRole.ADMIN);
 
         assertThat(dao.loadById(user.userId()))
                 .contains(new Users(user.userId(), UserType.LOCAL, "alice", UserRole.ADMIN, AccountState.ACTIVE));
@@ -98,11 +98,11 @@ class UserDaoTest {
     }
 
     @Test
-    void updatePasswordHashEndsARequiredPasswordChange() {
+    void setPasswordHashEndsARequiredPasswordChange() {
         final var alice = storeUser("alice", UserType.LOCAL);
         dao.upsertPassword(new Password(alice.userId(), "{noop}old", PasswordState.CHANGE_REQUIRED));
 
-        dao.updatePasswordHash(alice.userId(), "{noop}new");
+        dao.setPasswordHash(alice.userId(), "{noop}new");
 
         assertThat(dao.loadPassword(alice.userId()))
                 .contains(new Password(alice.userId(), "{noop}new", PasswordState.VALID));

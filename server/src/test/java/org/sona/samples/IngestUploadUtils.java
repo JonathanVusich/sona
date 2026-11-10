@@ -1,10 +1,13 @@
 package org.sona.samples;
 
+import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.UUID;
 import lombok.experimental.UtilityClass;
+import org.jooq.DSLContext;
 import org.sona.db.IngestDao;
 import org.sona.library.Library;
 import org.sona.model.enums.IngestState;
@@ -46,5 +49,13 @@ public class IngestUploadUtils {
             final byte[] file)
             throws IOException {
         return upload(library, createIngest(ingestDao, group, filename), file);
+    }
+
+    /**
+     * @return the ingest as it is stored now
+     */
+    public static TrackToIngest loadIngest(final DSLContext dsl, final UUID trackIngestId) {
+        return dsl.fetchSingle(TRACK_TO_INGEST, TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackIngestId))
+                .into(TrackToIngest.class);
     }
 }

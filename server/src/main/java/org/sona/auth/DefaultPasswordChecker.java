@@ -66,7 +66,7 @@ public class DefaultPasswordChecker implements PasswordChecker {
         if (newPassword.equals(currentPassword)) {
             throw new UnchangedPasswordException();
         }
-        userDao.updatePasswordHash(user.userId(), encoder.encode(newPassword));
+        userDao.setPasswordHash(user.userId(), encoder.encode(newPassword));
         tokenIssuer.endAllSessions(user);
     }
 }

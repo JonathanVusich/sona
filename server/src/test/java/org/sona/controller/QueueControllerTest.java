@@ -596,10 +596,7 @@ class QueueControllerTest {
      */
     private Playlist insertPlaylist(final Users owner, final List<Integer> trackNumbers) {
         final var playlist = new Playlist(uuidv7(), owner.userId(), "Playlist " + uuidv7(), null, 0);
-        playlistDao.insert(playlist);
-        if (!trackNumbers.isEmpty()) {
-            playlistDao.insertTracks(owner.userId(), playlist.playlistId(), trackIds(trackNumbers));
-        }
+        playlistDao.insert(playlist, trackIds(trackNumbers));
         return playlist;
     }
 

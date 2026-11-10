@@ -1,9 +1,11 @@
 package org.sona.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.util.List;
+import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.model.enums.AccountState;
@@ -26,6 +28,9 @@ class IngestDaoTest {
     @Autowired
     IngestDao dao;
 
+    @Autowired
+    DSLContext dsl;
+
     @Test
     void insertAndLoad() {
         final var uploader =
@@ -38,8 +43,7 @@ class IngestDaoTest {
 
         dao.insertTrackIngest(trackToIngest);
 
-        assertThat(dao.loadTrackIngestById(trackToIngest.trackIngestId()).orElseThrow())
-                .isEqualTo(trackToIngest);
+        assertThat(loadIngest(dsl, trackToIngest.trackIngestId())).isEqualTo(trackToIngest);
     }
 
     @Test
@@ -55,10 +59,7 @@ class IngestDaoTest {
 
         dao.setState(trackToIngest.trackIngestId(), IngestState.COMPLETED);
 
-        assertThat(dao.loadTrackIngestById(trackToIngest.trackIngestId())
-                        .orElseThrow()
-                        .state())
-                .isEqualTo(IngestState.COMPLETED);
+        assertThat(loadIngest(dsl, trackToIngest.trackIngestId()).state()).isEqualTo(IngestState.COMPLETED);
     }
 
     @Test
@@ -70,9 +71,8 @@ class IngestDaoTest {
         dao.insertGroup(group, List.of(first, second));
 
         assertThat(dao.loadGroupById(group.ingestGroupId())).contains(group);
-        assertThat(dao.loadTrackIngestById(first.trackIngestId()).orElseThrow()).isEqualTo(first);
-        assertThat(dao.loadTrackIngestById(second.trackIngestId()).orElseThrow())
-                .isEqualTo(second);
+        assertThat(loadIngest(dsl, first.trackIngestId())).isEqualTo(first);
+        assertThat(loadIngest(dsl, second.trackIngestId())).isEqualTo(second);
     }
 
     @Test
@@ -83,8 +83,7 @@ class IngestDaoTest {
 
         dao.setUploaded(first.trackIngestId());
 
-        assertThat(dao.loadTrackIngestById(first.trackIngestId()).orElseThrow().state())
-                .isEqualTo(IngestState.UPLOADED);
+        assertThat(loadIngest(dsl, first.trackIngestId()).state()).isEqualTo(IngestState.UPLOADED);
         assertThat(dao.loadGroupById(group.ingestGroupId()).orElseThrow().state())
                 .isEqualTo(IngestGroupState.CREATED);
 
@@ -142,11 +141,6 @@ class IngestDaoTest {
         final var track = storeTrack(group, IngestState.UPLOADING);
 
         assertThat(dao.setUploaded(track.trackIngestId()).state()).isEqualTo(IngestState.UPLOADED);
-    }
-
-    @Test
-    void aFileThatDoesNotExistIsNotLoaded() {
-        assertThat(dao.loadTrackIngestById(uuidv7())).isEmpty();
     }
 
     private IngestGroup storeGroup(final IngestGroupState state) {

@@ -71,7 +71,7 @@ public class UserDao {
     /**
      * Sets the role, which for an OIDC user follows the one their provider gives them each time they sign in.
      */
-    public void updateRole(final UUID userId, final UserRole role) {
+    public void setRole(final UUID userId, final UserRole role) {
         dsl.update(USERS).set(USERS.ROLE, role).where(USERS.USER_ID.eq(userId)).execute();
     }
 
@@ -81,15 +81,14 @@ public class UserDao {
      * @return the stored user, which keeps its original ID if it already existed
      */
     public Users upsert(final Users user) {
-        final var record = dsl.insertInto(USERS)
+        return dsl.insertInto(USERS)
                 .set(usersMapper.toRecord(user))
                 .onConflict(USERS.USERNAME)
                 .doUpdate()
                 .set(USERS.ROLE, excluded(USERS.ROLE))
                 .set(USERS.STATE, excluded(USERS.STATE))
                 .returning()
-                .fetchSingle();
-        return usersMapper.fromRecord(record);
+                .fetchSingle(usersMapper::fromRecord);
     }
 
     public Optional<Password> loadPassword(final UUID userId) {
@@ -112,7 +111,7 @@ public class UserDao {
     /**
      * Sets a new password hash, which also ends a required password change.
      */
-    public void updatePasswordHash(final UUID userId, final String passwordHash) {
+    public void setPasswordHash(final UUID userId, final String passwordHash) {
         dsl.update(PASSWORD)
                 .set(PASSWORD.PASSWORD_HASH, passwordHash)
                 .set(PASSWORD.STATE, PasswordState.VALID)

@@ -39,15 +39,14 @@ public class ArtistDao {
      * @return the stored artist, which keeps its original ID if it already existed
      */
     public Artist upsert(final Artist artist) {
-        final var record = dsl.insertInto(ARTIST)
+        return dsl.insertInto(ARTIST)
                 .set(artistMapper.toRecord(artist))
                 .onConflict(ARTIST.MUSICBRAINZ_ARTIST_ID)
                 .doUpdate()
                 .set(ARTIST.NAME, excluded(ARTIST.NAME))
                 .set(ARTIST.COUNTRY, excluded(ARTIST.COUNTRY))
                 .returning()
-                .fetchSingle();
-        return artistMapper.fromRecord(record);
+                .fetchSingle(artistMapper::fromRecord);
     }
 
     public Optional<Artist> loadByMusicBrainzId(final UUID musicbrainzArtistId) {
