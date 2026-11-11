@@ -1,9 +1,9 @@
 package org.sona.engine;
 
+import dev.javax.sonaudio.fingerprint.Fingerprint;
+import dev.javax.sonaudio.format.Format;
+import dev.javax.sonaudio.metadata.RawMetadata;
 import java.time.Duration;
-import org.sona.fingerprint.Fingerprint;
-import org.sona.format.Format;
-import org.sona.metadata.RawMetadata;
 import org.sona.model.tables.pojos.TrackToIngest;
 
 /**

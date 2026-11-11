@@ -2,6 +2,7 @@ package org.sona.controller;
 
 import static org.sona.utils.IDGenerator.uuidv7;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,6 @@ import org.sona.controller.request.IngestGroupRequest;
 import org.sona.controller.response.IngestGroupResponse;
 import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestDao;
-import org.sona.exception.InvalidFormatException;
 import org.sona.library.Library;
 import org.sona.mappers.IngestGroupResponseMapper;
 import org.sona.mappers.TrackIngestResponseMapper;

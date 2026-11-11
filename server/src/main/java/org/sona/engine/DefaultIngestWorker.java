@@ -1,5 +1,6 @@
 package org.sona.engine;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.IngestDao;
 import org.sona.db.UploadedGroup;
-import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.resolver.TrackResolution;
 import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;

@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
 import org.sona.controller.response.ErrorCode;
 import org.sona.controller.response.ErrorResponse;
 import org.sona.exception.ArtistNotFoundException;
@@ -8,7 +9,6 @@ import org.sona.exception.IncorrectPasswordException;
 import org.sona.exception.IngestAlreadyUploadedException;
 import org.sona.exception.IngestTrackNotFoundException;
 import org.sona.exception.InvalidCredentialsException;
-import org.sona.exception.InvalidFormatException;
 import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.PlaylistNotFoundException;

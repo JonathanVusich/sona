@@ -1,15 +1,15 @@
 package org.sona.samples;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
+import dev.javax.sonaudio.format.flac.FlacParser;
+import dev.javax.sonaudio.format.flac.FlacWriter;
+import dev.javax.sonaudio.metadata.RawMetadata;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.Channels;
 import java.time.Duration;
 import lombok.experimental.UtilityClass;
-import org.sona.exception.InvalidFormatException;
-import org.sona.format.flac.FlacParser;
-import org.sona.format.flac.FlacWriter;
-import org.sona.metadata.RawMetadata;
 
 /**
  * Tiny synthetic FLAC files for tests, written by {@link FlacWriter}.

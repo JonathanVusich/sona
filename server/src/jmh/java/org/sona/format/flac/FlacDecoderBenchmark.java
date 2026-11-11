@@ -1,5 +1,6 @@
-package org.sona.format.flac;
+package dev.javax.sonaudio.format.flac;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,7 +18,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-import org.sona.exception.InvalidFormatException;
 
 /**
  * Times decoding the first two minutes of a FLAC file, as much as the fingerprinter reads, from memory so that only

@@ -4,6 +4,15 @@ import static java.util.Map.entry;
 import static java.util.stream.Collectors.toMap;
 import static org.sona.utils.IDGenerator.uuidv7;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
+import dev.javax.sonaudio.fingerprint.Fingerprint;
+import dev.javax.sonaudio.format.AudioUtils;
+import dev.javax.sonaudio.format.FloatPcmAudio;
+import dev.javax.sonaudio.format.Format;
+import dev.javax.sonaudio.format.IntPcmAudio;
+import dev.javax.sonaudio.format.Parser;
+import dev.javax.sonaudio.format.flac.FlacParser;
+import dev.javax.sonaudio.format.mp3.Mp3Parser;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
@@ -19,15 +28,6 @@ import org.sona.db.ReleaseDao;
 import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseWithMedia;
 import org.sona.db.TrackDao;
-import org.sona.exception.InvalidFormatException;
-import org.sona.fingerprint.Fingerprint;
-import org.sona.format.AudioUtils;
-import org.sona.format.FloatPcmAudio;
-import org.sona.format.Format;
-import org.sona.format.IntPcmAudio;
-import org.sona.format.Parser;
-import org.sona.format.flac.FlacParser;
-import org.sona.format.mp3.Mp3Parser;
 import org.sona.library.Library;
 import org.sona.metadata.resolver.AlbumTrack;
 import org.sona.metadata.resolver.MetadataResolver;
@@ -36,6 +36,7 @@ import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackCandidate;
 import org.sona.metadata.resolver.TrackResolution;
+import org.sona.model.enums.AudioFormat;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.IngestCandidate;
@@ -138,10 +139,7 @@ public final class DefaultIngestionEngine implements IngestionEngine {
             throws IOException, InvalidFormatException {
         final Duration duration;
         try (final var channel = library.readIngestTrack(trackToIngest)) {
-            duration = switch (parser.parse(channel).audio()) {
-                case IntPcmAudio ints -> AudioUtils.duration(ints);
-                case FloatPcmAudio floats -> AudioUtils.duration(floats);
-            };
+            duration = AudioUtils.measureDuration(parser.parse(channel).audio());
         }
         try (final var channel = library.readIngestTrack(trackToIngest)) {
             final var parsed = parser.parse(channel);
@@ -252,11 +250,18 @@ public final class DefaultIngestionEngine implements IngestionEngine {
                 trackId,
                 resolved.title(),
                 Math.toIntExact(duration.toSeconds()),
-                format.toAudioFormat(),
+                audioFormat(format),
                 library.libraryPath(releaseGroup, release, trackId, resolved.title(), trackToIngest),
                 medium.mediumId(),
                 resolved.trackNumber(),
                 artist.artistId(),
                 trackToIngest.trackIngestId());
+    }
+
+    private static AudioFormat audioFormat(final Format format) {
+        return switch (format) {
+            case FLAC -> AudioFormat.FLAC;
+            case MP3 -> AudioFormat.MP3;
+        };
     }
 }

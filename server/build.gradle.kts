@@ -53,6 +53,7 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 flyway {
@@ -84,7 +85,7 @@ dependencies {
 
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
     implementation("org.apache.commons:commons-compress:1.28.0")
-    implementation("dev.javax:bitstream:0.2.0-RC")
+    implementation("dev.javax:sonaudio:0.1.0-RC")
     implementation("io.github.resilience4j:resilience4j-spring-boot4:2.4.0")
     implementation("org.springframework.boot:spring-boot-starter-aspectj")
     implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
