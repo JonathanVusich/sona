@@ -43,7 +43,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
@@ -91,8 +90,8 @@ class ReleaseGroupControllerTest {
     void aReleaseGroupComesWithItsArtistAndEditionsEarliestFirst() {
         final var keane = insertArtist("Keane");
         final var group = insertReleaseGroup(keane, "Hopes and Fears");
-        final var island = insertLabel("Island");
-        final var interscope = insertLabel("Interscope");
+        final var island = newLabel("Island");
+        final var interscope = newLabel("Interscope");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertTrack(insertMedia(deluxe, "CD", "CD").getFirst(), keane, "Snowed Under");
         linkLabels(deluxe, island);
@@ -280,27 +279,36 @@ class ReleaseGroupControllerTest {
     }
 
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {
-        return releaseDao.upsert(
-                new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(), group.artistId(), uuidv7()));
+        return releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                name,
+                                null,
+                                date,
+                                "GB",
+                                0,
+                                group.releaseGroupId(),
+                                group.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
     }
 
-    private Label insertLabel(final String name) {
-        return releaseDao
-                .upsertLabels(List.of(new Label(uuidv7(), name, uuidv7())))
-                .getFirst();
+    private static Label newLabel(final String name) {
+        return new Label(uuidv7(), name, uuidv7());
     }
 
     private void linkLabels(final Release release, final Label... labels) {
-        releaseDao.upsertReleaseLabels(Arrays.stream(labels)
-                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
-                .toList());
+        releaseDao.upsert(release, List.of(labels), List.of());
     }
 
     private List<Medium> insertMedia(final Release release, final String... formats) {
         final var media = IntStream.range(0, formats.length)
                 .mapToObj(index -> new Medium(uuidv7(), release.releaseId(), index + 1, formats[index]))
                 .toList();
-        return releaseDao.upsertMedia(media);
+        return releaseDao.upsert(release, List.of(), media).media();
     }
 
     private Track insertTrack(final Medium medium, final Artist artist, final String name) {

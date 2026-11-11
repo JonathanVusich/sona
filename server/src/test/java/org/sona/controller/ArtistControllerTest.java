@@ -250,16 +250,21 @@ class ArtistControllerTest {
      * @return a release of the group with no tracks, which isn't in the library
      */
     private Release insertRelease(final ReleaseGroup group) {
-        return releaseDao.upsert(new Release(
-                uuidv7(),
-                group.name(),
-                null,
-                group.firstReleaseDate(),
-                "GB",
-                0,
-                group.releaseGroupId(),
-                group.artistId(),
-                uuidv7()));
+        return releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                group.name(),
+                                null,
+                                group.firstReleaseDate(),
+                                "GB",
+                                0,
+                                group.releaseGroupId(),
+                                group.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
     }
 
     private ReleaseGroup insertReleaseGroupWithoutRelease(
@@ -282,7 +287,8 @@ class ArtistControllerTest {
      */
     private void insertTrack(final Release release) {
         final var medium = releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .upsert(release, List.of(), List.of(new Medium(uuidv7(), release.releaseId(), 1, "CD")))
+                .media()
                 .getFirst();
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);

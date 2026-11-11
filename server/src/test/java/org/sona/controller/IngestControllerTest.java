@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.sona.model.Tables.INGEST_GROUP;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 import static org.sona.samples.FlacFiles.flacFile;
+import static org.sona.samples.IngestUploadUtils.loadGroup;
 import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -84,8 +85,8 @@ class IngestControllerTest {
         assertThat(created.tracks())
                 .extracting(TrackIngestResponse::groupIngestId)
                 .containsOnly(created.groupIngestId());
-        assertThat(ingestDao.loadGroupById(created.groupIngestId()))
-                .contains(new IngestGroup(
+        assertThat(loadGroup(dsl, created.groupIngestId()))
+                .isEqualTo(new IngestGroup(
                         created.groupIngestId(),
                         IngestGroupKind.ALBUM,
                         "Parachutes",
@@ -327,7 +328,7 @@ class IngestControllerTest {
     }
 
     private IngestGroupState groupState(final IngestGroupResponse group) {
-        return ingestDao.loadGroupById(group.groupIngestId()).orElseThrow().state();
+        return loadGroup(dsl, group.groupIngestId()).state();
     }
 
     private IngestState trackState(final TrackIngestResponse track) {

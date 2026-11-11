@@ -57,12 +57,6 @@ public class IngestDao {
                 .execute();
     }
 
-    public Optional<IngestGroup> loadGroupById(final UUID ingestGroupId) {
-        return dsl.selectFrom(INGEST_GROUP)
-                .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
-                .fetchOptional(ingestGroupMapper::fromRecord);
-    }
-
     /**
      * @return the groups whose files are all uploaded and that haven't been matched yet, oldest first
      */
@@ -139,11 +133,17 @@ public class IngestDao {
         return uploaded;
     }
 
-    public void setState(final UUID trackToIngestId, final IngestState state) {
-        dsl.update(TRACK_TO_INGEST)
+    /**
+     * @return the ID of the user who uploaded the file
+     */
+    public UUID setState(final UUID trackToIngestId, final IngestState state) {
+        return dsl.update(TRACK_TO_INGEST)
                 .set(TRACK_TO_INGEST.STATE, state)
+                .from(INGEST_GROUP)
                 .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
-                .execute();
+                .and(INGEST_GROUP.INGEST_GROUP_ID.eq(TRACK_TO_INGEST.GROUP_INGEST_ID))
+                .returningResult(INGEST_GROUP.USER_ID)
+                .fetchSingle(INGEST_GROUP.USER_ID);
     }
 
     /**

@@ -5,7 +5,6 @@ import static org.sona.utils.IDGenerator.uuidv7;
 
 import com.microsoft.playwright.Page;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -32,7 +31,6 @@ import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
 import org.sona.model.tables.pojos.ReleaseGroup;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.sona.model.tables.pojos.Track;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
@@ -79,13 +77,13 @@ class ReleaseGroupE2ETest {
                 keane.artistId(),
                 0,
                 uuidv7()));
-        final var island = insertLabel("Island");
+        final var island = newLabel("Island");
         final var deluxe = insertRelease(group, "Hopes and Fears (Deluxe Edition)", LocalDate.of(2014, 5, 12));
         insertTrack(insertMedia(deluxe, "CD", "CD").getFirst(), keane, "Snowed Under");
         linkLabels(deluxe, island);
         final var original = insertRelease(group, "Hopes and Fears", LocalDate.of(2004, 5, 10));
         final var disc = insertMedia(original, "CD").getFirst();
-        linkLabels(original, island, insertLabel("Interscope"));
+        linkLabels(original, island, newLabel("Interscope"));
         insertTrack(disc, keane, "Somewhere Only We Know");
         final var releaseGroupPage = logInAndOpen(page, group);
 
@@ -247,8 +245,21 @@ class ReleaseGroupE2ETest {
     }
 
     private Release insertRelease(final ReleaseGroup group, final String name, final LocalDate date) {
-        return releaseDao.upsert(
-                new Release(uuidv7(), name, null, date, "GB", 0, group.releaseGroupId(), group.artistId(), uuidv7()));
+        return releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                name,
+                                null,
+                                date,
+                                "GB",
+                                0,
+                                group.releaseGroupId(),
+                                group.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
     }
 
     private Release insertReleaseWithTrack(
@@ -258,23 +269,19 @@ class ReleaseGroupE2ETest {
         return release;
     }
 
-    private Label insertLabel(final String name) {
-        return releaseDao
-                .upsertLabels(List.of(new Label(uuidv7(), name, uuidv7())))
-                .getFirst();
+    private static Label newLabel(final String name) {
+        return new Label(uuidv7(), name, uuidv7());
     }
 
     private void linkLabels(final Release release, final Label... labels) {
-        releaseDao.upsertReleaseLabels(Arrays.stream(labels)
-                .map(label -> new ReleaseLabel(release.releaseId(), label.labelId()))
-                .toList());
+        releaseDao.upsert(release, List.of(labels), List.of());
     }
 
     private List<Medium> insertMedia(final Release release, final String... formats) {
         final var media = IntStream.range(0, formats.length)
                 .mapToObj(index -> new Medium(uuidv7(), release.releaseId(), index + 1, formats[index]))
                 .toList();
-        return releaseDao.upsertMedia(media);
+        return releaseDao.upsert(release, List.of(), media).media();
     }
 
     private void insertTrack(final Medium medium, final Artist artist, final String name) {

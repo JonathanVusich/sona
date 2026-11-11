@@ -101,18 +101,24 @@ class QueueControllerTest {
         coldplay = artistDao.upsert(new Artist(uuidv7(), "Coldplay", "GB", null, 0, uuidv7()));
         final var releaseGroup = releaseGroupDao.upsert(
                 new ReleaseGroup(uuidv7(), "Parachutes", null, null, coldplay.artistId(), 0, uuidv7()));
-        parachutes = releaseDao.upsert(new Release(
-                uuidv7(),
-                "Parachutes",
-                null,
-                LocalDate.of(2000, 7, 10),
-                "GB",
-                0,
-                releaseGroup.releaseGroupId(),
-                coldplay.artistId(),
-                uuidv7()));
+        parachutes = releaseDao
+                .upsert(
+                        new Release(
+                                uuidv7(),
+                                "Parachutes",
+                                null,
+                                LocalDate.of(2000, 7, 10),
+                                "GB",
+                                0,
+                                releaseGroup.releaseGroupId(),
+                                coldplay.artistId(),
+                                uuidv7()),
+                        List.of(),
+                        List.of())
+                .release();
         parachutesDisc = releaseDao
-                .upsertMedia(List.of(new Medium(uuidv7(), parachutes.releaseId(), 1, "CD")))
+                .upsert(parachutes, List.of(), List.of(new Medium(uuidv7(), parachutes.releaseId(), 1, "CD")))
+                .media()
                 .getFirst();
         tracks = insertTracks("Don't Panic", "Shiver", "Spies", "Sparks", "Yellow", "Trouble");
     }

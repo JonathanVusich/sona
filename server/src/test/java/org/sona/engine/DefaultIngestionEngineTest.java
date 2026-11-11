@@ -209,47 +209,6 @@ class DefaultIngestionEngineTest {
     }
 
     @Test
-    void finishStoringAReleaseStoredWithoutItsLabelsAndMedia() throws IOException, InvalidFormatException {
-        final var artist = artistDao.upsert(new Artist(
-                uuidv7(), "Coldplay", "GB", null, 0, UUID.fromString("cc197bad-dc9c-440d-a5b5-d52ba2e14234")));
-        final var releaseGroup = releaseGroupDao.upsert(new ReleaseGroup(
-                uuidv7(),
-                "A Rush of Blood to the Head",
-                null,
-                null,
-                artist.artistId(),
-                0,
-                UUID.fromString("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")));
-        final var release = releaseDao.upsert(new Release(
-                uuidv7(),
-                "A Rush of Blood to the Head",
-                null,
-                null,
-                null,
-                0,
-                releaseGroup.releaseGroupId(),
-                artist.artistId(),
-                UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0")));
-        final var ingest = storeIngest(flacFile(whisperMetadata()), "09 A Whisper.flac");
-
-        worker.processPending();
-
-        final var medium = dsl.selectFrom(MEDIUM)
-                .where(MEDIUM.MEDIUM_ID.eq(loadTrack(ingest).mediumId()))
-                .fetchSingleInto(Medium.class);
-        assertThat(medium)
-                .extracting(Medium::releaseId, Medium::position, Medium::format)
-                .containsExactly(release.releaseId(), 1, "Digital Media");
-        final var labelNames = dsl.select(LABEL.NAME)
-                .from(RELEASE_LABEL)
-                .join(LABEL)
-                .on(LABEL.LABEL_ID.eq(RELEASE_LABEL.LABEL_ID))
-                .where(RELEASE_LABEL.RELEASE_ID.eq(release.releaseId()))
-                .fetch(LABEL.NAME);
-        assertThat(labelNames).containsExactly("Parlophone");
-    }
-
-    @Test
     void importTheRecordingItsFingerprintMatchesClosely() throws IOException, InvalidFormatException {
         // The tags say A Whisper, but AcoustID knows the audio as another recording, which wins.
         // The recording is 10:37 long.
@@ -263,7 +222,8 @@ class DefaultIngestionEngineTest {
         assertThat(track.position()).isEqualTo(15);
         final var release = releaseDao
                 .loadByMusicBrainzId(UUID.fromString("db85c244-53e7-441c-bab0-52c9c0d27450"))
-                .orElseThrow();
+                .orElseThrow()
+                .release();
         assertThat(release.name()).isEqualTo("Before the Dawn Heals Us");
         assertThat(artistDao.loadByMusicBrainzId(UUID.fromString("6d7b7cd4-254b-4c25-83f6-dd20f98ceacd")))
                 .hasValueSatisfying(artist -> assertThat(track.artistId()).isEqualTo(artist.artistId()));
@@ -504,7 +464,8 @@ class DefaultIngestionEngineTest {
     private Release loadRelease() {
         return releaseDao
                 .loadByMusicBrainzId(UUID.fromString("5b59d66b-8902-4350-b2e3-324037ef4cb0"))
-                .orElseThrow();
+                .orElseThrow()
+                .release();
     }
 
     private Track loadTrack(final TrackToIngest ingest) {

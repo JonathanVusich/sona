@@ -2,8 +2,8 @@ package org.sona.engine;
 
 import static org.sona.controller.ApiRoutes.INGEST_PROGRESS_QUEUE;
 
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.sona.db.IngestDao;
 import org.sona.mappers.TrackIngestResponseMapper;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.TrackToIngest;
@@ -19,13 +19,10 @@ import org.springframework.stereotype.Service;
 public final class StompIngestProgressPublisher implements IngestProgressPublisher {
 
     private final SimpMessageSendingOperations messaging;
-    private final IngestDao ingestDao;
     private final TrackIngestResponseMapper mapper;
 
     @Override
-    public void publish(final TrackToIngest ingest, final IngestState state) {
-        final var group = ingestDao.loadGroupById(ingest.groupIngestId()).orElseThrow();
-        final var uploader = group.userId().toString();
-        messaging.convertAndSendToUser(uploader, INGEST_PROGRESS_QUEUE, mapper.toResponse(ingest, state));
+    public void publish(final UUID uploaderId, final TrackToIngest ingest, final IngestState state) {
+        messaging.convertAndSendToUser(uploaderId.toString(), INGEST_PROGRESS_QUEUE, mapper.toResponse(ingest, state));
     }
 }
