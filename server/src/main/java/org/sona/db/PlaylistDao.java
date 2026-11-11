@@ -5,6 +5,7 @@ import static org.jooq.impl.DSL.greatest;
 import static org.jooq.impl.DSL.least;
 import static org.jooq.impl.DSL.min;
 import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.orderBy;
 import static org.jooq.impl.DSL.rowNumber;
 import static org.jooq.impl.DSL.select;
@@ -25,7 +26,9 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
+import org.jooq.Record3;
 import org.jooq.Records;
+import org.jooq.Select;
 import org.sona.mappers.PlaylistMapper;
 import org.sona.model.tables.pojos.Playlist;
 import org.springframework.stereotype.Component;
@@ -54,8 +57,13 @@ public class PlaylistDao {
      * Stores the playlist with the tracks on it, as {@link #insertTracks} adds them.
      */
     public void insert(final Playlist playlist, final List<UUID> trackIds) {
-        dsl.insertInto(PLAYLIST).set(playlistMapper.toRecord(playlist)).execute();
-        appendTracks(playlist.playlistId(), 0, trackIds);
+        final var stored =
+                dsl.insertInto(PLAYLIST).set(playlistMapper.toRecord(playlist)).returningResult(PLAYLIST.PLAYLIST_ID);
+        dsl.with(name("stored_playlist").as(stored))
+                .insertInto(
+                        PLAYLIST_TRACK, PLAYLIST_TRACK.PLAYLIST_ID, PLAYLIST_TRACK.TRACK_ID, PLAYLIST_TRACK.POSITION)
+                .select(tracksToAppend(playlist.playlistId(), 0, trackIds))
+                .execute();
     }
 
     /**
@@ -184,6 +192,18 @@ public class PlaylistDao {
     }
 
     private int appendTracks(final UUID playlistId, final int trackCount, final List<UUID> trackIds) {
+        return dsl.insertInto(
+                        PLAYLIST_TRACK, PLAYLIST_TRACK.PLAYLIST_ID, PLAYLIST_TRACK.TRACK_ID, PLAYLIST_TRACK.POSITION)
+                .select(tracksToAppend(playlistId, trackCount, trackIds))
+                .execute();
+    }
+
+    /**
+     * @return the playlist's rows for the tracks given, each once, after its last track in the order given, leaving
+     * out the tracks already on it or not in the library
+     */
+    private static Select<Record3<UUID, UUID, Integer>> tracksToAppend(
+            final UUID playlistId, final int trackCount, final List<UUID> trackIds) {
         // The tracks given, each once, numbered in the order given.
         final var given = unnest(trackIds.stream().distinct().toArray(UUID[]::new))
                 .withOrdinality()
@@ -193,29 +213,32 @@ public class PlaylistDao {
                 .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
                 .and(PLAYLIST_TRACK.TRACK_ID.eq(TRACK.TRACK_ID));
         final var position = val(trackCount).plus(rowNumber().over(orderBy(given.field("given_order", Long.class))));
-        return dsl.insertInto(
-                        PLAYLIST_TRACK, PLAYLIST_TRACK.PLAYLIST_ID, PLAYLIST_TRACK.TRACK_ID, PLAYLIST_TRACK.POSITION)
-                .select(select(val(playlistId), TRACK.TRACK_ID, position)
-                        .from(given)
-                        .join(TRACK)
-                        .on(TRACK.TRACK_ID.eq(given.field("track_id", UUID.class)))
-                        .where(inLibrary(TRACK))
-                        .andNotExists(alreadyOn))
-                .execute();
+        return select(val(playlistId), TRACK.TRACK_ID, position)
+                .from(given)
+                .join(TRACK)
+                .on(TRACK.TRACK_ID.eq(given.field("track_id", UUID.class)))
+                .where(inLibrary(TRACK))
+                .andNotExists(alreadyOn);
     }
 
+    /**
+     * Deletes the track and moves the tracks after it up, in one statement.
+     */
     private int removeTrack(final UUID playlistId, final UUID trackId) {
-        final var removed = dsl.deleteFrom(PLAYLIST_TRACK)
-                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId))
-                .returning(PLAYLIST_TRACK.POSITION)
-                .fetchOptional(PLAYLIST_TRACK.POSITION);
-        removed.ifPresent(position -> dsl.update(PLAYLIST_TRACK)
-                .set(PLAYLIST_TRACK.POSITION, PLAYLIST_TRACK.POSITION.minus(1))
-                .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
-                .and(PLAYLIST_TRACK.POSITION.gt(position))
-                .execute());
-        return removed.isPresent() ? 1 : 0;
+        final var removed = name("removed")
+                .as(dsl.deleteFrom(PLAYLIST_TRACK)
+                        .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
+                        .and(PLAYLIST_TRACK.TRACK_ID.eq(trackId))
+                        .returningResult(PLAYLIST_TRACK.POSITION));
+        final var removedPosition = removed.field(PLAYLIST_TRACK.POSITION);
+        final var shifted = name("shifted")
+                .as(dsl.update(PLAYLIST_TRACK)
+                        .set(PLAYLIST_TRACK.POSITION, PLAYLIST_TRACK.POSITION.minus(1))
+                        .from(removed)
+                        .where(PLAYLIST_TRACK.PLAYLIST_ID.eq(playlistId))
+                        .and(PLAYLIST_TRACK.POSITION.gt(removedPosition))
+                        .returningResult(PLAYLIST_TRACK.TRACK_ID));
+        return dsl.with(removed, shifted).selectCount().from(removed).fetchSingle(0, int.class);
     }
 
     /**

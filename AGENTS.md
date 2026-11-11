@@ -333,6 +333,13 @@ testing*): run them rather than formatting by hand. The conventions below are co
   track is `/playlists/{id}/tracks/{trackId}`, but an ingest file is `/ingest-tracks/{trackIngestId}`.
 - **Load a whole batch in one query.** A pass over work (the worker's uploaded groups) loads everything it will go
   through once and iterates, not one row per query until none is left.
+- **One statement where one will do.** A write of several rows is one statement, the others in data-modifying common
+  table expressions (`UserDao.insert` stores the user and their password together, `PlaylistDao.deleteTrack` deletes
+  the track and shifts those after it), and a check that refuses a write is returned by the statement that takes the
+  lock (`QueueDao.replaceWithPlaylist`). Every part of a statement reads the same snapshot, so split only where the
+  next statement must see what the last did: work after a row lock that must see the commit it waited for
+  (`IngestDao.setUploaded`), reading rows just written, or a delete and insert that a non-deferrable unique key would
+  make clash (`IngestDao.replaceCandidates`). Comment why where you split.
 - Each page has one endpoint, which reads everything the page shows first in one query, for a fast first paint: joins
   for single rows, `multiset` for lists (`ReleaseDao.loadDetails`). Don't chain lookups by ID and stitch the
   results together in Java. Secondary sections and menus (a release's **More by** and **Other editions**) load after

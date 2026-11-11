@@ -1,6 +1,9 @@
 package org.sona.db;
 
 import static org.jooq.impl.DSL.excluded;
+import static org.jooq.impl.DSL.name;
+import static org.jooq.impl.DSL.select;
+import static org.jooq.impl.DSL.val;
 import static org.sona.model.Tables.OIDC_IDENTITY;
 import static org.sona.model.Tables.PASSWORD;
 import static org.sona.model.Tables.USERS;
@@ -8,8 +11,12 @@ import static org.sona.model.Tables.USERS;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.jooq.CommonTableExpression;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.InsertOnDuplicateStep;
+import org.jooq.InsertReturningStep;
+import org.jooq.Record1;
 import org.sona.mappers.OidcIdentityMapper;
 import org.sona.mappers.PasswordMapper;
 import org.sona.mappers.UsersMapper;
@@ -19,6 +26,8 @@ import org.sona.model.enums.UserRole;
 import org.sona.model.tables.pojos.OidcIdentity;
 import org.sona.model.tables.pojos.Password;
 import org.sona.model.tables.pojos.Users;
+import org.sona.model.tables.records.PasswordRecord;
+import org.sona.model.tables.records.UsersRecord;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,8 +68,8 @@ public class UserDao {
      * Stores a local user with their password.
      */
     public void insert(final Users user, final Password password) {
-        dsl.insertInto(USERS).set(usersMapper.toRecord(user)).execute();
-        dsl.insertInto(PASSWORD).set(passwordMapper.toRecord(password)).execute();
+        final var stored = stored(dsl.insertInto(USERS).set(usersMapper.toRecord(user)));
+        insertPassword(stored, password.passwordHash(), password.state()).execute();
     }
 
     /**
@@ -69,15 +78,14 @@ public class UserDao {
      * @return whether the user was stored
      */
     public boolean insertIfAbsent(final Users user, final OidcIdentity identity) {
-        final var inserted = dsl.insertInto(USERS)
-                .set(usersMapper.toRecord(user))
-                .onConflictDoNothing()
-                .execute();
-        if (inserted == 0) {
-            return false;
-        }
-        dsl.insertInto(OIDC_IDENTITY).set(oidcIdentityMapper.toRecord(identity)).execute();
-        return true;
+        final var stored =
+                stored(dsl.insertInto(USERS).set(usersMapper.toRecord(user)).onConflictDoNothing());
+        return dsl.with(stored)
+                        .insertInto(OIDC_IDENTITY, OIDC_IDENTITY.USER_ID, OIDC_IDENTITY.ISSUER, OIDC_IDENTITY.SUBJECT)
+                        .select(select(stored.field(USERS.USER_ID), val(identity.issuer()), val(identity.subject()))
+                                .from(stored))
+                        .execute()
+                == 1;
     }
 
     /**
@@ -87,16 +95,13 @@ public class UserDao {
      * @param passwordHash the password's hash, kept for the stored user
      */
     public void upsert(final Users user, final String passwordHash, final PasswordState passwordState) {
-        final var userId = dsl.insertInto(USERS)
+        final var stored = stored(dsl.insertInto(USERS)
                 .set(usersMapper.toRecord(user))
                 .onConflict(USERS.USERNAME)
                 .doUpdate()
                 .set(USERS.ROLE, excluded(USERS.ROLE))
-                .set(USERS.STATE, excluded(USERS.STATE))
-                .returning(USERS.USER_ID)
-                .fetchSingle(USERS.USER_ID);
-        dsl.insertInto(PASSWORD)
-                .set(passwordMapper.toRecord(new Password(userId, passwordHash, passwordState)))
+                .set(USERS.STATE, excluded(USERS.STATE)));
+        insertPassword(stored, passwordHash, passwordState)
                 .onConflict(PASSWORD.USER_ID)
                 .doUpdate()
                 .set(PASSWORD.PASSWORD_HASH, excluded(PASSWORD.PASSWORD_HASH))
@@ -120,6 +125,27 @@ public class UserDao {
                 .set(PASSWORD.STATE, PasswordState.VALID)
                 .where(PASSWORD.USER_ID.eq(userId))
                 .execute();
+    }
+
+    /**
+     * @param insert the user's insert, which the statement that stores how they sign in runs first, as a common table
+     *               expression of the user's ID if it stored a row
+     */
+    private static CommonTableExpression<Record1<UUID>> stored(final InsertReturningStep<UsersRecord> insert) {
+        return name("stored_user").as(insert.returningResult(USERS.USER_ID));
+    }
+
+    /**
+     * @return the insert of the stored user's password, in the same statement as the user's
+     */
+    private InsertOnDuplicateStep<PasswordRecord> insertPassword(
+            final CommonTableExpression<Record1<UUID>> stored,
+            final String passwordHash,
+            final PasswordState passwordState) {
+        return dsl.with(stored)
+                .insertInto(PASSWORD, PASSWORD.USER_ID, PASSWORD.PASSWORD_HASH, PASSWORD.STATE)
+                .select(select(stored.field(USERS.USER_ID), val(passwordHash), val(passwordState))
+                        .from(stored));
     }
 
     private Optional<Account> loadAccount(final Condition users) {

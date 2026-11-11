@@ -3,7 +3,10 @@ package org.sona.db;
 import static java.util.Comparator.comparingInt;
 import static org.jooq.impl.DSL.excluded;
 import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.name;
+import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
+import static org.jooq.impl.DSL.val;
 import static org.sona.db.ReleaseFields.releaseLabels;
 import static org.sona.db.ReleaseFields.releaseMediaWithTracks;
 import static org.sona.model.Tables.LABEL;
@@ -19,12 +22,10 @@ import org.jooq.DSLContext;
 import org.jooq.Records;
 import org.sona.mappers.LabelMapper;
 import org.sona.mappers.MediumMapper;
-import org.sona.mappers.ReleaseLabelMapper;
 import org.sona.mappers.ReleaseMapper;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
-import org.sona.model.tables.pojos.ReleaseLabel;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,7 +41,6 @@ public class ReleaseDao {
     private final DSLContext dsl;
     private final ReleaseMapper releaseMapper;
     private final LabelMapper labelMapper;
-    private final ReleaseLabelMapper releaseLabelMapper;
     private final MediumMapper mediumMapper;
 
     /**
@@ -105,20 +105,17 @@ public class ReleaseDao {
             return;
         }
         final var records = labels.stream().map(labelMapper::toRecord).toList();
-        final var labelIds = dsl.insertInto(LABEL)
-                .columns(LABEL.fields())
-                .valuesOfRecords(records)
-                .onConflict(LABEL.MUSICBRAINZ_LABEL_ID)
-                .doUpdate()
-                .set(LABEL.NAME, excluded(LABEL.NAME))
-                .returning(LABEL.LABEL_ID)
-                .fetch(LABEL.LABEL_ID);
-        final var releaseLabels = labelIds.stream()
-                .map(labelId -> releaseLabelMapper.toRecord(new ReleaseLabel(releaseId, labelId)))
-                .toList();
-        dsl.insertInto(RELEASE_LABEL)
-                .columns(RELEASE_LABEL.fields())
-                .valuesOfRecords(releaseLabels)
+        final var stored = name("stored_label")
+                .as(dsl.insertInto(LABEL)
+                        .columns(LABEL.fields())
+                        .valuesOfRecords(records)
+                        .onConflict(LABEL.MUSICBRAINZ_LABEL_ID)
+                        .doUpdate()
+                        .set(LABEL.NAME, excluded(LABEL.NAME))
+                        .returningResult(LABEL.LABEL_ID));
+        dsl.with(stored)
+                .insertInto(RELEASE_LABEL, RELEASE_LABEL.RELEASE_ID, RELEASE_LABEL.LABEL_ID)
+                .select(select(val(releaseId), stored.field(LABEL.LABEL_ID)).from(stored))
                 .onConflictDoNothing()
                 .execute();
     }

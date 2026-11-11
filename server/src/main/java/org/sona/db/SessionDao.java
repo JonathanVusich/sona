@@ -2,6 +2,7 @@ package org.sona.db;
 
 import static org.jooq.impl.DSL.currentOffsetDateTime;
 import static org.jooq.impl.DSL.field;
+import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.OIDC_SESSION;
 import static org.sona.model.Tables.REFRESH_TOKEN;
@@ -52,8 +53,13 @@ public class SessionDao {
      * Stores the first token of an OIDC user's session, with the provider's refresh token behind the session.
      */
     public void insert(final RefreshToken token, final OidcSession session) {
-        insert(token);
-        dsl.insertInto(OIDC_SESSION).set(oidcSessionMapper.toRecord(session)).execute();
+        dsl.with(name("token")
+                        .as(dsl.insertInto(REFRESH_TOKEN)
+                                .set(refreshTokenMapper.toRecord(token))
+                                .returningResult(REFRESH_TOKEN.REFRESH_TOKEN_ID)))
+                .insertInto(OIDC_SESSION)
+                .set(oidcSessionMapper.toRecord(session))
+                .execute();
     }
 
     public Optional<RefreshToken> loadRevokedByHash(final String tokenHash) {
@@ -98,8 +104,12 @@ public class SessionDao {
      * Ends the session: revokes its tokens, and forgets the provider's refresh token behind it.
      */
     public void revokeFamily(final UUID familyId) {
-        revoke(REFRESH_TOKEN.FAMILY_ID.eq(familyId)).execute();
-        dsl.deleteFrom(OIDC_SESSION).where(OIDC_SESSION.FAMILY_ID.eq(familyId)).execute();
+        final var revoked =
+                revoke(REFRESH_TOKEN.FAMILY_ID.eq(familyId)).returningResult(REFRESH_TOKEN.REFRESH_TOKEN_ID);
+        dsl.with(name("revoked").as(revoked))
+                .delete(OIDC_SESSION)
+                .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
+                .execute();
     }
 
     public void revokeAll(final UUID userId) {
