@@ -21,6 +21,7 @@ import org.sona.config.FakeOidcProvider;
 import org.sona.controller.ApiClient;
 import org.sona.controller.ApiRoutes;
 import org.sona.controller.response.CurrentUserResponse;
+import org.sona.db.OidcAccount;
 import org.sona.db.UserDao;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.UserRole;
@@ -132,7 +133,8 @@ class OidcSignInTest {
 
         final var asUser = providerSession("root-id", List.of("staff"));
         assertThat(currentUser(asUser.accessToken()).role()).isEqualTo(UserRole.USER);
-        assertThat(userDao.loadById(userId("root-id")).orElseThrow().role()).isEqualTo(UserRole.USER);
+        assertThat(userDao.loadById(userId("root-id")).orElseThrow().user().role())
+                .isEqualTo(UserRole.USER);
     }
 
     @Test
@@ -171,9 +173,11 @@ class OidcSignInTest {
                 .hasToString(ApiRoutes.OIDC_AUTHORIZE + "/" + FakeOidcProvider.ID);
         final var me = currentUser(providerSession("alice-id", List.of()).accessToken());
         assertThat(me.username()).isEqualTo("alice");
-        assertThat(userDao.loadById(userId("alice-id")).orElseThrow().type()).isEqualTo(UserType.OIDC);
-        assertThat(userDao.loadOidcIdentity(userId("alice-id")))
-                .contains(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id"));
+        assertThat(userDao.loadById(userId("alice-id")).orElseThrow())
+                .isInstanceOfSatisfying(
+                        OidcAccount.class,
+                        account -> assertThat(account.identity())
+                                .isEqualTo(new OidcIdentity(userId("alice-id"), provider.issuer(), "alice-id")));
     }
 
     @Test
@@ -314,8 +318,9 @@ class OidcSignInTest {
 
     private void existingUser(final String subject, final String username) {
         final var userId = userId(subject);
-        userDao.insert(new Users(userId, UserType.OIDC, username, UserRole.USER, AccountState.ACTIVE));
-        userDao.insertOidcIdentity(new OidcIdentity(userId, provider.issuer(), subject));
+        userDao.insertIfAbsent(
+                new Users(userId, UserType.OIDC, username, UserRole.USER, AccountState.ACTIVE),
+                new OidcIdentity(userId, provider.issuer(), subject));
     }
 
     /**

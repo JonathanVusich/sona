@@ -1,7 +1,8 @@
 package org.sona.db;
 
 import static org.jooq.impl.DSL.currentOffsetDateTime;
-import static org.jooq.impl.DSL.excluded;
+import static org.jooq.impl.DSL.field;
+import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.select;
 import static org.sona.model.Tables.OIDC_SESSION;
 import static org.sona.model.Tables.REFRESH_TOKEN;
@@ -9,9 +10,13 @@ import static org.sona.model.Tables.REFRESH_TOKEN;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.SelectField;
 import org.jooq.UpdateConditionStep;
 import org.sona.mappers.OidcSessionMapper;
 import org.sona.mappers.RefreshTokenMapper;
@@ -23,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Sessions: the refresh tokens of each session's family, and, for an OIDC user, the provider's refresh token behind
- * the session.
+ * the session, which is stored with the session's first token and read with each token a refresh uses.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,12 +37,29 @@ public class SessionDao {
 
     private static final Condition UNEXPIRED = REFRESH_TOKEN.EXPIRES_AT.gt(currentOffsetDateTime());
 
+    private static final Field<String> PROVIDER_REFRESH_TOKEN = field(select(OIDC_SESSION.REFRESH_TOKEN)
+            .from(OIDC_SESSION)
+            .where(OIDC_SESSION.FAMILY_ID.eq(REFRESH_TOKEN.FAMILY_ID)));
+
     private final DSLContext dsl;
     private final RefreshTokenMapper refreshTokenMapper;
     private final OidcSessionMapper oidcSessionMapper;
 
     public void insert(final RefreshToken token) {
         dsl.insertInto(REFRESH_TOKEN).set(refreshTokenMapper.toRecord(token)).execute();
+    }
+
+    /**
+     * Stores the first token of an OIDC user's session, with the provider's refresh token behind the session.
+     */
+    public void insert(final RefreshToken token, final OidcSession session) {
+        dsl.with(name("token")
+                        .as(dsl.insertInto(REFRESH_TOKEN)
+                                .set(refreshTokenMapper.toRecord(token))
+                                .returningResult(REFRESH_TOKEN.REFRESH_TOKEN_ID)))
+                .insertInto(OIDC_SESSION)
+                .set(oidcSessionMapper.toRecord(session))
+                .execute();
     }
 
     public Optional<RefreshToken> loadRevokedByHash(final String tokenHash) {
@@ -53,11 +75,11 @@ public class SessionDao {
      *
      * @return the token, now revoked, or empty if it was unknown, expired or already revoked
      */
-    public Optional<RefreshToken> revokeIfValid(final String tokenHash) {
+    public Optional<UsedToken> revokeIfValid(final String tokenHash) {
         return revoke(REFRESH_TOKEN.TOKEN_HASH.eq(tokenHash))
                 .and(UNEXPIRED)
-                .returning()
-                .fetchOptional(refreshTokenMapper::fromRecord);
+                .returningResult(usedTokenFields())
+                .fetchOptional(this::usedToken);
     }
 
     /**
@@ -66,7 +88,7 @@ public class SessionDao {
      *
      * @return the family's valid token, now revoked, or empty if this token was replaced earlier or its family has ended
      */
-    public Optional<RefreshToken> revokeFamilyTokenIfRecentlyReplaced(
+    public Optional<UsedToken> revokeFamilyTokenIfRecentlyReplaced(
             final String tokenHash, final OffsetDateTime replacedAfter) {
         final var family = select(REFRESH_TOKEN.FAMILY_ID)
                 .from(REFRESH_TOKEN)
@@ -74,38 +96,35 @@ public class SessionDao {
                 .and(REFRESH_TOKEN.REVOKED_AT.gt(replacedAfter));
         return revoke(REFRESH_TOKEN.FAMILY_ID.in(family))
                 .and(UNEXPIRED)
-                .returning()
-                .fetchOptional(refreshTokenMapper::fromRecord);
+                .returningResult(usedTokenFields())
+                .fetchOptional(this::usedToken);
     }
 
+    /**
+     * Ends the session: revokes its tokens, and forgets the provider's refresh token behind it.
+     */
     public void revokeFamily(final UUID familyId) {
-        revoke(REFRESH_TOKEN.FAMILY_ID.eq(familyId)).execute();
+        final var revoked =
+                revoke(REFRESH_TOKEN.FAMILY_ID.eq(familyId)).returningResult(REFRESH_TOKEN.REFRESH_TOKEN_ID);
+        dsl.with(name("revoked").as(revoked))
+                .delete(OIDC_SESSION)
+                .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
+                .execute();
     }
 
     public void revokeAll(final UUID userId) {
         revoke(REFRESH_TOKEN.USER_ID.eq(userId)).execute();
     }
 
-    public Optional<OidcSession> loadOidcSession(final UUID familyId) {
-        return dsl.selectFrom(OIDC_SESSION)
-                .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
-                .fetchOptional(oidcSessionMapper::fromRecord);
-    }
-
     /**
-     * Inserts the session, or replaces the provider's refresh token of the stored one, which providers may rotate.
+     * Replaces the provider's refresh token behind the session, which providers may rotate. A session that has ended
+     * meanwhile keeps none.
      */
-    public void upsertOidcSession(final OidcSession session) {
-        dsl.insertInto(OIDC_SESSION)
-                .set(oidcSessionMapper.toRecord(session))
-                .onConflict(OIDC_SESSION.FAMILY_ID)
-                .doUpdate()
-                .set(OIDC_SESSION.REFRESH_TOKEN, excluded(OIDC_SESSION.REFRESH_TOKEN))
+    public void setProviderRefreshToken(final UUID familyId, final String providerRefreshToken) {
+        dsl.update(OIDC_SESSION)
+                .set(OIDC_SESSION.REFRESH_TOKEN, providerRefreshToken)
+                .where(OIDC_SESSION.FAMILY_ID.eq(familyId))
                 .execute();
-    }
-
-    public void deleteOidcSession(final UUID familyId) {
-        dsl.deleteFrom(OIDC_SESSION).where(OIDC_SESSION.FAMILY_ID.eq(familyId)).execute();
     }
 
     /**
@@ -116,5 +135,15 @@ public class SessionDao {
                 .set(REFRESH_TOKEN.REVOKED_AT, currentOffsetDateTime())
                 .where(tokens)
                 .and(REFRESH_TOKEN.REVOKED_AT.isNull());
+    }
+
+    private static SelectField<?>[] usedTokenFields() {
+        return Stream.concat(Stream.of(REFRESH_TOKEN.fields()), Stream.of(PROVIDER_REFRESH_TOKEN))
+                .toArray(SelectField<?>[]::new);
+    }
+
+    private UsedToken usedToken(final Record record) {
+        final var token = refreshTokenMapper.fromRecord(record.into(REFRESH_TOKEN));
+        return new UsedToken(token, record.get(PROVIDER_REFRESH_TOKEN));
     }
 }

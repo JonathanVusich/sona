@@ -138,9 +138,6 @@ There is no deadline. Done when it's good.
 4. **Bound every input and every size of data** (deferred): request bodies, page and list sizes, what a user can
    store (playlist and queue lengths, uploads), and the work a single request can cause, so that no user can exhaust
    the server's memory, database or disk. Sona must be safe to expose to the internet.
-5. **One pass over every DAO** (after the album-matching work): give every method the names AGENTS.md sets out, keep
-   the feature's other tables inside the main table's reads and writes, and simplify the jOOQ code as far as it goes.
-   It is done once, on its own, not piecemeal in feature PRs.
 
 ## Open questions
 

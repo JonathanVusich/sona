@@ -21,6 +21,13 @@ public final class TestUsers {
     private final UserDao userDao;
     private final PasswordEncoder encoder;
 
+    /**
+     * Stores a local user who can't log in, for a test that only needs the user's row.
+     */
+    public static void insertUser(final UserDao userDao, final Users user) {
+        userDao.insert(user, new Password(user.userId(), "no password matches this", PasswordState.VALID));
+    }
+
     public Users createUser(final String username, final UserRole role) {
         return createUser(username, role, AccountState.ACTIVE, PasswordState.VALID);
     }
@@ -36,8 +43,7 @@ public final class TestUsers {
     private Users createUser(
             final String username, final UserRole role, final AccountState state, final PasswordState passwordState) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, role, state);
-        userDao.insert(user);
-        userDao.upsertPassword(new Password(user.userId(), encoder.encode(username), passwordState));
+        userDao.insert(user, new Password(user.userId(), encoder.encode(username), passwordState));
         return user;
     }
 }

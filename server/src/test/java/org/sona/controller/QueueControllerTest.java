@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.auth.SessionState;
 import org.sona.auth.TestTokens;
+import org.sona.auth.TestUsers;
 import org.sona.controller.request.CurrentEntryRequest;
 import org.sona.controller.request.QueueModesRequest;
 import org.sona.controller.request.QueuePositionRequest;
@@ -614,7 +615,7 @@ class QueueControllerTest {
 
     private Users insertUser(final String username) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, UserRole.USER, AccountState.ACTIVE);
-        userDao.insert(user);
+        TestUsers.insertUser(userDao, user);
         return user;
     }
 
@@ -625,7 +626,7 @@ class QueueControllerTest {
     private Track insertTrack(final String name, final int position, final IngestState state) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        TestUsers.insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);

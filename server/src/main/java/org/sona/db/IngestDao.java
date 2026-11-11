@@ -2,7 +2,10 @@ package org.sona.db;
 
 import static org.jooq.impl.DSL.inline;
 import static org.jooq.impl.DSL.multiset;
+import static org.jooq.impl.DSL.name;
+import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
+import static org.jooq.impl.DSL.selectOne;
 import static org.jooq.impl.DSL.when;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.INGEST_GROUP;
@@ -48,10 +51,13 @@ public class IngestDao {
      * Stores a group together with the ingest of each of its files, so the group never exists without them.
      */
     public void insertGroup(final IngestGroup ingestGroup, final List<TrackToIngest> trackIngests) {
-        insertGroup(ingestGroup);
+        final var group = dsl.insertInto(INGEST_GROUP)
+                .set(ingestGroupMapper.toRecord(ingestGroup))
+                .returningResult(INGEST_GROUP.INGEST_GROUP_ID);
         final var records =
                 trackIngests.stream().map(trackToIngestMapper::toRecord).toList();
-        dsl.insertInto(TRACK_TO_INGEST)
+        dsl.with(name("ingest_group").as(group))
+                .insertInto(TRACK_TO_INGEST)
                 .columns(TRACK_TO_INGEST.fields())
                 .valuesOfRecords(records)
                 .execute();
@@ -107,29 +113,37 @@ public class IngestDao {
     }
 
     /**
-     * Sets the file uploaded, and its group too if that was the last of its files to arrive. The group is locked
-     * before its files are checked, so of two files finishing at once, the second sees the first's commit.
+     * Sets the file uploaded, and its group too if that was the last of its files to arrive. The group is locked as
+     * the file is set uploaded, and its files are checked in a statement of their own, which starts once the lock is
+     * held: of two files finishing at once, the second's check then sees the first's commit, which a check in the same
+     * statement, reading from before the lock was waited for, wouldn't.
      *
      * @return the file's ingest, as uploaded
      */
     public TrackToIngest setUploaded(final UUID trackToIngestId) {
+        final var group = select(INGEST_GROUP.INGEST_GROUP_ID)
+                .from(INGEST_GROUP)
+                .where(INGEST_GROUP.INGEST_GROUP_ID.eq(select(TRACK_TO_INGEST.GROUP_INGEST_ID)
+                        .from(TRACK_TO_INGEST)
+                        .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))))
+                .forUpdate()
+                .asTable("locked_group");
         final var uploaded = dsl.update(TRACK_TO_INGEST)
                 .set(TRACK_TO_INGEST.STATE, IngestState.UPLOADED)
+                .from(group)
                 .where(TRACK_TO_INGEST.TRACK_INGEST_ID.eq(trackToIngestId))
+                .and(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(group.field(INGEST_GROUP.INGEST_GROUP_ID)))
                 .returning()
                 .fetchSingle(trackToIngestMapper::fromRecord);
         final var ingestGroupId = uploaded.groupIngestId();
-        dsl.select(INGEST_GROUP.INGEST_GROUP_ID)
-                .from(INGEST_GROUP)
+        dsl.update(INGEST_GROUP)
+                .set(INGEST_GROUP.STATE, IngestGroupState.UPLOADED)
                 .where(INGEST_GROUP.INGEST_GROUP_ID.eq(ingestGroupId))
-                .forUpdate()
-                .fetch();
-        final var stillUploading = dsl.fetchExists(dsl.selectFrom(TRACK_TO_INGEST)
-                .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
-                .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING)));
-        if (!stillUploading) {
-            setGroupState(ingestGroupId, IngestGroupState.UPLOADED);
-        }
+                .andNotExists(selectOne()
+                        .from(TRACK_TO_INGEST)
+                        .where(TRACK_TO_INGEST.GROUP_INGEST_ID.eq(ingestGroupId))
+                        .and(TRACK_TO_INGEST.STATE.in(IngestState.CREATED, IngestState.UPLOADING)))
+                .execute();
         return uploaded;
     }
 
@@ -150,6 +164,7 @@ public class IngestDao {
      * Replaces the candidates stored for the ingest, as processing it again finds them anew.
      */
     public void replaceCandidates(final UUID trackToIngestId, final List<IngestCandidate> candidates) {
+        // Two statements, as each candidate's rank is checked as it's inserted: the old ones must be gone by then.
         deleteCandidates(trackToIngestId);
         if (candidates.isEmpty()) {
             return;

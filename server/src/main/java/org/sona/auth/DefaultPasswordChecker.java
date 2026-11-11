@@ -1,12 +1,13 @@
 package org.sona.auth;
 
+import org.sona.db.LocalAccount;
+import org.sona.db.OidcAccount;
 import org.sona.db.UserDao;
 import org.sona.exception.IncorrectPasswordException;
 import org.sona.exception.InvalidCredentialsException;
 import org.sona.exception.PasswordManagedByProviderException;
 import org.sona.exception.UnchangedPasswordException;
 import org.sona.model.enums.AccountState;
-import org.sona.model.tables.pojos.Users;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -30,43 +31,48 @@ public class DefaultPasswordChecker implements PasswordChecker {
     }
 
     @Override
-    public Users checkLogin(final String username, final String password) {
-        final var user = userDao.loadByUsername(username).orElse(null);
-        if (user == null) {
-            encoder.matches(password, unknownUserHash);
-            throw new InvalidCredentialsException();
-        }
-        // Users who sign in through an OIDC provider have no password, so they can't log in here.
-        final var stored = userDao.loadPassword(user.userId()).orElse(null);
-        if (stored == null) {
-            encoder.matches(password, unknownUserHash);
-            throw new InvalidCredentialsException();
-        }
-        // The password is checked first, so a disabled account takes as long to refuse as any other.
-        if (!encoder.matches(password, stored.passwordHash()) || user.state() == AccountState.DISABLED) {
-            throw new InvalidCredentialsException();
-        }
-        return user;
+    public LocalAccount checkLogin(final String username, final String password) {
+        final var account = userDao.loadByUsername(username).orElse(null);
+        return switch (account) {
+            case null -> refuseWithoutPassword(password);
+            // Users who sign in through an OIDC provider have no password, so they can't log in here.
+            case OidcAccount _ -> refuseWithoutPassword(password);
+            case LocalAccount local -> checkPassword(local, password);
+        };
     }
 
     @Override
     public void changePassword(final SignedInUser signedIn, final String currentPassword, final String newPassword) {
-        final var user = userDao.loadById(signedIn.userId()).orElseThrow();
-        switch (user.type()) {
-            case LOCAL -> changeLocalPassword(user, currentPassword, newPassword);
-            case OIDC -> throw new PasswordManagedByProviderException();
+        final var account = userDao.loadById(signedIn.userId()).orElseThrow();
+        switch (account) {
+            case LocalAccount local -> changeLocalPassword(local, currentPassword, newPassword);
+            case OidcAccount _ -> throw new PasswordManagedByProviderException();
         }
     }
 
-    private void changeLocalPassword(final Users user, final String currentPassword, final String newPassword) {
-        final var password = userDao.loadPassword(user.userId()).orElseThrow();
-        if (!encoder.matches(currentPassword, password.passwordHash())) {
+    private LocalAccount refuseWithoutPassword(final String password) {
+        encoder.matches(password, unknownUserHash);
+        throw new InvalidCredentialsException();
+    }
+
+    private LocalAccount checkPassword(final LocalAccount account, final String password) {
+        // The password is checked first, so a disabled account takes as long to refuse as any other.
+        final var matches = encoder.matches(password, account.password().passwordHash());
+        if (!matches || account.user().state() == AccountState.DISABLED) {
+            throw new InvalidCredentialsException();
+        }
+        return account;
+    }
+
+    private void changeLocalPassword(
+            final LocalAccount account, final String currentPassword, final String newPassword) {
+        if (!encoder.matches(currentPassword, account.password().passwordHash())) {
             throw new IncorrectPasswordException();
         }
         if (newPassword.equals(currentPassword)) {
             throw new UnchangedPasswordException();
         }
-        userDao.setPasswordHash(user.userId(), encoder.encode(newPassword));
-        tokenIssuer.endAllSessions(user);
+        userDao.setPasswordHash(account.user().userId(), encoder.encode(newPassword));
+        tokenIssuer.endAllSessions(account.user());
     }
 }

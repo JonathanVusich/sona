@@ -1,6 +1,7 @@
 package org.sona.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.utils.IDGenerator.uuidv7;
 
 import java.time.LocalDate;
@@ -334,7 +335,7 @@ class PlaylistControllerTest {
 
     private String accessToken(final String username) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, UserRole.USER, AccountState.ACTIVE);
-        userDao.insert(user);
+        insertUser(userDao, user);
         return new TestTokens(encoder).accessToken(user.userId(), username, UserRole.USER, SessionState.ACTIVE);
     }
 
@@ -368,7 +369,7 @@ class PlaylistControllerTest {
     private Track insertTrack(final Medium medium, final String name, final int position, final IngestState state) {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.ALBUM, "Uploads", uploader.userId(), IngestGroupState.MATCHED);
         ingestDao.insertGroup(group);

@@ -1,6 +1,7 @@
 package org.sona.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.utils.IDGenerator.uuidv7;
 
@@ -131,7 +132,7 @@ class IngestProgressTest {
 
     private Users storeAdmin(final String username) {
         final var user = new Users(uuidv7(), UserType.LOCAL, username, UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(user);
+        insertUser(userDao, user);
         return user;
     }
 

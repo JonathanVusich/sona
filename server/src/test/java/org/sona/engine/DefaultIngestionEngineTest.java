@@ -8,6 +8,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.sona.auth.TestUsers.insertUser;
 import static org.sona.model.Tables.ARTIST;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.LABEL;
@@ -334,7 +335,7 @@ class DefaultIngestionEngineTest {
         // The library refuses to store such a file, so the ingest is inserted as it would be by an older upload.
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.UNKNOWN, "Uploads", uploader.userId(), IngestGroupState.UPLOADED);
         ingestDao.insertGroup(group);
@@ -447,7 +448,7 @@ class DefaultIngestionEngineTest {
             throws InvalidFormatException, IOException {
         final var uploader =
                 new Users(uuidv7(), UserType.LOCAL, "uploader-" + uuidv7(), UserRole.ADMIN, AccountState.ACTIVE);
-        userDao.insert(uploader);
+        insertUser(userDao, uploader);
         final var group = new IngestGroup(
                 uuidv7(), IngestGroupKind.UNKNOWN, "Uploads", uploader.userId(), IngestGroupState.CREATED);
         ingestDao.insertGroup(group);

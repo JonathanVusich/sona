@@ -16,7 +16,11 @@ import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.sona.config.properties.AuthProperties;
+import org.sona.db.Account;
+import org.sona.db.LocalAccount;
+import org.sona.db.OidcAccount;
 import org.sona.db.SessionDao;
+import org.sona.db.UsedToken;
 import org.sona.db.UserDao;
 import org.sona.exception.InvalidRefreshTokenException;
 import org.sona.model.tables.pojos.OidcSession;
@@ -50,15 +54,21 @@ public class DefaultTokenIssuer implements TokenIssuer {
     private final AuthProperties properties;
 
     @Override
-    public Tokens startSession(final Users user) {
-        return issueTokens(user, uuidv7());
+    public Tokens startSession(final LocalAccount account) {
+        final var refreshToken = randomToken();
+        sessionDao.insert(refreshTokenRow(account.user(), uuidv7(), refreshToken));
+        return new Tokens(accessToken(account.user(), sessionState(account)), refreshToken);
     }
 
     @Override
     public Tokens startSession(final Users user, final String providerRefreshToken) {
         final var familyId = uuidv7();
-        sessionDao.upsertOidcSession(new OidcSession(familyId, user.userId(), providerRefreshToken));
-        return issueTokens(user, familyId);
+        final var refreshToken = randomToken();
+        sessionDao.insert(
+                refreshTokenRow(user, familyId, refreshToken),
+                new OidcSession(familyId, user.userId(), providerRefreshToken));
+        // The provider manages the password.
+        return new Tokens(accessToken(user, SessionState.ACTIVE), refreshToken);
     }
 
     @Override
@@ -74,13 +84,16 @@ public class DefaultTokenIssuer implements TokenIssuer {
             revokeFamilyIfReused(tokenHash);
             throw new InvalidRefreshTokenException();
         }
+        final var familyId = used.token().familyId();
         // Checked here because access tokens are trusted as they are until they expire.
-        final var user = userDao.loadActiveById(used.userId()).orElse(null);
-        if (user == null || !stillAllowed(user, used.familyId())) {
-            endFamily(used.familyId());
+        final var account = userDao.loadActiveById(used.token().userId()).orElse(null);
+        if (account == null || !stillAllowed(account, used)) {
+            sessionDao.revokeFamily(familyId);
             throw new InvalidRefreshTokenException();
         }
-        return issueTokens(user, used.familyId());
+        final var newToken = randomToken();
+        sessionDao.insert(refreshTokenRow(account.user(), familyId, newToken));
+        return new Tokens(accessToken(account.user(), sessionState(account)), newToken);
     }
 
     @Override
@@ -91,7 +104,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
             revokeFamilyIfReused(tokenHash);
             throw new InvalidRefreshTokenException();
         }
-        endFamily(used.familyId());
+        sessionDao.revokeFamily(used.token().familyId());
     }
 
     @Override
@@ -99,43 +112,39 @@ public class DefaultTokenIssuer implements TokenIssuer {
         sessionDao.revokeAll(user.userId());
     }
 
-    private Tokens issueTokens(final Users user, final UUID familyId) {
-        final var refreshToken = randomToken();
+    private RefreshToken refreshTokenRow(final Users user, final UUID familyId, final String refreshToken) {
         final var expiresAt =
                 Instant.now().plus(properties.refreshTokenLifetime()).atOffset(ZoneOffset.UTC);
-        sessionDao.insert(
-                new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null));
-        return new Tokens(accessToken(user), refreshToken);
+        return new RefreshToken(uuidv7(), user.userId(), familyId, sha256Hex(refreshToken), expiresAt, null);
     }
 
     /**
      * @return whether the user may keep their session: always for a local user, and for a user from an OIDC provider
      * only while the provider still accepts the session's refresh token
      */
-    private boolean stillAllowed(final Users user, final UUID familyId) {
-        return switch (user.type()) {
-            case LOCAL -> true;
-            case OIDC ->
-                sessionDao
-                        .loadOidcSession(familyId)
-                        .map(providerClient::refreshSession)
-                        .orElse(false);
+    private boolean stillAllowed(final Account account, final UsedToken used) {
+        return switch (account) {
+            case LocalAccount _ -> true;
+            case OidcAccount oidc -> {
+                final var providerRefreshToken = used.providerRefreshToken();
+                if (providerRefreshToken == null) {
+                    yield false;
+                }
+                final var token = used.token();
+                final var session = new OidcSession(token.familyId(), token.userId(), providerRefreshToken);
+                yield providerClient.refreshSession(oidc.identity(), session);
+            }
         };
     }
 
-    private void endFamily(final UUID familyId) {
-        sessionDao.revokeFamily(familyId);
-        sessionDao.deleteOidcSession(familyId);
-    }
-
-    private String accessToken(final Users user) {
+    private String accessToken(final Users user, final SessionState state) {
         final var now = Instant.now();
         final var claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
                 .subject(user.userId().toString())
                 .claim(USERNAME_CLAIM, user.username())
                 .claim(ROLE_CLAIM, user.role().getLiteral())
-                .claim(STATE_CLAIM, sessionState(user).name())
+                .claim(STATE_CLAIM, state.name())
                 .issuedAt(now)
                 .expiresAt(now.plus(properties.accessTokenLifetime()))
                 .build();
@@ -143,11 +152,11 @@ public class DefaultTokenIssuer implements TokenIssuer {
         return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 
-    private SessionState sessionState(final Users user) {
-        return switch (user.type()) {
-            case LOCAL -> sessionState(userDao.loadPassword(user.userId()).orElseThrow());
+    private static SessionState sessionState(final Account account) {
+        return switch (account) {
+            case LocalAccount local -> sessionState(local.password());
             // The provider manages the password.
-            case OIDC -> SessionState.ACTIVE;
+            case OidcAccount _ -> SessionState.ACTIVE;
         };
     }
 
@@ -159,7 +168,7 @@ public class DefaultTokenIssuer implements TokenIssuer {
     }
 
     private void revokeFamilyIfReused(final String tokenHash) {
-        sessionDao.loadRevokedByHash(tokenHash).ifPresent(token -> endFamily(token.familyId()));
+        sessionDao.loadRevokedByHash(tokenHash).ifPresent(token -> sessionDao.revokeFamily(token.familyId()));
     }
 
     private static String randomToken() {
