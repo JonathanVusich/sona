@@ -3,8 +3,9 @@
 create type ingest_group_kind as enum ('ALBUM', 'UNKNOWN');
 
 -- CREATED: its files are still being uploaded. UPLOADED: all of them are, and it waits for the worker to match them.
+-- INPUT_REQUIRED: an ALBUM group no release could be matched to, which waits for the uploader to choose one.
 -- MATCHED: the worker has matched them, whatever came of each file.
-create type ingest_group_state as enum ('CREATED', 'UPLOADED', 'MATCHED');
+create type ingest_group_state as enum ('CREATED', 'UPLOADED', 'INPUT_REQUIRED', 'MATCHED');
 
 -- Files uploaded together. The uploader creates the group, with all of its files, before uploading any of them.
 create table if not exists ingest_group (

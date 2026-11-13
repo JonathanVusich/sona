@@ -18,12 +18,14 @@ public interface MetadataResolver {
             TrackToIngest trackToIngest, RawMetadata metadata, Duration duration, Fingerprint fingerprint);
 
     /**
-     * Resolves the files of an album together, so they land on one release: the one that most of their recordings are
-     * on, rather than whichever edition suits each file alone. A file that isn't on that release needs review.
+     * Resolves the files of an album together, onto one release: one that all of it, or one of its media, has as many
+     * tracks as the album has files. The releases most of their recordings are on are tried first, and the first that
+     * places every file on a track as long as its audio is the match. Otherwise the releases that have as many tracks
+     * need review.
      *
-     * @return a resolution for each track, in the order given
+     * @param tracks the album's files that could be read: only they are matched
      */
-    List<TrackResolution> resolveAlbum(List<AlbumTrack> tracks);
+    AlbumResolution resolveAlbum(List<AlbumTrack> tracks);
 
     /**
      * @return the release a resolved track is on, with its release group and artists

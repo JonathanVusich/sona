@@ -3,6 +3,8 @@ package org.sona.engine;
 import dev.javax.sonaudio.exception.InvalidFormatException;
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
+import org.sona.metadata.resolver.AlbumResolution;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackCandidate;
 import org.sona.metadata.resolver.TrackResolution;
@@ -24,9 +26,9 @@ public interface IngestionEngine {
     /**
      * Resolves the files of an album together, so they are imported as one release.
      *
-     * @return a resolution for each track, in the order given
+     * @param parsedTracks the album's files that could be read: only they are matched
      */
-    List<TrackResolution> resolveAlbum(List<ParsedTrack> parsedTracks);
+    AlbumResolution resolveAlbum(List<ParsedTrack> parsedTracks);
 
     /**
      * @return the track, stored with the rows it references, whose file is still to be moved into the library
@@ -34,6 +36,13 @@ public interface IngestionEngine {
     Track storeTrack(ParsedTrack parsed, ResolvedTrack resolved);
 
     void requireInput(TrackToIngest trackToIngest, List<TrackCandidate> candidates);
+
+    /**
+     * Stores the releases the album might be, for the uploader to choose between.
+     *
+     * @param files the album's files that could be read, which wait for the choice
+     */
+    void requireAlbumInput(UUID ingestGroupId, List<TrackToIngest> files, AlbumResolution.NeedsReview review);
 
     /**
      * Moves the track's file into the library, which completes its ingest.

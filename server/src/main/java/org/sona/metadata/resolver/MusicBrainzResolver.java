@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toUnmodifiableSet;
+import static org.sona.metadata.resolver.TrackPlacer.placeFiles;
 import static org.sona.utils.DateUtils.parsePartialDate;
 
 import dev.javax.sonaudio.fingerprint.Fingerprint;
@@ -20,9 +21,11 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.sona.client.AcoustIdClient;
@@ -32,9 +35,13 @@ import org.sona.client.model.LabelInfo;
 import org.sona.client.model.Media;
 import org.sona.client.model.Recording;
 import org.sona.client.model.Release;
+import org.sona.client.model.Track;
 import org.sona.client.model.acoustid.LookupResult;
 import org.sona.client.model.acoustid.RecordingId;
 import org.sona.client.model.query.RecordingQuery;
+import org.sona.metadata.resolver.TrackPlacer.FileEvidence;
+import org.sona.metadata.resolver.TrackPlacer.FilePlacement;
+import org.sona.metadata.resolver.TrackPlacer.ReleaseTrack;
 import org.sona.model.enums.ReleaseGroupType;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Service;
@@ -59,6 +66,9 @@ public final class MusicBrainzResolver implements MetadataResolver {
     // How far a recording's length may be from the duration of the audio for it to be the same recording.
     private static final Duration DURATION_TOLERANCE = Duration.ofSeconds(3);
     private static final int MAX_CANDIDATES = 5;
+    // How many of the releases an album's files were found on are looked up, at most, for one with as many tracks as
+    // the album has files. Each lookup takes a second of MusicBrainz's rate limit.
+    private static final int MAX_RELEASE_LOOKUPS = 10;
     // What a recording the audio matched closely scores on each of its releases, as a candidate.
     private static final int CLOSE_MATCH_CANDIDATE_SCORE = 100 + LOOSE_MATCH_BONUS;
 
@@ -83,72 +93,163 @@ public final class MusicBrainzResolver implements MetadataResolver {
     }
 
     @Override
-    public List<TrackResolution> resolveAlbum(final List<AlbumTrack> tracks) {
-        final var options = new ArrayList<TrackOptions>();
+    public AlbumResolution resolveAlbum(final List<AlbumTrack> tracks) {
+        final var fileCount = tracks.size();
+        final var matches = new ArrayList<FileMatches>();
         for (final var track : tracks) {
-            options.add(trackOptions(track));
+            matches.add(fileMatches(track));
         }
-        final var release = commonRelease(options);
-        return options.stream()
-                .map(trackOptions -> albumResolution(trackOptions, release))
-                .toList();
+        final var evidence = matches.stream().map(FileMatches::evidence).toList();
+        final var candidates = new ArrayList<ReleaseCandidate>();
+        final var releaseIds = likelyReleases(matches, fileCount);
+        for (final var releaseId : releaseIds) {
+            final var release = client.lookupRelease(releaseId);
+            final var placement = bestPlacement(release, evidence, fileCount).orElse(null);
+            if (placement == null) {
+                continue;
+            }
+            final var matched = placement.matchedTracks(release, evidence).orElse(null);
+            if (matched != null) {
+                return new AlbumResolution.Matched(matched);
+            }
+            candidates.add(placement.candidate(release));
+            if (candidates.size() == MAX_CANDIDATES) {
+                break;
+            }
+        }
+        return new AlbumResolution.NeedsReview(rankReleases(candidates));
     }
 
-    private TrackOptions trackOptions(final AlbumTrack track) {
+    private FileMatches fileMatches(final AlbumTrack track) {
         final var fingerprintMatches = lookUpFingerprint(track.fingerprint(), track.duration());
-        final var closeMatch = closeMatch(fingerprintMatches, track.duration());
-        if (closeMatch != null) {
-            return closeMatchOptions(closeMatch);
-        }
         final var matchedRecordingIds =
                 recordingIds(fingerprintMatches.stream()).collect(toUnmodifiableSet());
-        final var evidence = new TagEvidence(matchedRecordingIds, albumTitle(track.metadata()), track.duration());
+        final var closeMatch = closeMatch(fingerprintMatches, track.duration());
+        if (closeMatch != null) {
+            return closeMatchFile(track, closeMatch);
+        }
+        final var tagEvidence = new TagEvidence(matchedRecordingIds, albumTitle(track.metadata()), track.duration());
         final var recordings = searchRecordings(track.trackToIngest(), track.metadata());
-        final var accepted = recordings.stream()
-                .flatMap(recording -> candidatesOnEachRelease(recording, evidence).stream())
+        // A loose fingerprint match places a file only through the score it adds to a recording the tags found, as it
+        // only helps choose between those for a file on its own.
+        final var recordingIds = recordings.stream()
+                .flatMap(recording -> candidatesOnEachRelease(recording, tagEvidence).stream())
                 .filter(candidate -> candidate.score() >= ACCEPT_SCORE)
+                .map(candidate -> candidate.track().recordingId())
+                .collect(toUnmodifiableSet());
+        final var releases = recordings.stream()
+                .flatMap(recording -> recording.releases().stream())
                 .toList();
-        return new TrackOptions(accepted, rankCandidates(recordings, evidence));
+        return new FileMatches(fileEvidence(track, recordingIds), releases, rankCandidates(recordings, tagEvidence));
     }
 
     // Audio that matched closely is the recording on every release it is on.
-    private TrackOptions closeMatchOptions(final Recording recording) {
-        final var onEachRelease = recording.releases().stream()
-                .map(release -> new TrackCandidate(
-                        convertToTrack(recording, release), release.title(), CLOSE_MATCH_CANDIDATE_SCORE))
-                .toList();
-        return new TrackOptions(onEachRelease, List.of(onEachRelease.getFirst()));
+    private FileMatches closeMatchFile(final AlbumTrack track, final Recording recording) {
+        final var recordingIds = Set.of(recording.id());
+        final var candidate = new TrackCandidate(
+                convertToTrack(recording), recording.releases().getFirst().title(), CLOSE_MATCH_CANDIDATE_SCORE);
+        return new FileMatches(fileEvidence(track, recordingIds), recording.releases(), List.of(candidate));
+    }
+
+    private static FileEvidence fileEvidence(final AlbumTrack track, final Set<UUID> recordingIds) {
+        final var metadata = track.metadata();
+        return new FileEvidence(
+                recordingIds,
+                intTag(metadata, Tag.DISC_NUMBER),
+                intTag(metadata, Tag.TRACK_NUMBER),
+                metadata.findValues(Tag.TRACK_TITLE).stream()
+                        .findFirst()
+                        .flatMap(TagValue::asString)
+                        .orElse(null),
+                track.duration());
+    }
+
+    private static Integer intTag(final RawMetadata metadata, final Tag tag) {
+        return metadata.findValues(tag).stream()
+                .findFirst()
+                .flatMap(TagValue::asInt)
+                .orElse(null);
     }
 
     /**
-     * @return the release most tracks are on, those with the better matches first; null when none is on any
+     * @return the releases that might have as many tracks as the album has files, those most of its files were found
+     * on first, then those with the better matches, then in the order MusicBrainz listed them
      */
-    private static UUID commonRelease(final List<TrackOptions> options) {
-        final var tracksByRelease = options.stream()
-                .flatMap(trackOptions -> trackOptions.accepted().stream()
-                        .map(candidate -> candidate.track().releaseId())
+    private static List<UUID> likelyReleases(final List<FileMatches> matches, final int fileCount) {
+        final var filesByRelease = matches.stream()
+                .flatMap(file -> file.releases().stream()
+                        .filter(release -> mayHaveTrackCount(release, fileCount))
+                        .map(Release::id)
                         .distinct())
                 .collect(groupingBy(Function.identity(), LinkedHashMap::new, counting()));
-        final var scoreByRelease = options.stream()
-                .flatMap(trackOptions -> trackOptions.accepted().stream())
+        final var scoreByRelease = matches.stream()
+                .flatMap(file -> file.ranked().stream())
                 .collect(groupingBy(
                         candidate -> candidate.track().releaseId(),
                         LinkedHashMap::new,
                         summingInt(TrackCandidate::score)));
-        final Comparator<UUID> byTrackCount = comparingLong(tracksByRelease::get);
-        // Releases that tie are taken in the order MusicBrainz listed them.
-        return tracksByRelease.keySet().stream()
-                .max(byTrackCount.thenComparingInt(scoreByRelease::get))
-                .orElse(null);
+        final Comparator<UUID> byFileCount = comparingLong(filesByRelease::get);
+        final Comparator<UUID> byScore = comparingInt(releaseId -> scoreByRelease.getOrDefault(releaseId, 0));
+        return filesByRelease.keySet().stream()
+                .sorted(byFileCount.thenComparing(byScore).reversed())
+                .limit(MAX_RELEASE_LOOKUPS)
+                .toList();
     }
 
-    private static TrackResolution albumResolution(final TrackOptions options, final UUID releaseId) {
-        final var onRelease = options.accepted().stream()
-                .filter(candidate -> candidate.track().releaseId().equals(releaseId))
-                .max(comparingInt(TrackCandidate::score));
-        return onRelease
-                .<TrackResolution>map(candidate -> new TrackResolution.Matched(candidate.track()))
-                .orElseGet(() -> new TrackResolution.NeedsReview(options.ranked()));
+    // Search results give a release's track count, and the medium the recording is on; lookups only the medium.
+    private static boolean mayHaveTrackCount(final Release release, final int fileCount) {
+        final var trackCount = release.trackCount();
+        if (trackCount == null || trackCount == fileCount) {
+            return true;
+        }
+        return release.media().stream().anyMatch(medium -> medium.trackCount() == fileCount);
+    }
+
+    /**
+     * @return where the files are placed on the part of the release that places the most, of those with as many
+     * tracks as the album has files: all of it, or one of its media; empty when no part has as many
+     */
+    private static Optional<ScopedPlacement> bestPlacement(
+            final Release release, final List<FileEvidence> evidence, final int fileCount) {
+        return scopes(release, fileCount).stream()
+                .map(scope -> new ScopedPlacement(scope, placeFiles(scopeTracks(release, scope), evidence)))
+                .max(comparingLong(ScopedPlacement::placedCount));
+    }
+
+    private static List<ReleaseScope> scopes(final Release release, final int fileCount) {
+        final var media = release.media();
+        final var wholeRelease = Stream.<ReleaseScope>of(new ReleaseScope.WholeRelease())
+                .filter(_ -> media.stream().mapToInt(Media::trackCount).sum() == fileCount);
+        // A release of one medium is that medium.
+        final var oneMedium = media.stream()
+                .filter(medium -> media.size() > 1 && medium.trackCount() == fileCount)
+                .<ReleaseScope>map(medium -> new ReleaseScope.OneMedium(medium.position()));
+        return Stream.concat(wholeRelease, oneMedium).toList();
+    }
+
+    private static List<ReleaseTrack> scopeTracks(final Release release, final ReleaseScope scope) {
+        final var media = release.media().stream().filter(medium -> switch (scope) {
+            case ReleaseScope.WholeRelease _ -> true;
+            case ReleaseScope.OneMedium one -> medium.position() == one.position();
+        });
+        return media.flatMap(medium ->
+                        mediumTracks(medium).stream().map(track -> new ReleaseTrack(medium.position(), track)))
+                .toList();
+    }
+
+    // MusicBrainz may not know a medium's tracklist.
+    private static List<Track> mediumTracks(final Media medium) {
+        if (medium.tracks() == null) {
+            return List.of();
+        }
+        return medium.tracks();
+    }
+
+    // Stable, so releases that place as many files keep their order.
+    private static List<ReleaseCandidate> rankReleases(final List<ReleaseCandidate> candidates) {
+        return candidates.stream()
+                .sorted(comparingInt(ReleaseCandidate::placedCount).reversed())
+                .toList();
     }
 
     private List<LookupResult> lookUpFingerprint(final Fingerprint fingerprint, final Duration duration) {
@@ -349,12 +450,71 @@ public final class MusicBrainzResolver implements MetadataResolver {
     private record TagEvidence(Set<UUID> matchedRecordingIds, String albumTitle, Duration duration) {}
 
     /**
-     * What a track of an album may be imported as.
+     * What was found for a file of an album.
      *
-     * @param accepted the recording on each release it would be imported on without review
-     * @param ranked   the best candidates, to choose between when it needs review
+     * @param releases the releases of the recordings it might be, those of its better matches first
+     * @param ranked   its best candidates, whose scores rank the releases
      */
-    private record TrackOptions(List<TrackCandidate> accepted, List<TrackCandidate> ranked) {}
+    private record FileMatches(FileEvidence evidence, List<Release> releases, List<TrackCandidate> ranked) {}
+
+    /**
+     * Where an album's files are placed on a part of a release.
+     *
+     * @param placements in the order the files were given
+     */
+    private record ScopedPlacement(ReleaseScope scope, List<FilePlacement> placements) {
+
+        private long placedCount() {
+            return placements.stream()
+                    .filter(placement -> switch (placement) {
+                        case FilePlacement.Placed _ -> true;
+                        case FilePlacement.Unplaced _ -> false;
+                    })
+                    .count();
+        }
+
+        /**
+         * @return each file's track, when every file is placed on a track as long as its audio; empty otherwise
+         */
+        private Optional<List<ResolvedTrack>> matchedTracks(final Release release, final List<FileEvidence> evidence) {
+            final var tracks = IntStream.range(0, placements.size())
+                    .mapToObj(file -> switch (placements.get(file)) {
+                        case FilePlacement.Placed placed
+                        when placed.track().hasLength(evidence.get(file).duration()) ->
+                            Stream.of(resolvedTrack(release, placed.track()));
+                        case FilePlacement.Placed _, FilePlacement.Unplaced _ -> Stream.<ResolvedTrack>empty();
+                    })
+                    .flatMap(Function.identity())
+                    .toList();
+            if (tracks.size() < placements.size()) {
+                return Optional.empty();
+            }
+            return Optional.of(tracks);
+        }
+
+        private ReleaseCandidate candidate(final Release release) {
+            return new ReleaseCandidate(
+                    release.id(),
+                    release.title(),
+                    firstArtist(release.artistCredit()),
+                    parsePartialDate(release.date()),
+                    release.country(),
+                    scope,
+                    (int) placedCount());
+        }
+    }
+
+    private static ResolvedTrack resolvedTrack(final Release release, final ReleaseTrack releaseTrack) {
+        final var track = releaseTrack.track();
+        final var recording = track.recording();
+        return new ResolvedTrack(
+                recording.id(),
+                recording.title(),
+                firstArtist(track.artistCredit()),
+                release.id(),
+                releaseTrack.discNumber(),
+                track.position());
+    }
 
     // The library path is built from the release, so recordings without one can't be imported.
     private static boolean hasRelease(final Recording recording) {

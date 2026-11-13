@@ -6,7 +6,6 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
-import static java.util.stream.Collectors.joining;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.samples.FlacFiles.flacFile;
@@ -26,7 +25,6 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -57,6 +55,9 @@ class MusicBrainzResolverTest {
     private static final UUID SONG_ONE_ID = UUID.fromString("a1b1c1d1-0000-4000-8000-000000000011");
     private static final UUID SONG_TWO_ID = UUID.fromString("a1b1c1d1-0000-4000-8000-000000000012");
     private static final UUID BONUS_ID = UUID.fromString("a1b1c1d1-0000-4000-8000-000000000013");
+    private static final ResolvedArtist BAND = new ResolvedArtist(COLDPLAY_ID, "Band", null);
+    private static final String BAND_CREDIT =
+            "{\"name\": \"Band\", \"artist\": {\"id\": \"" + COLDPLAY_ID + "\", \"name\": \"Band\"}}";
 
     private final MusicBrainzResolver resolver = new MusicBrainzResolver(
             newClient(musicBrainz.baseUrl() + "/ws/2/"), newAcoustIdClient(musicBrainz.baseUrl() + "/v2/"));
@@ -240,35 +241,113 @@ class MusicBrainzResolverTest {
     }
 
     @Test
-    void resolveTheTracksOfAnAlbumOnTheReleaseMostOfThemAreOn() throws IOException, InvalidFormatException {
-        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", COMPILATION_ID, ALBUM_ID));
-        stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", ALBUM_ID));
-        final var songOne = albumTrack("Song One");
-        final var songTwo = albumTrack("Song Two");
+    void matchAnAlbumOnTheReleaseWithAsManyTracksAsItHasFiles() throws IOException, InvalidFormatException {
+        // The compilation has three tracks, so it isn't even looked up.
+        stubSearch(
+                "Song One",
+                recordingJson(SONG_ONE_ID, "Song One", searchRelease(COMPILATION_ID, 3), searchRelease(ALBUM_ID, 2)));
+        stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", searchRelease(ALBUM_ID, 2)));
+        stubRelease(
+                ALBUM_ID, mediumJson(1, trackJson(1, SONG_TWO_ID, "Song Two"), trackJson(2, SONG_ONE_ID, "Song One")));
 
-        // Alone, the first track takes the first release MusicBrainz lists, which only it is on.
-        final var alone = resolver.resolveTrack(
-                songOne.trackToIngest(), songOne.metadata(), songOne.duration(), songOne.fingerprint());
-        final var resolved = resolver.resolveAlbum(List.of(songOne, songTwo));
+        final var resolved = resolver.resolveAlbum(List.of(albumTrack("Song One"), albumTrack("Song Two")));
 
-        assertThat(matchedTrack(alone).releaseId()).isEqualTo(COMPILATION_ID);
         assertThat(resolved)
-                .extracting(resolution -> matchedTrack(resolution).releaseId())
-                .containsExactly(ALBUM_ID, ALBUM_ID);
+                .isEqualTo(new AlbumResolution.Matched(List.of(
+                        new ResolvedTrack(SONG_ONE_ID, "Song One", BAND, ALBUM_ID, 1, 2),
+                        new ResolvedTrack(SONG_TWO_ID, "Song Two", BAND, ALBUM_ID, 1, 1))));
     }
 
     @Test
-    void askForReviewOfAnAlbumTrackThatIsNotOnTheAlbumsRelease() throws IOException, InvalidFormatException {
-        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", ALBUM_ID));
-        stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", ALBUM_ID));
-        stubSearch("Bonus Song", recordingJson(BONUS_ID, "Bonus Song", COMPILATION_ID));
+    void matchAnAlbumOnOneMediumOfARelease() throws IOException, InvalidFormatException {
+        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", searchRelease(ALBUM_ID, 4, 2, 2)));
+        stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", searchRelease(ALBUM_ID, 4, 2, 2)));
+        stubRelease(
+                ALBUM_ID,
+                mediumJson(1, trackJson(1, BONUS_ID, "Bonus Song"), trackJson(2, UUID.randomUUID(), "Other Song")),
+                mediumJson(2, trackJson(1, SONG_ONE_ID, "Song One"), trackJson(2, SONG_TWO_ID, "Song Two")));
+
+        final var resolved = resolver.resolveAlbum(List.of(albumTrack("Song One"), albumTrack("Song Two")));
+
+        assertThat(resolved)
+                .isEqualTo(new AlbumResolution.Matched(List.of(
+                        new ResolvedTrack(SONG_ONE_ID, "Song One", BAND, ALBUM_ID, 2, 1),
+                        new ResolvedTrack(SONG_TWO_ID, "Song Two", BAND, ALBUM_ID, 2, 2))));
+    }
+
+    @Test
+    void askForReviewOfAnAlbumNoReleasePlacesEveryFileOf() throws IOException, InvalidFormatException {
+        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", searchRelease(ALBUM_ID, 3)));
+        stubSearch("Song Two", recordingJson(SONG_TWO_ID, "Song Two", searchRelease(ALBUM_ID, 3)));
+        stubSearch("Bonus Song", recordingJson(BONUS_ID, "Bonus Song", searchRelease(COMPILATION_ID, 9)));
+        stubRelease(
+                ALBUM_ID,
+                mediumJson(
+                        1,
+                        trackJson(1, SONG_ONE_ID, "Song One"),
+                        trackJson(2, SONG_TWO_ID, "Song Two"),
+                        trackJson(3, UUID.randomUUID(), "Other Song")));
 
         final var resolved = resolver.resolveAlbum(
                 List.of(albumTrack("Song One"), albumTrack("Song Two"), albumTrack("Bonus Song")));
 
-        assertThat(matchedTrack(resolved.get(0)).releaseId()).isEqualTo(ALBUM_ID);
-        assertThat(matchedTrack(resolved.get(1)).releaseId()).isEqualTo(ALBUM_ID);
-        assertThat(resolved.get(2)).isInstanceOf(TrackResolution.NeedsReview.class);
+        final var review = needsReview(resolved);
+        assertThat(review.releases())
+                .containsExactly(new ReleaseCandidate(
+                        ALBUM_ID,
+                        "Release " + ALBUM_ID,
+                        BAND,
+                        LocalDate.of(2002, 8, 26),
+                        "GB",
+                        new ReleaseScope.WholeRelease(),
+                        2));
+    }
+
+    @Test
+    void placeNoAlbumFileByALooseFingerprintMatchAlone() throws IOException, InvalidFormatException {
+        final var otherSong = UUID.randomUUID();
+        stubFingerprintMatch(aResponse().withBody("""
+                {"results": [{"id": "9ff43b6a-4f16-427c-93c2-92307ca505e0", "score": 0.6,
+                    "recordings": [{"id": "%s"}]}], "status": "ok"}
+                """.formatted(otherSong)));
+        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", searchRelease(ALBUM_ID, 1)));
+        stubRelease(ALBUM_ID, mediumJson(1, trackJson(1, otherSong, "Other Song")));
+
+        final var resolved = resolver.resolveAlbum(List.of(albumTrack("Song One")));
+
+        assertThat(needsReview(resolved).releases())
+                .extracting(ReleaseCandidate::placedCount)
+                .containsExactly(0);
+    }
+
+    @Test
+    void askForReviewOfAnAlbumWhoseTracksAreNotAsLongAsItsFiles() throws IOException, InvalidFormatException {
+        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", searchRelease(ALBUM_ID, 1)));
+        stubRelease(ALBUM_ID, mediumJson(1, trackJson(1, SONG_ONE_ID, "Song One", Duration.ofMinutes(5))));
+
+        final var resolved = resolver.resolveAlbum(List.of(albumTrack("Song One")));
+
+        assertThat(needsReview(resolved).releases())
+                .extracting(ReleaseCandidate::placedCount)
+                .containsExactly(1);
+    }
+
+    @Test
+    void askForReviewWithNoReleasesWhenNoneHasAsManyTracksAsTheAlbumHasFiles()
+            throws IOException, InvalidFormatException {
+        // Nor is the release looked up.
+        stubSearch("Song One", recordingJson(SONG_ONE_ID, "Song One", searchRelease(ALBUM_ID, 11)));
+
+        final var resolved = resolver.resolveAlbum(List.of(albumTrack("Song One")));
+
+        assertThat(needsReview(resolved).releases()).isEmpty();
+    }
+
+    private static AlbumResolution.NeedsReview needsReview(final AlbumResolution resolution) {
+        return switch (resolution) {
+            case AlbumResolution.NeedsReview review -> review;
+            case AlbumResolution.Matched _ -> throw new AssertionError("Expected a review, but " + resolution);
+        };
     }
 
     private static AlbumTrack albumTrack(final String title) throws IOException, InvalidFormatException {
@@ -286,16 +365,52 @@ class MusicBrainzResolverTest {
     }
 
     // A 4:00 recording of the band, on each release in turn, found by the search with full marks.
-    private static String recordingJson(final UUID recordingId, final String title, final UUID... releaseIds) {
-        final var releases = Stream.of(releaseIds)
-                .map(releaseId -> """
-                        {"id": "%s", "title": "Release %s",
-                         "media": [{"position": 1, "track-count": 3, "track-offset": 0}]}""".formatted(releaseId, releaseId))
-                .collect(joining(","));
+    private static String recordingJson(final UUID recordingId, final String title, final String... releases) {
         return """
-                {"id": "%s", "score": 100, "title": "%s", "length": 240000,
-                 "artist-credit": [{"name": "Band", "artist": {"id": "%s", "name": "Band"}}],
-                 "releases": [%s]}""".formatted(recordingId, title, COLDPLAY_ID, releases);
+                {"id": "%s", "score": 100, "title": "%s", "length": 240000, "artist-credit": [%s],
+                 "releases": [%s]}""".formatted(recordingId, title, BAND_CREDIT, String.join(",", releases));
+    }
+
+    // A release of one medium, as a recording search lists it.
+    private static String searchRelease(final UUID releaseId, final int trackCount) {
+        return searchRelease(releaseId, trackCount, 1, trackCount);
+    }
+
+    // A recording search lists only the medium the recording is on.
+    private static String searchRelease(
+            final UUID releaseId, final int trackCount, final int mediumPosition, final int mediumTrackCount) {
+        return """
+                {"id": "%s", "title": "Release %s", "track-count": %d,
+                 "media": [{"position": %d, "track-count": %d, "track-offset": 0}]}""".formatted(releaseId, releaseId, trackCount, mediumPosition, mediumTrackCount);
+    }
+
+    // The release, looked up with its tracklist.
+    private static void stubRelease(final UUID releaseId, final String... media) {
+        musicBrainz.stubFor(get(urlPathEqualTo("/ws/2/release/" + releaseId))
+                .atPriority(1)
+                .willReturn(aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"id": "%s", "title": "Release %s", "date": "2002-08-26", "country": "GB",
+                                 "artist-credit": [%s], "media": [%s]}""".formatted(releaseId, releaseId, BAND_CREDIT, String.join(",", media)))));
+    }
+
+    private static String mediumJson(final int position, final String... tracks) {
+        return """
+                {"position": %d, "track-count": %d, "tracks": [%s]}""".formatted(position, tracks.length, String.join(",", tracks));
+    }
+
+    private static String trackJson(final int position, final UUID recordingId, final String title) {
+        return trackJson(position, recordingId, title, Duration.ofSeconds(240));
+    }
+
+    private static String trackJson(
+            final int position, final UUID recordingId, final String title, final Duration length) {
+        final var millis = length.toMillis();
+        return """
+                {"id": "%s", "position": %d, "number": "%d", "title": "%s", "length": %d,
+                 "recording": {"id": "%s", "title": "%s", "length": %d}, "artist-credit": [%s]}""".formatted(
+                        UUID.randomUUID(), position, position, title, millis, recordingId, title, millis, BAND_CREDIT);
     }
 
     private static ResolvedTrack matchedTrack(final TrackResolution resolution) {

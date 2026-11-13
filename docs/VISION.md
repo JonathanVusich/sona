@@ -61,9 +61,10 @@ There is no deadline. Done when it's good.
 - **Matching unit:** match **per album** (use every track in an ingest group to choose one release),
   **falling back to per-track** matching for loose files.
 - **Ingest groups are the uploader's own grouping.** When a user uploads files together as one album, that is a signal
-  in itself: the files most likely belong to one release. Tags alone don't always settle the release (they may be
-  missing, sparse, or differ from file to file), so the group is another data point for choosing it, above all when a
-  file has no MusicBrainz IDs or other tagging data.
+  in itself: the files are one release, or one disc of it. Tags alone don't always settle the release (they may be
+  missing, sparse, or differ from file to file), so the group is matched as a whole, to a release that all of, or one
+  of whose discs, has as many tracks as the group has files, and Sona places each file on a track itself. When no
+  release fits, the uploader chooses one from those that might.
 - **Uploads are grouped by folder.** The upload page groups the files a user picks by their folders, and the user can
   fix the groups before uploading. Loose files go into one **unknown** group: the user may move tracks out of it into
   groups of their own, and Sona works out how the rest belong together when it matches them.

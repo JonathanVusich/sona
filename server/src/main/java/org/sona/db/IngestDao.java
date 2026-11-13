@@ -9,6 +9,7 @@ import static org.jooq.impl.DSL.selectOne;
 import static org.jooq.impl.DSL.when;
 import static org.sona.model.Tables.INGEST_CANDIDATE;
 import static org.sona.model.Tables.INGEST_GROUP;
+import static org.sona.model.Tables.INGEST_GROUP_CANDIDATE;
 import static org.sona.model.Tables.TRACK_TO_INGEST;
 
 import java.util.List;
@@ -18,12 +19,14 @@ import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Records;
 import org.sona.mappers.IngestCandidateMapper;
+import org.sona.mappers.IngestGroupCandidateMapper;
 import org.sona.mappers.IngestGroupMapper;
 import org.sona.mappers.TrackToIngestMapper;
 import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.IngestCandidate;
 import org.sona.model.tables.pojos.IngestGroup;
+import org.sona.model.tables.pojos.IngestGroupCandidate;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +43,7 @@ public class IngestDao {
     private final IngestGroupMapper ingestGroupMapper;
     private final TrackToIngestMapper trackToIngestMapper;
     private final IngestCandidateMapper ingestCandidateMapper;
+    private final IngestGroupCandidateMapper ingestGroupCandidateMapper;
 
     public void insertGroup(final IngestGroup ingestGroup) {
         dsl.insertInto(INGEST_GROUP)
@@ -77,6 +81,25 @@ public class IngestDao {
                 .where(INGEST_GROUP.STATE.eq(IngestGroupState.UPLOADED))
                 .orderBy(INGEST_GROUP.INGEST_GROUP_ID)
                 .fetch(Records.mapping(UploadedGroup::new));
+    }
+
+    /**
+     * Replaces the releases stored for the group to choose between, as matching it again finds them anew.
+     */
+    public void replaceGroupCandidates(final UUID ingestGroupId, final List<IngestGroupCandidate> candidates) {
+        // Two statements, as each candidate's rank is checked as it's inserted: the old ones must be gone by then.
+        dsl.deleteFrom(INGEST_GROUP_CANDIDATE)
+                .where(INGEST_GROUP_CANDIDATE.INGEST_GROUP_ID.eq(ingestGroupId))
+                .execute();
+        if (candidates.isEmpty()) {
+            return;
+        }
+        final var records =
+                candidates.stream().map(ingestGroupCandidateMapper::toRecord).toList();
+        dsl.insertInto(INGEST_GROUP_CANDIDATE)
+                .columns(INGEST_GROUP_CANDIDATE.fields())
+                .valuesOfRecords(records)
+                .execute();
     }
 
     public void setGroupState(final UUID ingestGroupId, final IngestGroupState state) {
