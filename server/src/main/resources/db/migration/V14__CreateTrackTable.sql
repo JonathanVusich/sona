@@ -1,4 +1,4 @@
--- Values match org.sona.format.Format.
+-- Values match dev.javax.sonaudio.format.Format.
 create type audio_format as enum ('FLAC', 'MP3');
 
 create table if not exists track (

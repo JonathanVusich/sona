@@ -1,8 +1,8 @@
 package org.sona.engine;
 
+import dev.javax.sonaudio.exception.InvalidFormatException;
 import java.io.IOException;
 import java.util.List;
-import org.sona.exception.InvalidFormatException;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackCandidate;
 import org.sona.metadata.resolver.TrackResolution;

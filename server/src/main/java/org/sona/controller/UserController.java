@@ -1,5 +1,6 @@
 package org.sona.controller;
 
+import dev.javax.sonaudio.format.Format;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.sona.auth.PasswordChecker;
@@ -7,7 +8,6 @@ import org.sona.auth.UserAuthentication;
 import org.sona.config.properties.LibraryProperties;
 import org.sona.controller.request.ChangePasswordRequest;
 import org.sona.controller.response.CurrentUserResponse;
-import org.sona.format.Format;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

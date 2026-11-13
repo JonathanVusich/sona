@@ -9,6 +9,7 @@ import static org.sona.samples.IngestUploadUtils.loadGroup;
 import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.utils.IDGenerator.uuidv7;
 
+import dev.javax.sonaudio.metadata.RawMetadata;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.time.Duration;
@@ -26,7 +27,6 @@ import org.sona.controller.response.TrackIngestResponse;
 import org.sona.db.IngestDao;
 import org.sona.db.UserDao;
 import org.sona.library.Library;
-import org.sona.metadata.RawMetadata;
 import org.sona.model.enums.AccountState;
 import org.sona.model.enums.IngestGroupKind;
 import org.sona.model.enums.IngestGroupState;
