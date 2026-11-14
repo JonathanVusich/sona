@@ -39,7 +39,8 @@ public class MusicBrainzClient {
     }
 
     /**
-     * @return the release with its artists, labels, release group (with its artists) and media
+     * @return the release with its artists, labels, release group (with its artists) and media, each with its tracks
+     * and their recordings
      */
     @Retry(name = "musicbrainz")
     @RateLimiter(name = "musicbrainz")
@@ -50,7 +51,7 @@ public class MusicBrainzClient {
                         .path(EntityType.RELEASE.getPath() + "/{id}")
                         .queryParam("inc", "{inc}")
                         .queryParam("fmt", "json")
-                        .build(releaseId, "artist-credits labels release-groups media"))
+                        .build(releaseId, "artist-credits labels release-groups media recordings"))
                 .header(USER_AGENT, USER_AGENT_VALUE)
                 .retrieve()
                 .body(Release.class);

@@ -3,7 +3,7 @@
     "method": "GET",
     "urlPath": "/ws/2/release/db85c244-53e7-441c-bab0-52c9c0d27450",
     "queryParameters": {
-      "inc": { "equalTo": "artist-credits labels release-groups media" },
+      "inc": { "equalTo": "artist-credits labels release-groups media recordings" },
       "fmt": { "equalTo": "json" }
     }
   },

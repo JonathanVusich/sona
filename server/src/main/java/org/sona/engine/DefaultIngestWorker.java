@@ -4,10 +4,13 @@ import dev.javax.sonaudio.exception.InvalidFormatException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.sona.db.IngestDao;
 import org.sona.db.UploadedGroup;
+import org.sona.metadata.resolver.AlbumResolution;
+import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackResolution;
 import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
@@ -48,19 +51,20 @@ public final class DefaultIngestWorker implements IngestWorker {
         final var groups = ingestDao.loadUploadedGroups();
         for (final var uploaded : groups) {
             processGroup(uploaded);
-            ingestDao.setGroupState(uploaded.group().ingestGroupId(), IngestGroupState.MATCHED);
         }
     }
 
     // An album is matched as a whole. Loose files are matched one by one.
     private void processGroup(final UploadedGroup uploaded) {
+        final var ingestGroupId = uploaded.group().ingestGroupId();
         final var pending = uploaded.trackIngests();
         switch (uploaded.group().kind()) {
-            case ALBUM -> processAlbum(pending);
+            case ALBUM -> processAlbum(ingestGroupId, pending);
             case UNKNOWN -> {
                 for (final var ingest : pending) {
                     processLooseFile(ingest);
                 }
+                ingestDao.setGroupState(ingestGroupId, IngestGroupState.MATCHED);
             }
         }
     }
@@ -74,23 +78,52 @@ public final class DefaultIngestWorker implements IngestWorker {
         }
     }
 
-    private void processAlbum(final List<TrackToIngest> pending) {
+    // An album no release could be matched to waits for its uploader to choose one; any other is matched, whatever came
+    // of each file.
+    private void processAlbum(final UUID ingestGroupId, final List<TrackToIngest> pending) {
         final var parsedTracks = parseAlbum(pending);
-        final List<TrackResolution> resolutions;
+        if (!parsedTracks.isEmpty()) {
+            final var outcome = matchAlbum(ingestGroupId, parsedTracks);
+            if (outcome == AlbumOutcome.NEEDS_REVIEW) {
+                return;
+            }
+        }
+        ingestDao.setGroupState(ingestGroupId, IngestGroupState.MATCHED);
+    }
+
+    private AlbumOutcome matchAlbum(final UUID ingestGroupId, final List<ParsedTrack> parsedTracks) {
         try {
-            resolutions = engine.resolveAlbum(parsedTracks);
+            return switch (engine.resolveAlbum(parsedTracks)) {
+                case AlbumResolution.Matched matched -> {
+                    for (var index = 0; index < parsedTracks.size(); index++) {
+                        importAlbumTrack(
+                                parsedTracks.get(index), matched.tracks().get(index));
+                    }
+                    yield AlbumOutcome.IMPORTED;
+                }
+                case AlbumResolution.NeedsReview review -> {
+                    final var files = parsedTracks.stream()
+                            .map(ParsedTrack::trackToIngest)
+                            .toList();
+                    engine.requireAlbumInput(ingestGroupId, files, review);
+                    yield AlbumOutcome.NEEDS_REVIEW;
+                }
+            };
         } catch (RuntimeException e) {
             for (final var parsed : parsedTracks) {
                 fail(parsed.trackToIngest(), e);
             }
-            return;
-        }
-        for (var index = 0; index < parsedTracks.size(); index++) {
-            importAlbumTrack(parsedTracks.get(index), resolutions.get(index));
+            return AlbumOutcome.FAILED;
         }
     }
 
-    // A file that can't be read fails, and the rest of the album is still matched.
+    private enum AlbumOutcome {
+        IMPORTED,
+        NEEDS_REVIEW,
+        FAILED
+    }
+
+    // A file that can't be read fails, and is left out: the rest of the album is matched as if it had no such file.
     private List<ParsedTrack> parseAlbum(final List<TrackToIngest> pending) {
         final var parsedTracks = new ArrayList<ParsedTrack>();
         for (final var ingest : pending) {
@@ -103,9 +136,9 @@ public final class DefaultIngestWorker implements IngestWorker {
         return parsedTracks;
     }
 
-    private void importAlbumTrack(final ParsedTrack parsed, final TrackResolution resolution) {
+    private void importAlbumTrack(final ParsedTrack parsed, final ResolvedTrack track) {
         try {
-            importTrack(parsed, resolution);
+            moveTrack(parsed.trackToIngest(), engine.storeTrack(parsed, track));
         } catch (RuntimeException e) {
             fail(parsed.trackToIngest(), e);
         }

@@ -206,12 +206,10 @@ class UploadE2ETest {
     }
 
     @Test
-    void anUploadedFileIsShownAddedToTheLibrary(final Page page) throws IOException, InterruptedException {
-        final var files = Jimfs.newFileSystem(Configuration.unix());
-        final var album = Files.createDirectories(files.getPath("/Coldplay/Parachutes"));
-        Files.write(album.resolve("09 A Whisper.flac"), whisper());
+    void anUploadedFileIsShownAddedToTheLibrary(final Page page) throws InterruptedException {
+        // A loose file: a folder of one is an album, which only a release of one track matches.
         final var uploadPage = logInAndOpen(page);
-        uploadPage.chooseFolder(files.getPath("/Coldplay"));
+        uploadPage.chooseFiles(new FilePayload("09 A Whisper.flac", "audio/flac", whisper()));
         awaitProgressSubscription();
 
         uploadPage.uploadButton().click();

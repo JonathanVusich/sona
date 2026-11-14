@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -29,17 +30,22 @@ import org.sona.db.ReleaseGroupDao;
 import org.sona.db.ReleaseWithMedia;
 import org.sona.db.TrackDao;
 import org.sona.library.Library;
+import org.sona.metadata.resolver.AlbumResolution;
 import org.sona.metadata.resolver.AlbumTrack;
 import org.sona.metadata.resolver.MetadataResolver;
+import org.sona.metadata.resolver.ReleaseCandidate;
+import org.sona.metadata.resolver.ReleaseScope;
 import org.sona.metadata.resolver.ResolvedArtist;
 import org.sona.metadata.resolver.ResolvedRelease;
 import org.sona.metadata.resolver.ResolvedTrack;
 import org.sona.metadata.resolver.TrackCandidate;
 import org.sona.metadata.resolver.TrackResolution;
 import org.sona.model.enums.AudioFormat;
+import org.sona.model.enums.IngestGroupState;
 import org.sona.model.enums.IngestState;
 import org.sona.model.tables.pojos.Artist;
 import org.sona.model.tables.pojos.IngestCandidate;
+import org.sona.model.tables.pojos.IngestGroupCandidate;
 import org.sona.model.tables.pojos.Label;
 import org.sona.model.tables.pojos.Medium;
 import org.sona.model.tables.pojos.Release;
@@ -78,12 +84,55 @@ public final class DefaultIngestionEngine implements IngestionEngine {
     }
 
     @Override
-    public List<TrackResolution> resolveAlbum(final List<ParsedTrack> parsedTracks) {
+    public AlbumResolution resolveAlbum(final List<ParsedTrack> parsedTracks) {
         final var albumTracks = parsedTracks.stream()
                 .map(parsed -> new AlbumTrack(
                         parsed.trackToIngest(), parsed.metadata(), parsed.duration(), parsed.fingerprint()))
                 .toList();
         return resolver.resolveAlbum(albumTracks);
+    }
+
+    // The group's candidates are stored first, then the files' states, and the group's state is set last, so whoever
+    // sees a state finds what it needs.
+    @Override
+    public void requireAlbumInput(
+            final UUID ingestGroupId, final List<TrackToIngest> files, final AlbumResolution.NeedsReview review) {
+        ingestDao.replaceGroupCandidates(ingestGroupId, newIngestGroupCandidates(ingestGroupId, review.releases()));
+        for (final var file : files) {
+            markState(file, IngestState.INPUT_REQUIRED);
+        }
+        ingestDao.setGroupState(ingestGroupId, IngestGroupState.INPUT_REQUIRED);
+    }
+
+    private static List<IngestGroupCandidate> newIngestGroupCandidates(
+            final UUID ingestGroupId, final List<ReleaseCandidate> releases) {
+        return IntStream.range(0, releases.size())
+                .mapToObj(index -> newIngestGroupCandidate(ingestGroupId, releases.get(index), index + 1))
+                .toList();
+    }
+
+    private static IngestGroupCandidate newIngestGroupCandidate(
+            final UUID ingestGroupId, final ReleaseCandidate release, final int rank) {
+        return new IngestGroupCandidate(
+                uuidv7(),
+                ingestGroupId,
+                rank,
+                release.releaseId(),
+                release.title(),
+                release.artist().artistId(),
+                release.artist().name(),
+                release.date(),
+                release.country(),
+                mediumPosition(release.scope()),
+                release.placedCount());
+    }
+
+    // Null when the files are the whole release, as the column says.
+    private static Integer mediumPosition(final ReleaseScope scope) {
+        return switch (scope) {
+            case ReleaseScope.WholeRelease _ -> null;
+            case ReleaseScope.OneMedium medium -> medium.position();
+        };
     }
 
     // The candidates are stored first, so whoever sees the state finds them.

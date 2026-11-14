@@ -1,7 +1,10 @@
 package org.sona.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.sona.auth.TestUsers.insertUser;
+import static org.sona.model.Tables.INGEST_GROUP;
+import static org.sona.model.Tables.INGEST_GROUP_CANDIDATE;
 import static org.sona.model.Tables.TRACK;
 import static org.sona.samples.FlacFiles.flacFile;
 import static org.sona.samples.IngestUploadUtils.createAndUpload;
@@ -10,6 +13,7 @@ import static org.sona.samples.IngestUploadUtils.loadIngest;
 import static org.sona.samples.IngestUploadUtils.upload;
 import static org.sona.utils.IDGenerator.uuidv7;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import dev.javax.sonaudio.metadata.RawMetadata;
 import dev.javax.sonaudio.metadata.RawMetadataBuilder;
 import dev.javax.sonaudio.metadata.Tag;
@@ -18,6 +22,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
 import org.jooq.DSLContext;
+import org.jooq.Records;
 import org.junit.jupiter.api.Test;
 import org.sona.IntegrationTest;
 import org.sona.db.IngestDao;
@@ -33,6 +38,7 @@ import org.sona.model.enums.UserType;
 import org.sona.model.tables.pojos.IngestGroup;
 import org.sona.model.tables.pojos.TrackToIngest;
 import org.sona.model.tables.pojos.Users;
+import org.sona.samples.TwoTrackAlbum;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -58,6 +64,9 @@ class DefaultIngestWorkerTest {
 
     @Autowired
     ReleaseDao releaseDao;
+
+    @Autowired
+    WireMockServer musicBrainz;
 
     @Test
     void aPassImportsEveryPendingIngest() throws IOException {
@@ -119,29 +128,73 @@ class DefaultIngestWorkerTest {
         final var group = storeGroup(IngestGroupKind.ALBUM);
         final var first = createIngest(ingestDao, group, "track.flac");
         final var second = createIngest(ingestDao, group, "track.flac");
-        upload(library, first, flacFile(whisperMetadata()));
+        upload(library, first, flacFile(metadata("Song One", "Coldplay")));
 
         worker.processPending();
 
         assertThat(reloadState(first)).isEqualTo(IngestState.UPLOADED);
 
-        upload(library, second, flacFile(whisperMetadata()));
-        worker.processPending();
+        upload(library, second, flacFile(metadata("Song Two", "Coldplay")));
+        processWithTwoTrackAlbum();
 
         assertThat(reloadState(first)).isEqualTo(IngestState.COMPLETED);
         assertThat(reloadState(second)).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadGroupState(group)).isEqualTo(IngestGroupState.MATCHED);
     }
 
     @Test
-    void anAlbumWithAFileThatIsNotFlacStillImportsTheRest() throws IOException {
+    void anAlbumWithAFileThatIsNotFlacIsMatchedOnTheRest() throws IOException {
         final var group = storeGroup(IngestGroupKind.ALBUM);
         final var broken = createAndUpload(ingestDao, library, group, "track.flac", new byte[] {1, 2, 3, 4});
-        final var whisper = createAndUpload(ingestDao, library, group, "track.flac", flacFile(whisperMetadata()));
+        final var songOne =
+                createAndUpload(ingestDao, library, group, "track.flac", flacFile(metadata("Song One", "Coldplay")));
+        final var songTwo =
+                createAndUpload(ingestDao, library, group, "track.flac", flacFile(metadata("Song Two", "Coldplay")));
 
-        worker.processPending();
+        // Two files are read, so the album of two tracks matches.
+        processWithTwoTrackAlbum();
 
         assertThat(reloadState(broken)).isEqualTo(IngestState.FAILED);
-        assertThat(reloadState(whisper)).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadState(songOne)).isEqualTo(IngestState.COMPLETED);
+        assertThat(reloadState(songTwo)).isEqualTo(IngestState.COMPLETED);
+    }
+
+    @Test
+    void anAlbumNoReleaseMatchesWaitsForItsUploaderWithTheReleasesItMightBe() throws IOException {
+        final var group = storeGroup(IngestGroupKind.ALBUM);
+        final var song =
+                createAndUpload(ingestDao, library, group, "track.flac", flacFile(metadata("Song One", "Coldplay")));
+        final var unknown = createAndUpload(
+                ingestDao,
+                library,
+                group,
+                "track.flac",
+                flacFile(metadata("Zzyzx Qwerty Nonexistent Song", "Nobody Atall")));
+
+        processWithTwoTrackAlbum();
+
+        assertThat(reloadState(song)).isEqualTo(IngestState.INPUT_REQUIRED);
+        assertThat(reloadState(unknown)).isEqualTo(IngestState.INPUT_REQUIRED);
+        assertThat(reloadGroupState(group)).isEqualTo(IngestGroupState.INPUT_REQUIRED);
+        assertThat(dsl.select(INGEST_GROUP_CANDIDATE.MUSICBRAINZ_RELEASE_ID, INGEST_GROUP_CANDIDATE.PLACED_COUNT)
+                        .from(INGEST_GROUP_CANDIDATE)
+                        .where(INGEST_GROUP_CANDIDATE.INGEST_GROUP_ID.eq(group.ingestGroupId()))
+                        .fetch(Records.mapping((releaseId, placedCount) -> tuple(releaseId, placedCount))))
+                .containsExactly(tuple(TwoTrackAlbum.RELEASE_ID, 1));
+    }
+
+    private void processWithTwoTrackAlbum() {
+        final var stubIds = TwoTrackAlbum.stub(musicBrainz);
+        try {
+            worker.processPending();
+        } finally {
+            // The stub server is shared with other tests.
+            TwoTrackAlbum.removeStubs(musicBrainz, stubIds);
+        }
+    }
+
+    private IngestGroupState reloadGroupState(final IngestGroup group) {
+        return dsl.fetchValue(INGEST_GROUP.STATE, INGEST_GROUP.INGEST_GROUP_ID.eq(group.ingestGroupId()));
     }
 
     @Test
@@ -172,8 +225,9 @@ class DefaultIngestWorkerTest {
         return group;
     }
 
+    // A loose file: an album of one is matched only on a release of one track.
     private TrackToIngest storeIngest(final byte[] file) throws IOException {
-        final var group = storeGroup(IngestGroupKind.ALBUM);
+        final var group = storeGroup(IngestGroupKind.UNKNOWN);
         return createAndUpload(ingestDao, library, group, "track.flac", file);
     }
 

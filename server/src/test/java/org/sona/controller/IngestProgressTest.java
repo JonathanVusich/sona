@@ -175,7 +175,7 @@ class IngestProgressTest {
         final var token = token(uploader);
         final var group = api.createIngestGroup(
                         token,
-                        new IngestGroupRequest(IngestGroupKind.ALBUM, "Parachutes", List.of("09 A Whisper.flac")))
+                        new IngestGroupRequest(IngestGroupKind.UNKNOWN, "Loose files", List.of("09 A Whisper.flac")))
                 .expectStatus()
                 .isCreated()
                 .expectBody(IngestGroupResponse.class)
